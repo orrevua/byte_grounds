@@ -29,6 +29,7 @@ export class PeerLink {
   readonly polite: boolean;
   private makingOffer = false;
   private ignoreOffer = false;
+  private videoSender: RTCRtpSender | null = null;
 
   constructor(
     readonly selfId: PeerId,
@@ -39,7 +40,11 @@ export class PeerLink {
     this.polite = isPolite(selfId, peerId);
     this.pc = new RTCPeerConnection({ iceServers: [{ urls: STUN_URLS }] });
 
-    if (localStream) for (const t of localStream.getTracks()) this.pc.addTrack(t, localStream);
+    if (localStream) {
+      for (const t of localStream.getAudioTracks()) this.pc.addTrack(t, localStream);
+      const video = localStream.getVideoTracks()[0];
+      if (video) this.setVideo(video, localStream);
+    }
 
     this.pc.onicecandidate = ({ candidate }) => {
       if (candidate) cb.sendIce(candidate.toJSON());
@@ -63,6 +68,23 @@ export class PeerLink {
         this.makingOffer = false;
       }
     };
+  }
+
+  /**
+   * Start/stop sending our camera. Adding the track or flipping the transceiver direction
+   * renegotiates (perfect negotiation via onnegotiationneeded), and the remote stream gets
+   * addtrack/removetrack, which is what shows/hides their bubble.
+   */
+  setVideo(track: MediaStreamTrack | null, stream: MediaStream): void {
+    if (this.pc.signalingState === 'closed') return;
+    const transceiver = this.pc.getTransceivers().find((t) => t.sender === this.videoSender);
+    if (!transceiver) {
+      if (track) this.videoSender = this.pc.addTrack(track, stream);
+      return;
+    }
+    // Reuse the same transceiver on every toggle so m-lines don't pile up.
+    void transceiver.sender.replaceTrack(track);
+    transceiver.direction = track ? 'sendrecv' : 'recvonly';
   }
 
   /** Handle a relayed offer or answer with glare-safe collision rules. */
@@ -148,6 +170,11 @@ export class WebrtcMesh {
     if (!link) return; // answer/ice with no local link: nothing to apply
     if (msg.type === 'answer') await link.onDescription(msg.sdp);
     else await link.onIce(msg.candidate);
+  }
+
+  /** Apply a camera on/off to every open peer connection. */
+  setVideo(track: MediaStreamTrack | null, stream: MediaStream): void {
+    for (const link of this.links.values()) link.setVideo(track, stream);
   }
 
   closeAll(): void {
