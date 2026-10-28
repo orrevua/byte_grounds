@@ -85,7 +85,6 @@ From an LPC-style interior pack (its pack preview image was not kept).
 
 - Author: geloescht
 
-## Still to fill in
+## bookshelf-brown.png, bookshelf-green.png, drawer_shelf-brown.png, drawer_shelf-green.png
 
-- bookshelf-brown.png, bookshelf-green.png
-- drawer_shelf-brown.png, drawer_shelf-green.png
+- Lanea Zimmerman (Sharm) & Tuomo Untinen (Reemax)
