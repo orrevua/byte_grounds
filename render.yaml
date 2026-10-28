@@ -1,0 +1,13 @@
+# Render Blueprint for the ByteGrounds WebSocket relay (client is hosted on Vercel).
+# Render → New → Blueprint → pick this repo. Use the resulting https URL as wss://… in Vercel's VITE_WS_URL.
+services:
+  - type: web
+    name: byte-grounds-ws
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start --workspace server
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "24"

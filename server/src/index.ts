@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { createServer } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { DEFAULT_ROOM } from '@byte_grounds/shared/protocol';
 import type {
@@ -25,7 +26,14 @@ function broadcast(exceptId: PeerId, msg: ServerToClient): void {
   }
 }
 
-const wss = new WebSocketServer({ port: PORT });
+// Plain HTTP answers health checks from hosting platforms (e.g. Render); WebSocket upgrades go to `wss`.
+const http = createServer((req, res) => {
+  const ok = req.url === '/' || req.url === '/healthz';
+  res.writeHead(ok ? 200 : 404, { 'content-type': 'text/plain' });
+  res.end(ok ? 'ok' : 'not found');
+});
+const wss = new WebSocketServer({ server: http });
+http.listen(PORT);
 
 wss.on('connection', (ws) => {
   const selfId = randomUUID();
