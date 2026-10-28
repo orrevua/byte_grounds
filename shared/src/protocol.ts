@@ -37,7 +37,10 @@ export interface JoinMsg {
   name: string;
   color: string;
   appearance: Appearance;
-  room?: string;
+  room?: string; // map id; each map is its own room
+  /** Start position (e.g. the player's saved spot); the map spawn when absent. */
+  x?: number;
+  y?: number;
 }
 export interface PositionMsg {
   type: 'position';

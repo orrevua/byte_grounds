@@ -8,6 +8,7 @@ import type {
   ServerToClient,
 } from '@byte_grounds/shared/protocol';
 import { OFFICE_MAP } from '@byte_grounds/shared/map';
+import { getSupabase } from './supabase.ts';
 import { reconnectDelay, type Net, type NetHandlers } from './net.ts';
 
 /**
@@ -80,16 +81,13 @@ export class SupabaseNet implements Net {
       name: join.name,
       color: join.color,
       appearance: join.appearance,
-      x: OFFICE_MAP.spawn.x,
-      y: OFFICE_MAP.spawn.y,
+      x: join.x ?? OFFICE_MAP.spawn.x,
+      y: join.y ?? OFFICE_MAP.spawn.y,
     };
     handlers.onStatus?.('connecting');
-    // Loaded lazily so the default ws build doesn't pay for the Supabase bundle.
-    void import('@supabase/supabase-js').then(({ createClient }) => {
+    void getSupabase(this.url, this.key).then((client) => {
       if (this.closed) return;
-      // `worker`: heartbeats run in a Web Worker, so background tabs / locked phones (whose
-      // timers get throttled) don't miss them and get dropped by the server.
-      this.client = createClient(this.url, this.key, { realtime: { worker: true } });
+      this.client = client;
       this.open();
     });
     globalThis.addEventListener?.('pagehide', this.sayBye);

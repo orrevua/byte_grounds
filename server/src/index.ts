@@ -13,17 +13,27 @@ import { Room } from './room.ts';
 
 const PORT = Number(process.env.PORT ?? 8080);
 
-const room = new Room();
+/** One Room per map id; a socket joins exactly one. */
+const rooms = new Map<string, Room>();
 const sockets = new Map<PeerId, WebSocket>();
+const roomOf = new Map<PeerId, string>();
 
 function send(ws: WebSocket, msg: ServerToClient): void {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
 }
 
 function broadcast(exceptId: PeerId, msg: ServerToClient): void {
-  for (const [id, ws] of sockets) {
-    if (id !== exceptId) send(ws, msg);
+  const room = rooms.get(roomOf.get(exceptId) ?? '');
+  if (!room) return;
+  for (const peer of room.list(exceptId)) {
+    const ws = sockets.get(peer.id);
+    if (ws) send(ws, msg);
   }
+}
+
+/** Signaling only reaches peers in the sender's room. */
+function sameRoom(a: PeerId, b: PeerId): boolean {
+  return roomOf.has(a) && roomOf.get(a) === roomOf.get(b);
 }
 
 // Plain HTTP answers health checks from hosting platforms (e.g. Render); WebSocket upgrades go to `wss`.
@@ -52,38 +62,42 @@ wss.on('connection', (ws) => {
       case 'join': {
         if (joined) return;
         joined = true;
+        const roomId = msg.room ?? DEFAULT_ROOM;
+        let room = rooms.get(roomId);
+        if (!room) rooms.set(roomId, (room = new Room()));
+        roomOf.set(selfId, roomId);
         const peer: PeerState = {
           id: selfId,
           name: msg.name,
           color: msg.color,
           appearance: msg.appearance,
-          x: OFFICE_MAP.spawn.x,
-          y: OFFICE_MAP.spawn.y,
+          x: Number.isFinite(msg.x) ? msg.x! : OFFICE_MAP.spawn.x,
+          y: Number.isFinite(msg.y) ? msg.y! : OFFICE_MAP.spawn.y,
         };
         room.add(peer);
-        send(ws, { type: 'welcome', selfId, room: msg.room ?? DEFAULT_ROOM });
+        send(ws, { type: 'welcome', selfId, room: roomId });
         send(ws, { type: 'presence-snapshot', peers: room.list(selfId) });
         broadcast(selfId, { type: 'peer-joined', peer });
         break;
       }
       case 'position': {
-        if (room.updatePosition(selfId, msg.x, msg.y)) {
+        if (rooms.get(roomOf.get(selfId) ?? '')?.updatePosition(selfId, msg.x, msg.y)) {
           broadcast(selfId, { type: 'peer-moved', id: selfId, x: msg.x, y: msg.y });
         }
         break;
       }
       case 'offer': {
-        const target = sockets.get(msg.to);
+        const target = sameRoom(selfId, msg.to) ? sockets.get(msg.to) : undefined;
         if (target) send(target, { type: 'offer', from: selfId, sdp: msg.sdp });
         break;
       }
       case 'answer': {
-        const target = sockets.get(msg.to);
+        const target = sameRoom(selfId, msg.to) ? sockets.get(msg.to) : undefined;
         if (target) send(target, { type: 'answer', from: selfId, sdp: msg.sdp });
         break;
       }
       case 'ice-candidate': {
-        const target = sockets.get(msg.to);
+        const target = sameRoom(selfId, msg.to) ? sockets.get(msg.to) : undefined;
         if (target) {
           send(target, { type: 'ice-candidate', from: selfId, candidate: msg.candidate });
         }
@@ -93,8 +107,15 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
+    const roomId = roomOf.get(selfId);
+    const room = rooms.get(roomId ?? '');
+    if (room?.has(selfId)) {
+      broadcast(selfId, { type: 'peer-left', id: selfId });
+      room.remove(selfId);
+      if (room.list().length === 0) rooms.delete(roomId!);
+    }
+    roomOf.delete(selfId);
     sockets.delete(selfId);
-    if (room.remove(selfId)) broadcast(selfId, { type: 'peer-left', id: selfId });
   });
 });
 
