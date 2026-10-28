@@ -1,4 +1,5 @@
 import type { ClientToServer, JoinMsg, ServerToClient } from '@byte_grounds/shared/protocol';
+import { SupabaseNet } from './net-supabase.ts';
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8080';
 
@@ -21,8 +22,15 @@ export function reconnectDelay(attempt: number): number {
   return Math.min(500 * 2 ** (attempt - 1), 10_000);
 }
 
+/** Transport to the other peers: either our own ws relay or a Supabase Realtime channel. */
+export interface Net {
+  connect(join: Omit<JoinMsg, 'type'>, handlers: NetHandlers): void;
+  send(msg: ClientToServer): void;
+  close(): void;
+}
+
 /** Thin typed wrapper over the WebSocket connection to the relay server. */
-export class NetClient {
+export class NetClient implements Net {
   private ws: WebSocket | null = null;
   private join: Omit<JoinMsg, 'type'> | null = null;
   private handlers: NetHandlers | null = null;
@@ -85,4 +93,11 @@ export class NetClient {
     if (this.timer) clearTimeout(this.timer);
     this.ws?.close();
   }
+}
+
+/** Supabase when `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` are set, else the ws relay. */
+export function createNet(): Net {
+  const url = import.meta.env.VITE_SUPABASE_URL;
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  return url && key ? new SupabaseNet(url, key) : new NetClient();
 }
