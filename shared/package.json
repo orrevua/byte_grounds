@@ -1,0 +1,13 @@
+{
+  "name": "@byte_grounds/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./protocol": "./src/protocol.ts",
+    "./map": "./src/map.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit"
+  }
+}
