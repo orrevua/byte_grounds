@@ -1,15 +1,14 @@
 import { TILE_SIZE } from '@byte_grounds/shared/protocol';
-import { tileAt } from '@byte_grounds/shared/map';
+import { tileColor } from '@byte_grounds/shared/map';
 import type { OfficeMap } from '@byte_grounds/shared/map';
 import { FRAME_SIZE, drawAppearance } from './sprites.ts';
+import { drawDecorCell } from './decor.ts';
 import type { Direction } from './sprites.ts';
 import type { Appearance } from '@byte_grounds/shared/protocol';
 
 /** Drop the 64px frame so the character's feet sit on the tile point. */
 const FOOT_OFFSET = 16;
 
-const FLOOR = '#2a2f37';
-const WALL = '#454d5a';
 const GRID = '#20242b';
 
 export function mapPixelSize(map: OfficeMap): { w: number; h: number } {
@@ -24,10 +23,18 @@ export function tileToScreen(x: number, y: number): { px: number; py: number } {
 export function drawMap(ctx: CanvasRenderingContext2D, map: OfficeMap): void {
   for (let ty = 0; ty < map.height; ty++) {
     for (let tx = 0; tx < map.width; tx++) {
-      ctx.fillStyle = tileAt(map, tx, ty) === 1 ? WALL : FLOOR;
+      ctx.fillStyle = tileColor(map, tx, ty);
       ctx.fillRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
     }
   }
+  drawGrid(ctx, map);
+  for (const d of map.decor ?? []) {
+    drawDecorCell(ctx, d.sheet, d.sx, d.sy, d.x * TILE_SIZE, d.y * TILE_SIZE);
+  }
+}
+
+/** Faint tile grid (drawn under decorations). */
+export function drawGrid(ctx: CanvasRenderingContext2D, map: OfficeMap): void {
   ctx.strokeStyle = GRID;
   ctx.lineWidth = 1;
   for (let tx = 0; tx <= map.width; tx++) {

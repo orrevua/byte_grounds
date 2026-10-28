@@ -1,12 +1,33 @@
 export type Tile = 0 | 1; // 0 = floor (walkable), 1 = wall (blocked)
 
+/**
+ * One decoration piece: a 32x32 cell (`sx`, `sy`, in cells) of an art sheet in
+ * `client/src/assets/decor/<sheet>.png`, drawn on map tile (`x`, `y`) above the floor.
+ * Bigger objects (a table) are several cells stamped side by side.
+ */
+export interface DecorCell {
+  x: number;
+  y: number;
+  sheet: string;
+  sx: number;
+  sy: number;
+}
+
 export interface OfficeMap {
   id: string;
+  name?: string;
   width: number;
   height: number;
   tiles: Tile[]; // row-major, length = width * height
   spawn: { x: number; y: number };
+  /** Per-tile floor color (hex), row-major; missing = default floor/wall color. */
+  colors?: string[];
+  decor?: DecorCell[];
 }
+
+export const DEFAULT_FLOOR_COLOR = '#2a2f37';
+export const DEFAULT_WALL_COLOR = '#454d5a';
+export const MAX_MAP_SIZE = 80;
 
 /** Tile value at integer tile coords; out-of-bounds reads as wall. */
 export function tileAt(m: OfficeMap, tx: number, ty: number): Tile {
@@ -17,6 +38,72 @@ export function tileAt(m: OfficeMap, tx: number, ty: number): Tile {
 /** Whether a continuous (float) tile-space position sits on a walkable tile. */
 export function isWalkable(m: OfficeMap, x: number, y: number): boolean {
   return tileAt(m, Math.floor(x), Math.floor(y)) === 0;
+}
+
+/** The tile's color: its painted color, else the default for floor/wall. */
+export function tileColor(m: OfficeMap, tx: number, ty: number): string {
+  const c = m.colors?.[ty * m.width + tx];
+  if (c) return c;
+  return tileAt(m, tx, ty) === 1 ? DEFAULT_WALL_COLOR : DEFAULT_FLOOR_COLOR;
+}
+
+/** A map id from a display name: lowercase, dashes, safe for URLs and channel names. */
+export function mapIdFromName(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40) || 'map'
+  );
+}
+
+/** A new empty map: walkable floor inside a wall border, spawn near the top-left. */
+export function createBlankMap(name: string, width: number, height: number): OfficeMap {
+  const w = Math.max(3, Math.min(MAX_MAP_SIZE, Math.round(width)));
+  const h = Math.max(3, Math.min(MAX_MAP_SIZE, Math.round(height)));
+  const tiles: Tile[] = [];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) tiles.push(x === 0 || y === 0 || x === w - 1 || y === h - 1 ? 1 : 0);
+  }
+  return { id: mapIdFromName(name), name, width: w, height: h, tiles, spawn: { x: 1.5, y: 1.5 }, colors: [], decor: [] };
+}
+
+/** Validate map JSON from storage; null if it isn't a usable map. */
+export function parseMap(data: unknown): OfficeMap | null {
+  if (!data || typeof data !== 'object') return null;
+  const m = data as Partial<OfficeMap>;
+  const { id, width, height, tiles, spawn } = m;
+  if (typeof id !== 'string' || !id) return null;
+  if (!Number.isInteger(width) || !Number.isInteger(height)) return null;
+  if (width! < 1 || height! < 1 || width! > MAX_MAP_SIZE || height! > MAX_MAP_SIZE) return null;
+  if (!Array.isArray(tiles) || tiles.length !== width! * height!) return null;
+  if (!spawn || !Number.isFinite(spawn.x) || !Number.isFinite(spawn.y)) return null;
+  return {
+    id,
+    name: typeof m.name === 'string' ? m.name : id,
+    width: width!,
+    height: height!,
+    tiles: tiles.map((t) => (t === 1 ? 1 : 0)),
+    spawn: { x: spawn.x, y: spawn.y },
+    colors: Array.isArray(m.colors) ? m.colors.map((c) => (typeof c === 'string' ? c : '')) : [],
+    decor: Array.isArray(m.decor)
+      ? m.decor.filter(
+          (d): d is DecorCell =>
+            !!d && typeof d.sheet === 'string' && [d.x, d.y, d.sx, d.sy].every(Number.isInteger),
+        )
+      : [],
+  };
+}
+
+/** Where a returning player starts: their saved spot if it's still walkable, else spawn. */
+export function startPosition(m: OfficeMap, saved: { x: number; y: number } | null): { x: number; y: number } {
+  if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y) && isWalkable(m, saved.x, saved.y)) {
+    return { x: saved.x, y: saved.y };
+  }
+  return { ...m.spawn };
 }
 
 // Hand-authored 20x15 office: solid border wall, a couple of interior blocks.
@@ -46,7 +133,7 @@ function buildOffice(): OfficeMap {
   set(6, 10, 1);
   set(7, 10, 1); // 2x2 block (meeting table)
 
-  return { id: 'office', width, height, tiles, spawn: { x: 2.5, y: 2.5 } };
+  return { id: 'office', name: 'Office', width, height, tiles, spawn: { x: 2.5, y: 2.5 } };
 }
 
 export const OFFICE_MAP: OfficeMap = buildOffice();

@@ -137,6 +137,36 @@ describe('SupabaseNet', () => {
     ]);
   });
 
+  it('ignores a late presence update that is older than the latest move', async () => {
+    const a = await joinAs('alice');
+    const b = await joinAs('bob');
+    const meta = { id: a.id, name: 'alice', color: '#fff', appearance };
+    a.net.send({ type: 'position', x: 3, y: 3 }); // seq 1
+    a.net.send({ type: 'position', x: 4, y: 3 }); // seq 2
+    vi.advanceTimersByTime(200);
+    b.inbox.length = 0;
+
+    // Presence from seq 1 shows up after the seq-2 broadcast: must not snap alice back.
+    hub.fire('presence', 'join', { key: a.id, newPresences: [{ ...meta, x: 3, y: 3, seq: 1 }] });
+    expect(b.inbox.some((m) => m.type === 'peer-moved')).toBe(false);
+  });
+
+  it('updates presence with the final spot after stopping', async () => {
+    const a = await joinAs('alice');
+    a.net.send({ type: 'position', x: 7, y: 5 });
+    vi.advanceTimersByTime(400); // one broadcast tick, then the idle tick re-tracks
+    expect(hub.state[a.id]?.[0]).toMatchObject({ x: 7, y: 5 });
+
+    const late = await joinAs('bob');
+    const snapshot = late.inbox.find((m) => m.type === 'presence-snapshot');
+    const joined = late.inbox.filter((m) => m.type === 'peer-joined');
+    const alice = [
+      ...(snapshot?.type === 'presence-snapshot' ? snapshot.peers : []),
+      ...joined.map((m) => (m.type === 'peer-joined' ? m.peer : null)),
+    ].find((p) => p?.id === a.id);
+    expect(alice).toMatchObject({ x: 7, y: 5 });
+  });
+
   it('delivers signaling only to the addressee, stamped with the sender', async () => {
     const a = await joinAs('alice');
     const b = await joinAs('bob');

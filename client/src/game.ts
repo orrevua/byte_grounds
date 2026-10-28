@@ -1,4 +1,4 @@
-import { OFFICE_MAP } from '@byte_grounds/shared/map';
+import type { OfficeMap } from '@byte_grounds/shared/map';
 import { POSITION_TICK_MS, TILE_SIZE } from '@byte_grounds/shared/protocol';
 import type { Appearance, PeerId, PeerState, ServerToClient } from '@byte_grounds/shared/protocol';
 import { drawAvatar, drawMap, drawNameLabel, drawSprite, mapPixelSize, tileToScreen } from './render.ts';
@@ -44,7 +44,6 @@ const MOVE_EPS = 1e-3;
 
 /** Canvas render loop, local movement, position broadcast, and remote avatars. */
 export class Game {
-  private readonly map = OFFICE_MAP;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly keyboard = new Keyboard();
   private readonly touchpad = isTouchDevice() ? new TouchPad() : null;
@@ -74,6 +73,8 @@ export class Game {
     self: SelfInfo,
     private readonly net: Net,
     private selfId: PeerId,
+    private readonly map: OfficeMap,
+    start: { x: number; y: number } = map.spawn,
   ) {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('2D canvas context unavailable');
@@ -87,7 +88,8 @@ export class Game {
       name: self.name,
       color: self.color,
       appearance: self.appearance,
-      ...this.map.spawn,
+      x: start.x,
+      y: start.y,
       dir: 'down',
       animMs: 0,
       moving: false,
@@ -102,6 +104,11 @@ export class Game {
       (peerId) => this.bubbles.remove(peerId),
     );
     this.media.onVideoTrack = (track, stream) => this.mesh.setVideo(track, stream);
+  }
+
+  /** Our current tile-space position (for saving where we left off). */
+  get position(): { x: number; y: number } {
+    return { x: this.self.x, y: this.self.y };
   }
 
   start(): void {

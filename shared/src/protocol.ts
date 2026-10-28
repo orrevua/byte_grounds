@@ -37,7 +37,10 @@ export interface JoinMsg {
   name: string;
   color: string;
   appearance: Appearance;
-  room?: string;
+  room?: string; // map id; each map is its own room
+  /** Start position (e.g. the player's saved spot); the map spawn when absent. */
+  x?: number;
+  y?: number;
 }
 export interface PositionMsg {
   type: 'position';
@@ -48,16 +51,22 @@ export interface OfferMsg {
   type: 'offer';
   to: PeerId;
   sdp: RTCSessionDescriptionInit;
+  /** Sender's call id: changes when it starts a fresh RTCPeerConnection. */
+  sid?: string;
 }
 export interface AnswerMsg {
   type: 'answer';
   to: PeerId;
   sdp: RTCSessionDescriptionInit;
+  /** Sender's call id: changes when it starts a fresh RTCPeerConnection. */
+  sid?: string;
 }
 export interface IceMsg {
   type: 'ice-candidate';
   to: PeerId;
   candidate: RTCIceCandidateInit;
+  /** Sender's call id: changes when it starts a fresh RTCPeerConnection. */
+  sid?: string;
 }
 
 // --- Server -> Client ---
@@ -89,16 +98,22 @@ export interface RelayOfferMsg {
   type: 'offer';
   from: PeerId;
   sdp: RTCSessionDescriptionInit;
+  /** Sender's call id: changes when it starts a fresh RTCPeerConnection. */
+  sid?: string;
 }
 export interface RelayAnswerMsg {
   type: 'answer';
   from: PeerId;
   sdp: RTCSessionDescriptionInit;
+  /** Sender's call id: changes when it starts a fresh RTCPeerConnection. */
+  sid?: string;
 }
 export interface RelayIceMsg {
   type: 'ice-candidate';
   from: PeerId;
   candidate: RTCIceCandidateInit;
+  /** Sender's call id: changes when it starts a fresh RTCPeerConnection. */
+  sid?: string;
 }
 
 export type ClientToServer = JoinMsg | PositionMsg | OfferMsg | AnswerMsg | IceMsg;
