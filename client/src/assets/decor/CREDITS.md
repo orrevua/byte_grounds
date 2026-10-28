@@ -1,8 +1,10 @@
 # Decoration art credits
 
-One entry per sheet in this folder. All of this art is CC-BY-SA (most LPC art is also offered
-under GPL 3.0): it may be used and modified, as long as the authors below are credited and
-derivatives keep the same license. License text: https://creativecommons.org/licenses/by-sa/3.0/
+One entry per sheet in this folder. This is Liberated Pixel Cup (LPC) art, mostly CC-BY-SA
+(often also GPL 3.0): it may be used and modified as long as the authors below are credited and
+derivatives keep the same license. Check each source page for its exact license. LPC
+attribution and licensing guidelines: http://lpc.opengameart.org/
+CC-BY-SA 3.0 text: https://creativecommons.org/licenses/by-sa/3.0/
 
 ## interior.png
 
@@ -63,15 +65,27 @@ From an LPC-style interior pack (its pack preview image was not kept).
  * Tuomo Untinen
  * Inspired by Lanea Zimmerman (AKA Sharm) Fireplace
 
+## castle.png, stairs.png
+
+- Author: Lanea Zimmerman (Sharm). Attribution: "Please credit Lanea Zimmerman".
+
+## house_inside.png
+
+- Authors: Sharm (Lanea Zimmerman) did everything except the castle light sources, which
+  were done by HughSpectrum.
+- See the LPC guidelines for attribution and licensing: http://lpc.opengameart.org/
+
+## upholstery.png
+
+- "[LPC] Upholstery" by bluecarrot16, Lanea Zimmerman (Sharm).
+- https://opengameart.org/content/lpc-upholstery
+- https://opengameart.org/content/lpc-interior-castle-tiles
+
+## baum.png
+
+- Author: geloescht
+
 ## Still to fill in
 
-These sheets need their pack's author/license/source copied from the pack's page or its
-credits file (same format as above):
-
-- house_inside.png
-- castle.png
-- upholstery.png
-- stairs.png
-- baum.png
 - bookshelf-brown.png, bookshelf-green.png
 - drawer_shelf-brown.png, drawer_shelf-green.png
