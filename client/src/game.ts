@@ -2,8 +2,8 @@ import { OFFICE_MAP } from '@byte_grounds/shared/map';
 import { POSITION_TICK_MS, TILE_SIZE } from '@byte_grounds/shared/protocol';
 import type { Appearance, PeerId, PeerState, ServerToClient } from '@byte_grounds/shared/protocol';
 import { drawAvatar, drawMap, drawNameLabel, drawSprite, mapPixelSize, tileToScreen } from './render.ts';
-import { Keyboard } from './input.ts';
-import { stepMovement } from './movement.ts';
+import { Keyboard, TouchPad, isTouchDevice } from './input.ts';
+import { stepMovement, type MoveInput } from './movement.ts';
 import { distanceTiles, nextProxState, type ProxState } from './proximity.ts';
 import { MediaManager, VideoBubbles, volumeForDistance } from './media.ts';
 import { WebrtcMesh } from './webrtc.ts';
@@ -47,6 +47,7 @@ export class Game {
   private readonly map = OFFICE_MAP;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly keyboard = new Keyboard();
+  private readonly touchpad = isTouchDevice() ? new TouchPad() : null;
   private readonly self: {
     name: string;
     color: string;
@@ -100,6 +101,7 @@ export class Game {
       (peerId, stream) => this.bubbles.add(peerId, stream),
       (peerId) => this.bubbles.remove(peerId),
     );
+    this.media.onVideoTrack = (track, stream) => this.mesh.setVideo(track, stream);
   }
 
   start(): void {
@@ -111,6 +113,7 @@ export class Game {
   stop(): void {
     cancelAnimationFrame(this.raf);
     this.keyboard.dispose();
+    this.touchpad?.dispose();
     this.mesh.closeAll();
   }
 
@@ -186,7 +189,7 @@ export class Game {
 
     const prevX = this.self.x;
     const prevY = this.self.y;
-    const next = stepMovement(this.map, this.self.x, this.self.y, this.keyboard.input, dt);
+    const next = stepMovement(this.map, this.self.x, this.self.y, this.moveInput(), dt);
     this.self.x = next.x;
     this.self.y = next.y;
     this.animate(this.self, this.self.x - prevX, this.self.y - prevY, dt);
@@ -235,8 +238,18 @@ export class Game {
     }
   }
 
+  /** Keyboard and on-screen pad combined (either one can hold a direction). */
+  private moveInput(): MoveInput {
+    const k = this.keyboard.input;
+    const t = this.touchpad?.input;
+    if (!t) return k;
+    return { up: k.up || t.up, down: k.down || t.down, left: k.left || t.left, right: k.right || t.right };
+  }
+
   private render(): void {
     const { ctx, map } = this;
+    // The canvas is CSS-scaled to fit small screens; bubbles live in CSS pixels.
+    const scale = ctx.canvas.clientWidth / ctx.canvas.width || 1;
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     drawMap(ctx, map);
     for (const [id, r] of this.remotes) {
@@ -246,7 +259,7 @@ export class Game {
       }
       this.drawCharacter(r.appearance, r.dir, r.animMs, r.moving, r.x, r.y, r.color, r.name, false);
       const { px, py } = tileToScreen(r.x, r.y);
-      this.bubbles.place(id, px, py);
+      this.bubbles.place(id, px * scale, py * scale);
     }
     const s = this.self;
     this.drawCharacter(s.appearance, s.dir, s.animMs, s.moving, s.x, s.y, s.color, s.name, true);
