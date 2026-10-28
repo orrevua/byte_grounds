@@ -17,6 +17,13 @@ export interface PeerCallbacks {
   sendAnswer(sdp: RTCSessionDescriptionInit): void;
   sendIce(candidate: RTCIceCandidateInit): void;
   onTrack(stream: MediaStream): void;
+  /** The connection failed for good (e.g. the other side's end is gone). */
+  onFailed(): void;
+}
+
+/** A short random id for one RTCPeerConnection (its "call"). */
+function newCallId(): string {
+  return Math.random().toString(36).slice(2, 10);
 }
 
 /**
@@ -27,6 +34,10 @@ export interface PeerCallbacks {
 export class PeerLink {
   readonly pc: RTCPeerConnection;
   readonly polite: boolean;
+  /** Our call id, stamped on everything we send for this connection. */
+  readonly sid = newCallId();
+  /** The other side's call id, learned from its first message. */
+  remoteSid: string | null = null;
   private makingOffer = false;
   private ignoreOffer = false;
   private videoSender: RTCRtpSender | null = null;
@@ -52,10 +63,10 @@ export class PeerLink {
     this.pc.ontrack = ({ streams }) => {
       if (streams[0]) cb.onTrack(streams[0]);
     };
-    // Network change / NAT rebinding: 'disconnected' usually heals by itself, 'failed' doesn't.
-    // restartIce() re-runs negotiation (via onnegotiationneeded) with fresh ICE candidates.
+    // 'disconnected' usually heals by itself; 'failed' doesn't (often the other side's end
+    // is gone after a long drop), so the mesh replaces this connection with a fresh call.
     this.pc.onconnectionstatechange = () => {
-      if (this.pc.connectionState === 'failed') this.pc.restartIce();
+      if (this.pc.connectionState === 'failed') cb.onFailed();
     };
     this.pc.onnegotiationneeded = async () => {
       try {
@@ -127,6 +138,8 @@ type SignalMsg = RelayOfferMsg | RelayAnswerMsg | RelayIceMsg;
 export class WebrtcMesh {
   private readonly links = new Map<PeerId, PeerLink>();
   private readonly connecting = new Map<PeerId, Promise<PeerLink>>();
+  /** Per-peer signal queue: an ICE candidate must not race ahead of its offer. */
+  private readonly queues = new Map<PeerId, Promise<void>>();
 
   constructor(
     private selfId: PeerId,
@@ -160,16 +173,37 @@ export class WebrtcMesh {
     this.onClosed(peerId);
   }
 
-  async handleSignal(msg: SignalMsg): Promise<void> {
-    if (msg.type === 'offer') {
-      const link = await this.connect(msg.from);
-      await link.onDescription(msg.sdp);
-      return;
+  /** Signals from one peer are applied strictly in arrival order. */
+  handleSignal(msg: SignalMsg): Promise<void> {
+    const prev = this.queues.get(msg.from) ?? Promise.resolve();
+    const next = prev
+      .then(() => this.applySignal(msg))
+      .catch((err) => console.error('signal failed', err));
+    this.queues.set(msg.from, next);
+    return next;
+  }
+
+  private async applySignal(msg: SignalMsg): Promise<void> {
+    let link = this.links.get(msg.from) ?? (await this.connecting.get(msg.from));
+    if (link && msg.sid && link.remoteSid && link.remoteSid !== msg.sid) {
+      // The other side started a fresh call (it reconnected, or its old one failed).
+      // Ours is talking to a connection that no longer exists: replace it.
+      if (msg.type !== 'offer') return; // leftovers from the old call
+      this.disconnect(msg.from);
+      link = undefined;
     }
-    const link = this.links.get(msg.from);
+    if (msg.type === 'offer') link = await this.connect(msg.from);
     if (!link) return; // answer/ice with no local link: nothing to apply
-    if (msg.type === 'answer') await link.onDescription(msg.sdp);
-    else await link.onIce(msg.candidate);
+    if (msg.sid && !link.remoteSid) link.remoteSid = msg.sid;
+    if (msg.type === 'ice-candidate') await link.onIce(msg.candidate);
+    else await link.onDescription(msg.sdp);
+  }
+
+  /** Replace a failed connection with a fresh call (the other side follows via the new id). */
+  private restart(peerId: PeerId, failed: PeerLink): void {
+    if (this.links.get(peerId) !== failed) return;
+    this.disconnect(peerId);
+    void this.connect(peerId);
   }
 
   /** Apply a camera on/off to every open peer connection. */
@@ -183,11 +217,14 @@ export class WebrtcMesh {
 
   private async create(peerId: PeerId): Promise<PeerLink> {
     const stream = await this.getStream();
-    const link = new PeerLink(this.selfId, peerId, stream, {
-      sendOffer: (sdp) => this.net.send({ type: 'offer', to: peerId, sdp }),
-      sendAnswer: (sdp) => this.net.send({ type: 'answer', to: peerId, sdp }),
-      sendIce: (candidate) => this.net.send({ type: 'ice-candidate', to: peerId, candidate }),
+    // Callbacks only fire from later events, by which time `link` is assigned.
+    const link: PeerLink = new PeerLink(this.selfId, peerId, stream, {
+      sendOffer: (sdp) => this.net.send({ type: 'offer', to: peerId, sdp, sid: link.sid }),
+      sendAnswer: (sdp) => this.net.send({ type: 'answer', to: peerId, sdp, sid: link.sid }),
+      sendIce: (candidate) =>
+        this.net.send({ type: 'ice-candidate', to: peerId, candidate, sid: link.sid }),
       onTrack: (s) => this.onTrack(peerId, s),
+      onFailed: () => this.restart(peerId, link),
     });
     // disconnected while media was being acquired: drop it.
     if (!this.connecting.has(peerId)) {

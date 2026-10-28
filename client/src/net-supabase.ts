@@ -24,6 +24,9 @@ const PRESENCE_REFRESH_MS = 2000;
  * Peers that close the tab say `bye` and leave immediately.
  */
 const LEAVE_GRACE_MS = 10_000;
+/** Signaling held while disconnected: older than this is stale (the call will be redone). */
+const OUTBOX_MAX_AGE_MS = 20_000;
+const OUTBOX_LIMIT = 200;
 
 /** Signaling payload: a relay message addressed to one peer (others drop it). */
 interface SignalPayload {
@@ -61,6 +64,7 @@ export class SupabaseNet implements Net {
    * position *after* newer broadcasts; it keeps only the highest `seq` it has seen per peer
    * (`seen`), so avatars never snap back to an older spot.
    */
+  private outbox: { payload: SignalPayload; at: number }[] = [];
   private seq = 0;
   private trackedSeq = -1;
   private readonly seen = new Map<PeerId, number>();
@@ -205,12 +209,13 @@ export class SupabaseNet implements Net {
       }, LEAVE_GRACE_MS);
     }
     this.trackPresence();
+    this.flushOutbox();
     this.handlers?.onStatus?.('open');
     this.handlers?.onOpen?.();
   }
 
   send(msg: ClientToServer): void {
-    if (!this.channel || !this.subscribed) return;
+    if (!this.self) return;
     switch (msg.type) {
       case 'join':
         return; // handled by presence on subscribe
@@ -222,10 +227,15 @@ export class SupabaseNet implements Net {
         return;
       case 'offer':
       case 'answer':
-        this.signal(msg.to, { type: msg.type, from: this.selfId, sdp: msg.sdp });
+        this.signal(msg.to, { type: msg.type, from: this.selfId, sdp: msg.sdp, sid: msg.sid });
         return;
       case 'ice-candidate':
-        this.signal(msg.to, { type: 'ice-candidate', from: this.selfId, candidate: msg.candidate });
+        this.signal(msg.to, {
+          type: 'ice-candidate',
+          from: this.selfId,
+          candidate: msg.candidate,
+          sid: msg.sid,
+        });
         return;
     }
   }
@@ -264,9 +274,26 @@ export class SupabaseNet implements Net {
     return true;
   }
 
+  /**
+   * Send WebRTC signaling now, or hold it while the channel is down and send it on rejoin.
+   * Dropping it would leave a call stuck half-negotiated (no audio either way).
+   */
   private signal(to: PeerId, msg: ServerToClient): void {
     const payload: SignalPayload = { to, msg };
-    void this.channel!.send({ type: 'broadcast', event: 'signal', payload });
+    if (this.channel && this.subscribed) {
+      void this.channel.send({ type: 'broadcast', event: 'signal', payload });
+      return;
+    }
+    this.outbox.push({ payload, at: Date.now() });
+    if (this.outbox.length > OUTBOX_LIMIT) this.outbox.shift();
+  }
+
+  private flushOutbox(): void {
+    const fresh = this.outbox.filter((m) => Date.now() - m.at < OUTBOX_MAX_AGE_MS);
+    this.outbox = [];
+    for (const { payload } of fresh) {
+      void this.channel!.send({ type: 'broadcast', event: 'signal', payload });
+    }
   }
 
   private cancelLeave(id: PeerId): void {

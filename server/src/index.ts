@@ -88,18 +88,18 @@ wss.on('connection', (ws) => {
       }
       case 'offer': {
         const target = sameRoom(selfId, msg.to) ? sockets.get(msg.to) : undefined;
-        if (target) send(target, { type: 'offer', from: selfId, sdp: msg.sdp });
+        if (target) send(target, { type: 'offer', from: selfId, sdp: msg.sdp, sid: msg.sid });
         break;
       }
       case 'answer': {
         const target = sameRoom(selfId, msg.to) ? sockets.get(msg.to) : undefined;
-        if (target) send(target, { type: 'answer', from: selfId, sdp: msg.sdp });
+        if (target) send(target, { type: 'answer', from: selfId, sdp: msg.sdp, sid: msg.sid });
         break;
       }
       case 'ice-candidate': {
         const target = sameRoom(selfId, msg.to) ? sockets.get(msg.to) : undefined;
         if (target) {
-          send(target, { type: 'ice-candidate', from: selfId, candidate: msg.candidate });
+          send(target, { type: 'ice-candidate', from: selfId, candidate: msg.candidate, sid: msg.sid });
         }
         break;
       }
