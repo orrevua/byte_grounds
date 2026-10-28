@@ -54,6 +54,15 @@ export class SupabaseNet implements Net {
   private attempt = 0;
   private reopenTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingPos = false;
+  /**
+   * Our position counter, bumped on every move and sent with every broadcast and presence
+   * update. Presence travels a slower path than broadcast, so a receiver can get a presence
+   * position *after* newer broadcasts; it keeps only the highest `seq` it has seen per peer
+   * (`seen`), so avatars never snap back to an older spot.
+   */
+  private seq = 0;
+  private trackedSeq = -1;
+  private readonly seen = new Map<PeerId, number>();
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private lastPresenceAt = 0;
 
@@ -100,8 +109,8 @@ export class SupabaseNet implements Net {
 
     channel
       .on('broadcast', { event: 'position' }, ({ payload }) => {
-        const { id, x, y } = payload as { id: PeerId; x: number; y: number };
-        if (this.known.has(id)) this.emit({ type: 'peer-moved', id, x, y });
+        const { id, x, y, seq } = payload as { id: PeerId; x: number; y: number; seq?: number };
+        if (this.known.has(id) && this.isNewer(id, seq)) this.emit({ type: 'peer-moved', id, x, y });
       })
       .on('broadcast', { event: 'bye' }, ({ payload }) => {
         this.dropPeer((payload as { id: PeerId }).id);
@@ -112,13 +121,14 @@ export class SupabaseNet implements Net {
       })
       .on('presence', { event: 'join' }, ({ key, newPresences }) => {
         if (!this.subscribed || key === this.selfId) return;
-        const peer = newPresences[0] as unknown as PeerState | undefined;
+        const peer = newPresences[0] as unknown as (PeerState & { seq?: number }) | undefined;
         if (!peer) return;
         if (this.known.has(key)) {
           this.cancelLeave(key);
-          this.emit({ type: 'peer-moved', id: key, x: peer.x, y: peer.y });
+          if (this.isNewer(key, peer.seq)) this.emit({ type: 'peer-moved', id: key, x: peer.x, y: peer.y });
         } else {
           this.known.add(key);
+          this.isNewer(key, peer.seq);
           this.emit({ type: 'peer-joined', peer: toPeer(peer) });
         }
       })
@@ -178,6 +188,7 @@ export class SupabaseNet implements Net {
       const meta = metas[0] as unknown as PeerState | undefined;
       if (key === this.selfId || !meta || this.known.has(key)) continue;
       this.known.add(key);
+      this.isNewer(key, (meta as { seq?: number }).seq);
       peers.push(toPeer(meta));
     }
     if (!this.welcomed) {
@@ -195,8 +206,7 @@ export class SupabaseNet implements Net {
         for (const id of [...this.known]) if (!present[id]?.length) this.dropPeer(id);
       }, LEAVE_GRACE_MS);
     }
-    void this.channel!.track({ ...this.self! });
-    this.lastPresenceAt = Date.now();
+    this.trackPresence();
     this.handlers?.onStatus?.('open');
     this.handlers?.onOpen?.();
   }
@@ -209,6 +219,7 @@ export class SupabaseNet implements Net {
       case 'position':
         this.self!.x = msg.x;
         this.self!.y = msg.y;
+        this.seq += 1;
         this.pendingPos = true;
         return;
       case 'offer':
@@ -221,16 +232,38 @@ export class SupabaseNet implements Net {
     }
   }
 
-  /** Throttled position output: broadcast at ~5 Hz, refresh presence every couple of seconds. */
+  /**
+   * Throttled position output: broadcast at ~5 Hz while moving; refresh presence every couple
+   * of seconds while moving, and once more after stopping so it holds the final spot.
+   */
   private flush(): void {
-    if (!this.channel || !this.subscribed || !this.pendingPos) return;
-    this.pendingPos = false;
-    const { id, x, y } = this.self!;
-    void this.channel.send({ type: 'broadcast', event: 'position', payload: { id, x, y } });
-    if (Date.now() - this.lastPresenceAt >= PRESENCE_REFRESH_MS) {
-      this.lastPresenceAt = Date.now();
-      void this.channel.track({ ...this.self! });
+    if (!this.channel || !this.subscribed) return;
+    if (this.pendingPos) {
+      this.pendingPos = false;
+      const { id, x, y } = this.self!;
+      void this.channel.send({
+        type: 'broadcast',
+        event: 'position',
+        payload: { id, x, y, seq: this.seq },
+      });
+      if (Date.now() - this.lastPresenceAt >= PRESENCE_REFRESH_MS) this.trackPresence();
+    } else if (this.trackedSeq !== this.seq) {
+      this.trackPresence();
     }
+  }
+
+  private trackPresence(): void {
+    this.lastPresenceAt = Date.now();
+    this.trackedSeq = this.seq;
+    void this.channel!.track({ ...this.self!, seq: this.seq });
+  }
+
+  /** Record `seq` for a peer; false if it is older than (or equal to) one already applied. */
+  private isNewer(id: PeerId, seq: number | undefined): boolean {
+    if (seq === undefined) return true; // sender predates seq numbers
+    if (seq <= (this.seen.get(id) ?? -1)) return false;
+    this.seen.set(id, seq);
+    return true;
   }
 
   private signal(to: PeerId, msg: ServerToClient): void {
@@ -247,6 +280,7 @@ export class SupabaseNet implements Net {
   private dropPeer(id: PeerId): void {
     this.cancelLeave(id);
     if (!this.known.delete(id)) return;
+    this.seen.delete(id);
     this.emit({ type: 'peer-left', id });
   }
 
