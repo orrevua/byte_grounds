@@ -30,7 +30,10 @@ class FakeChannel {
     for (const h of this.handlers) if (h.type === type && h.event === event) h.cb(arg);
   }
 
+  private status: ((status: string) => void) | null = null;
+
   subscribe(cb: (status: string) => void): this {
+    this.status = cb;
     this.hub.channels.add(this);
     queueMicrotask(() => {
       cb('SUBSCRIBED');
@@ -55,6 +58,12 @@ class FakeChannel {
     this.hub.fire('broadcast', msg.event, { payload: msg.payload }, this);
   }
 
+  /** The server kicks this channel (as after a rate-limit or missed heartbeats). */
+  serverClose(): void {
+    this.leave();
+    this.status?.('CLOSED');
+  }
+
   leave(): void {
     this.hub.channels.delete(this);
     const left = this.hub.state[this.key] ?? [];
@@ -64,10 +73,16 @@ class FakeChannel {
 }
 
 let hub: Hub;
+/** Every channel the code under test created, newest last. */
+let created: FakeChannel[];
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
-    channel: (_name: string, opts: any) => new FakeChannel(hub, opts.config.presence.key),
+    channel: (_name: string, opts: any) => {
+      const ch = new FakeChannel(hub, opts.config.presence.key);
+      created.push(ch);
+      return ch;
+    },
     removeChannel: async (ch: FakeChannel) => ch.leave(),
   }),
 }));
@@ -88,6 +103,7 @@ async function joinAs(name: string): Promise<{ net: SupabaseNet; inbox: ServerTo
 describe('SupabaseNet', () => {
   beforeEach(() => {
     hub = new Hub();
+    created = [];
     vi.useFakeTimers();
   });
   afterEach(() => vi.useRealTimers());
@@ -132,10 +148,62 @@ describe('SupabaseNet', () => {
     expect(c.inbox.some((m) => m.type === 'offer')).toBe(false);
   });
 
-  it('emits peer-left when a peer closes', async () => {
+  it('emits peer-left right away when a peer closes', async () => {
     const a = await joinAs('alice');
     const b = await joinAs('bob');
     b.net.close();
     expect(a.inbox).toContainEqual({ type: 'peer-left', id: b.id });
+  });
+
+  it('keeps a peer through a short presence drop, drops them after the grace period', async () => {
+    const a = await joinAs('alice');
+    const b = await joinAs('bob');
+    const bobChannel = created[1]!;
+
+    bobChannel.leave(); // connection blip: presence gone, no bye
+    vi.advanceTimersByTime(5_000);
+    void bobChannel.track({ id: b.id, name: 'bob', color: '#fff', appearance, x: 1, y: 1 });
+    vi.advanceTimersByTime(10_000);
+    expect(a.inbox.some((m) => m.type === 'peer-left')).toBe(false);
+
+    bobChannel.leave();
+    vi.advanceTimersByTime(10_000);
+    expect(a.inbox).toContainEqual({ type: 'peer-left', id: b.id });
+  });
+
+  it('rebuilds a server-closed channel without resetting the game', async () => {
+    const statuses: string[] = [];
+    const inbox: ServerToClient[] = [];
+    const a = new SupabaseNet('https://x.supabase.co', 'anon');
+    a.connect(
+      { name: 'alice', color: '#fff', appearance },
+      { onMessage: (m) => inbox.push(m), onStatus: (s) => statuses.push(s) },
+    );
+    await vi.dynamicImportSettled();
+    await Promise.resolve();
+    const b = await joinAs('bob');
+
+    created[0]!.serverClose();
+    expect(statuses.at(-1)).toBe('reconnecting');
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(created).toHaveLength(3);
+    expect(statuses.at(-1)).toBe('open');
+    expect(inbox.filter((m) => m.type === 'welcome')).toHaveLength(1);
+    expect(inbox.some((m) => m.type === 'peer-left')).toBe(false);
+
+    // Bob still sees alice: her presence is back after the reopen.
+    expect(b.inbox.some((m) => m.type === 'peer-left')).toBe(false);
+
+    // Carol left while alice was away; alice drops her once the grace period passes.
+    const c = await joinAs('carol');
+    expect(inbox).toContainEqual({ type: 'peer-joined', peer: expect.objectContaining({ id: c.id }) });
+    created[2]!.serverClose(); // alice's rebuilt channel drops again...
+    c.net.close(); // ...and carol leaves meanwhile, so alice never gets her bye or leave
+    await vi.advanceTimersByTimeAsync(500);
+    expect(inbox.some((m) => m.type === 'peer-left')).toBe(false);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(inbox).toContainEqual({ type: 'peer-left', id: c.id });
+    expect(inbox).not.toContainEqual({ type: 'peer-left', id: b.id });
   });
 });

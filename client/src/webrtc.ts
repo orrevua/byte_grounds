@@ -47,6 +47,11 @@ export class PeerLink {
     this.pc.ontrack = ({ streams }) => {
       if (streams[0]) cb.onTrack(streams[0]);
     };
+    // Network change / NAT rebinding: 'disconnected' usually heals by itself, 'failed' doesn't.
+    // restartIce() re-runs negotiation (via onnegotiationneeded) with fresh ICE candidates.
+    this.pc.onconnectionstatechange = () => {
+      if (this.pc.connectionState === 'failed') this.pc.restartIce();
+    };
     this.pc.onnegotiationneeded = async () => {
       try {
         this.makingOffer = true;
@@ -86,6 +91,7 @@ export class PeerLink {
     this.pc.onicecandidate = null;
     this.pc.ontrack = null;
     this.pc.onnegotiationneeded = null;
+    this.pc.onconnectionstatechange = null;
     this.pc.close();
   }
 }
