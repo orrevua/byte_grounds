@@ -1,4 +1,4 @@
-import { NetClient, type NetStatus } from './net.ts';
+import { createNet, type Net, type NetStatus } from './net.ts';
 import { Game } from './game.ts';
 import {
   CATEGORIES,
@@ -21,7 +21,7 @@ const STORAGE_KEY = 'byte_grounds.appearance';
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('#app container not found');
 
-let net: NetClient | null = null;
+let net: Net | null = null;
 let game: Game | null = null;
 
 const banner = document.createElement('div');
@@ -126,7 +126,7 @@ function renderJoin(): void {
 
 function join(name: string, appearance: Appearance): void {
   localStorage.setItem(STORAGE_KEY, serializeAppearance(appearance));
-  net = new NetClient();
+  net = createNet();
   net.connect(
     { name, color: DEFAULT_COLOR, appearance },
     {

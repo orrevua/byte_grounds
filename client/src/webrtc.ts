@@ -5,7 +5,7 @@ import type {
   RelayIceMsg,
   RelayOfferMsg,
 } from '@byte_grounds/shared/protocol';
-import type { NetClient } from './net.ts';
+import type { Net } from './net.ts';
 
 /** Perfect-negotiation politeness: the lexicographically smaller id is polite. */
 export function isPolite(selfId: PeerId, otherId: PeerId): boolean {
@@ -102,7 +102,7 @@ export class WebrtcMesh {
 
   constructor(
     private selfId: PeerId,
-    private readonly net: NetClient,
+    private readonly net: Net,
     private readonly getStream: () => Promise<MediaStream | null>,
     private readonly onTrack: (peerId: PeerId, stream: MediaStream) => void,
     private readonly onClosed: (peerId: PeerId) => void,

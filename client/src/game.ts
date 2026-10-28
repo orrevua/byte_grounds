@@ -15,7 +15,7 @@ import {
   walkFrameIndex,
   type Direction,
 } from './sprites.ts';
-import type { NetClient } from './net.ts';
+import type { Net } from './net.ts';
 
 export interface SelfInfo {
   name: string;
@@ -71,7 +71,7 @@ export class Game {
   constructor(
     canvas: HTMLCanvasElement,
     self: SelfInfo,
-    private readonly net: NetClient,
+    private readonly net: Net,
     private selfId: PeerId,
   ) {
     const ctx = canvas.getContext('2d');
