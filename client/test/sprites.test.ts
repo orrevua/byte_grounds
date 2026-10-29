@@ -25,6 +25,8 @@ import {
   serializeAppearance,
   parseAppearance,
   shuffleAppearance,
+  lieTransform,
+  sitFrame,
 } from '../src/sprites.ts';
 import type { Direction } from '../src/sprites.ts';
 import type { Appearance } from '@byte_grounds/shared/protocol';
@@ -55,6 +57,32 @@ describe('directionFromDelta', () => {
     for (const d of dirs) {
       expect(directionFromDelta(0, 0, d)).toBe(d);
       expect(directionFromDelta(1e-6, -1e-6, d)).toBe(d);
+    }
+  });
+});
+
+describe('lieTransform', () => {
+  it('lays the profile frame on its side, feet toward dir, belly toward the viewer', () => {
+    expect(lieTransform('left')).toEqual({ src: 'right', rot: Math.PI / 2 });
+    expect(lieTransform('right')).toEqual({ src: 'left', rot: -Math.PI / 2 });
+  });
+
+  it('falls back to a horizontal side-lie for up/down', () => {
+    expect(lieTransform('up')).toEqual({ src: 'right', rot: Math.PI / 2 });
+    expect(lieTransform('down')).toEqual({ src: 'left', rot: -Math.PI / 2 });
+  });
+
+  it('rotates the feet (local 0,+28) to the dir side and the belly to screen-down', () => {
+    for (const dir of ['left', 'right'] as const) {
+      const { src, rot } = lieTransform(dir);
+      const rotate = (x: number, y: number) => ({
+        x: Math.round(x * Math.cos(rot) - y * Math.sin(rot)) + 0,
+        y: Math.round(x * Math.sin(rot) + y * Math.cos(rot)),
+      });
+      const feet = rotate(0, 28);
+      const belly = rotate(src === 'right' ? 1 : -1, 0);
+      expect(Math.sign(feet.x)).toBe(dir === 'left' ? -1 : 1);
+      expect(belly).toEqual({ x: 0, y: 1 });
     }
   });
 });
@@ -240,6 +268,34 @@ describe('CATEGORIES / options', () => {
 
   it('TORSO union is CASUAL_TORSO ∪ BUSINESS_TORSO', () => {
     expect(new Set(TORSO)).toEqual(new Set([...CASUAL_TORSO, ...BUSINESS_TORSO]));
+  });
+});
+
+describe('sit pose layers', () => {
+  it('keeps the walk-sheet URLs for stand (default) and lie', () => {
+    const a = casual({});
+    expect(appearanceToLayers(a, 'stand')).toEqual(appearanceToLayers(a));
+    expect(appearanceToLayers(a, 'lie')).toEqual(appearanceToLayers(a));
+  });
+
+  it('resolves the same files under the sit/ subtree for sit', () => {
+    for (const a of PRESETS.map((p) => p.appearance)) {
+      const sit = appearanceToLayers(a, 'sit');
+      expect(sit).toEqual(appearanceToLayers(a).map((u) => u.replace('/sprites/lpc/', '/sprites/lpc/sit/')));
+    }
+  });
+
+  it('pins the sit-sheet frame per facing (one row: up, left, down, right)', () => {
+    expect(sitFrame('up')).toEqual({ row: 0, col: 0 });
+    expect(sitFrame('left')).toEqual({ row: 0, col: 1 });
+    expect(sitFrame('down')).toEqual({ row: 0, col: 2 });
+    expect(sitFrame('right')).toEqual({ row: 0, col: 3 });
+  });
+
+  it('includes every sit layer in ALL_LAYER_URLS', () => {
+    for (const a of PRESETS.map((p) => p.appearance)) {
+      for (const url of appearanceToLayers(a, 'sit')) expect(ALL_LAYER_URLS).toContain(url);
+    }
   });
 });
 

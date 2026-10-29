@@ -1,7 +1,35 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-28 (project renamed to ByteGrounds)
+**Last updated:** 2026-10-29 (sit & side-lie poses, uncommitted)
 **Branch:** master (git initialized)
+
+## Sit & side-lie poses — UNITS 1–3, 5–11 DONE, UNCOMMITTED (2026-10-29)
+Spec: `docs/specs/sit-lie-poses.md`. Branch `claude/nifty-archimedes-e4o1ce`. **Not committed /
+not pushed — awaiting the user's review of the preview PNGs.** `npm test` → **103 green** (was 96:
++3 lieTransform, +4 sit layers/frame); `npm run typecheck --workspace client` + `npm run build` green.
+- **U1–3 side-lie:** `sprites.ts` pure `lieTransform(dir)` (left/up → `right` frame +π/2; right/down →
+  `left` frame −π/2; side picked by source frame, belly toward viewer) + `LIE_SHIFT = 8`.
+  `render.ts` lie branch draws the profile frame rotated, shifted `LIE_SHIFT` along `dir`;
+  `LIE_ROTATION` + `down`-frame draw removed. Tests lock the table + feet/belly vectors.
+- **U5 recon:** sanderfrenken generator has `sit` rows for body + pants (extended 832×2944 sheets,
+  body is headless there), but longsleeve/tunic/vest/sash-dress are plain 832×1344 (no sit) and our
+  formal/pink/navy are our own derivatives → no complete drop-in set. Synthesis kept.
+- **U6–8 sit sheets:** `tools/gen_pose_sheets.py` (Pillow; `--preview OUT_DIR`). Profile bend for
+  left/right (torso kept, lowered `SEAT_DROP`; front-leg thigh band rotated 90°, stretched,
+  knee/underside outlined; front lower leg hung under the knee), row-cut squash for up/down.
+  Final constants: `HIP_Y=48 KNEE_Y=56 SHIN_Y=52 THIGH_X0,X1=33,39 SHIN_X0=31 THIGH_LEN=16
+  THIGH_AT=(28,47) SHIN_DX=6 SEAT_DROP=4 SQUASH_Y0,Y1=46,52`. Generated 32 sheets (256×64, cols
+  up/left/down/right) under `client/public/sprites/lpc/sit/{body,legs,torso,hair}/`;
+  `client/public/sprites/CREDITS.md` entry (CC-BY-SA 3.0 derivatives, original authors kept).
+- **U9–11 compose:** `appearanceToLayers(a, pose='stand')` (sit → `sit/` subtree), `sitFrame(dir)`,
+  `ALL_LAYER_URLS` + `preloadAppearance` include sit layers; `drawSitAppearance` (shared
+  `blitLayers`); render sit branch feet-anchored like standing; `SIT_DROP` removed.
+- Previews (session scratchpad, 4× nearest): `scratchpad/poses/preview_{sit,lie,stand}.png`.
+- Known weaknesses: up/down sit is a squash (reads as short legs, not a clear bend); up/down lie
+  is the horizontal fallback and overhangs a vertical bed; female formal dress turns into a
+  white "hem blob" at the feet in profile sit; lie uses the walk-idle stride (legs slightly apart);
+  `appearanceReady` still only checks stand layers (sit layers preload together, so a gap is unlikely).
+- **Pending:** U4 + U12 manual two-tab checks; user preview approval; commit.
 
 ## Furniture depth + pose fix — UNITS 1–7 DONE (2026-10-28)
 Spec: `docs/specs/furniture-depth-pose-fix.md`. All 7 units implemented, committed, and pushed to
