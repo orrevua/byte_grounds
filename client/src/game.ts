@@ -1,5 +1,6 @@
-import { decorLayer, seatsNear, type DecorCell, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
+import { decorLayer, seatsNearIn, type DecorCell, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
 import { POSITION_TICK_MS, TILE_SIZE } from '@byte_grounds/shared/protocol';
+import { effectiveSeats } from '@byte_grounds/shared/seats';
 import type { Appearance, PeerId, PeerState, Pose, ServerToClient } from '@byte_grounds/shared/protocol';
 import { drawAvatar, drawDecorCellAt, drawMap, drawNameLabel, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
 import { avatarAnchorY, decorAnchorY, sortRenderables } from './depth.ts';
@@ -60,6 +61,8 @@ export class Game {
   private readonly self: Avatar;
   /** The seat we're on, and where we stood before, to step back there when getting up. */
   private seat: { seat: Seat; standX: number; standY: number } | null = null;
+  /** The map's usable seats (authored + automatic); recomputed by `refreshSeats`. */
+  private seats: Seat[];
   private readonly seatBtn: HTMLButtonElement;
   private sentPose: Pose = 'stand';
   private sentDir: Direction = 'down';
@@ -85,6 +88,7 @@ export class Game {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('2D canvas context unavailable');
     this.ctx = ctx;
+    this.seats = effectiveSeats(map);
 
     this.fitCanvas();
 
@@ -119,9 +123,16 @@ export class Game {
     this.media.onVideoTrack = (track, stream) => this.mesh.setVideo(track, stream);
   }
 
-  /** Our current tile-space position (for saving where we left off). */
+  /** Our current tile-space position (for saving where we left off); the stand spot while seated. */
   get position(): { x: number; y: number } {
-    return { x: this.self.x, y: this.self.y };
+    return this.seat ? { x: this.seat.standX, y: this.seat.standY } : { x: this.self.x, y: this.self.y };
+  }
+
+  /** Recompute the usable seats after the map's decor/seats/noSeats change; stand up if ours is gone. */
+  refreshSeats(): void {
+    this.seats = effectiveSeats(this.map);
+    const mine = this.seat?.seat;
+    if (mine && !this.seats.some((st) => st.x === mine.x && st.y === mine.y && st.kind === mine.kind)) this.standUp();
   }
 
   start(): void {
@@ -277,7 +288,7 @@ export class Game {
 
   /** The nearest seat in reach that nobody else is using. */
   private freeSeatNearby(): Seat | undefined {
-    return seatsNear(this.map, this.self.x, this.self.y, SEAT_REACH).find(
+    return seatsNearIn(this.seats, this.self.x, this.self.y, SEAT_REACH).find(
       (st) =>
         ![...this.remotes.values()].some(
           (r) => r.pose !== 'stand' && Math.abs(r.tx - (st.x + 0.5)) < 0.1 && Math.abs(r.ty - (st.y + 0.5)) < 0.1,
