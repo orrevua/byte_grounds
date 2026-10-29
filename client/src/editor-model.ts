@@ -1,4 +1,4 @@
-import { MAX_MAP_SIZE, type Facing, type OfficeMap, type Seat, type Tile } from '@byte_grounds/shared/map';
+import { MAX_MAP_SIZE, type DecorCell, type Facing, type OfficeMap, type Seat, type Tile } from '@byte_grounds/shared/map';
 
 /** A rectangle of cells picked from a decor sheet (in 32px cells). */
 export interface DecorSelection {
@@ -35,7 +35,14 @@ export function stampDecor(m: OfficeMap, x: number, y: number, sel: DecorSelecti
       const tx = x + dx;
       const ty = y + dy;
       if (!inBounds(m, tx, ty)) continue;
-      const cell = { x: tx, y: ty, sheet: sel.sheet, sx: sel.sx + dx, sy: sel.sy + dy };
+      const cell: DecorCell = {
+        x: tx,
+        y: ty,
+        sheet: sel.sheet,
+        sx: sel.sx + dx,
+        sy: sel.sy + dy,
+        layer: block ? 'object' : 'floor',
+      };
       const dup = m.decor.some(
         (d) => d.x === tx && d.y === ty && d.sheet === cell.sheet && d.sx === cell.sx && d.sy === cell.sy,
       );

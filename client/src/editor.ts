@@ -1,6 +1,6 @@
 import { TILE_SIZE } from '@byte_grounds/shared/protocol';
 import { createBlankMap, mapIdFromName, tileAt, type Facing, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
-import { drawMap, mapPixelSize } from './render.ts';
+import { drawMap, drawObjectDecorFlat, mapPixelSize } from './render.ts';
 import { DECOR_SHEETS, decorImage, loadDecorSheets } from './decor.ts';
 import {
   eraseDecor,
@@ -446,6 +446,7 @@ function sizeCanvas(): void {
 
 function draw(): void {
   drawMap(ctx, map);
+  drawObjectDecorFlat(ctx, map);
   if (showWalls) {
     ctx.save();
     for (let y = 0; y < map.height; y++) {
