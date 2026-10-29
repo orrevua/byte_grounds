@@ -3,6 +3,7 @@ import { POSITION_TICK_MS, TILE_SIZE } from '@byte_grounds/shared/protocol';
 import type { Appearance, PeerId, PeerState, Pose, ServerToClient } from '@byte_grounds/shared/protocol';
 import { drawAvatar, drawDecorCellAt, drawMap, drawNameLabel, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
 import { avatarAnchorY, decorAnchorY, sortRenderables } from './depth.ts';
+import { cameraOffset, viewportSize } from './camera.ts';
 import { Keyboard, TouchPad, isTouchDevice } from './input.ts';
 import { stepMovement, type MoveInput } from './movement.ts';
 import { distanceTiles, nextProxState, type ProxState } from './proximity.ts';
@@ -85,9 +86,7 @@ export class Game {
     if (!ctx) throw new Error('2D canvas context unavailable');
     this.ctx = ctx;
 
-    const { w, h } = mapPixelSize(this.map);
-    canvas.width = w;
-    canvas.height = h;
+    this.fitCanvas();
 
     this.self = {
       name: self.name,
@@ -107,6 +106,7 @@ export class Game {
     this.seatBtn.addEventListener('click', () => this.toggleSeat());
     document.body.appendChild(this.seatBtn);
     addEventListener('keydown', this.onKey);
+    addEventListener('resize', this.fitCanvas);
 
     this.bubbles = new VideoBubbles(canvas.parentElement ?? document.body);
     this.mesh = new WebrtcMesh(
@@ -135,6 +135,7 @@ export class Game {
     this.keyboard.dispose();
     this.touchpad?.dispose();
     removeEventListener('keydown', this.onKey);
+    removeEventListener('resize', this.fitCanvas);
     this.seatBtn.remove();
     this.mesh.closeAll();
   }
@@ -260,6 +261,14 @@ export class Game {
     this.raf = requestAnimationFrame(this.frame);
   };
 
+  /** The canvas shows the whole map when it fits the window, else a window-sized view of it. */
+  private readonly fitCanvas = (): void => {
+    const canvas = this.ctx.canvas;
+    const { w, h } = viewportSize(mapPixelSize(this.map), { w: innerWidth, h: innerHeight });
+    if (canvas.width !== w) canvas.width = w;
+    if (canvas.height !== h) canvas.height = h;
+  };
+
   private readonly onKey = (e: KeyboardEvent): void => {
     if (e.key.toLowerCase() !== 'e' || e.repeat) return;
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -341,7 +350,14 @@ export class Game {
     const { ctx, map } = this;
     // The canvas is CSS-scaled to fit small screens; bubbles live in CSS pixels.
     const scale = ctx.canvas.clientWidth / ctx.canvas.width || 1;
+    // A map bigger than the canvas scrolls to keep our avatar centred (clamped at the edges).
+    const world = mapPixelSize(map);
+    const focus = tileToScreen(this.self.x, this.self.y);
+    const camX = cameraOffset(focus.px, ctx.canvas.width, world.w);
+    const camY = cameraOffset(focus.py, ctx.canvas.height, world.h);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.setTransform(1, 0, 0, 1, -camX, -camY);
     drawMap(ctx, map);
 
     // One y-sorted pass over object-layer furniture + every avatar, drawn back-to-front so
@@ -369,10 +385,11 @@ export class Game {
     // Final pass on top of all furniture: name labels, and remote bubble placement + volume.
     for (const r of this.remotes.values()) this.drawName(r);
     this.drawName(this.self);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     for (const [id, r] of this.remotes) {
       if (this.prox.get(id) === 'near') this.bubbles.setVolume(id, volumeForDistance(distanceTiles(this.self, r)));
       const { px, py } = tileToScreen(r.x, r.y);
-      this.bubbles.place(id, px * scale, py * scale);
+      this.bubbles.place(id, (px - camX) * scale, (py - camY) * scale);
     }
   }
 
