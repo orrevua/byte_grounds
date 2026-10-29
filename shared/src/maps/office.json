@@ -1,6 +1,7 @@
 {
   "id": "office",
   "name": "Office",
+  "rev": 1,
   "width": 48,
   "height": 32,
   "tiles": [

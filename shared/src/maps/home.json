@@ -1,6 +1,7 @@
 {
   "id": "home",
   "name": "Home",
+  "rev": 1,
   "width": 40,
   "height": 30,
   "tiles": [

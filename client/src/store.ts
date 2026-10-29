@@ -1,5 +1,5 @@
 import { parseMap, type OfficeMap } from '@byte_grounds/shared/map';
-import { BUILT_IN_MAPS, builtInMap } from '@byte_grounds/shared/maps';
+import { BUILT_IN_MAPS, builtInMap, builtInRev } from '@byte_grounds/shared/maps';
 import { getSupabase, hasSupabase } from './supabase.ts';
 
 export interface MapSummary {
@@ -10,7 +10,7 @@ export interface MapSummary {
 /** Saved maps and each player's last spot per map. */
 export interface Store {
   listMaps(): Promise<MapSummary[]>;
-  /** A saved map, or the built-in map with that id when it hasn't been edited. */
+  /** A saved map, or the built-in map with that id when it has no up-to-date saved copy. */
   loadMap(id: string): Promise<OfficeMap | null>;
   saveMap(map: OfficeMap): Promise<void>;
   deleteMap(id: string): Promise<void>;
@@ -23,11 +23,39 @@ export function playerKey(name: string): string {
   return name.trim().toLowerCase();
 }
 
+/** A stored map's list entry; `basedOnRev` as saved in its data (see `savedWins`). */
+interface SavedSummary extends MapSummary {
+  basedOnRev?: number | null;
+}
+
 /**
- * Built-in maps are always listed first, even before anyone saves a map (a saved copy of one
- * keeps its place under its saved name), then every other saved map.
+ * Whether a saved map is served instead of the built-in with its id: always when there is no
+ * built-in, else only if it was edited from the built-in's current revision. A copy saved from
+ * an older revision (or before revisions existed) is stale: it stays stored but no longer hides
+ * the new built-in.
  */
-function withBuiltIn(maps: MapSummary[]): MapSummary[] {
+export function savedWins(id: string, basedOnRev: number | null | undefined): boolean {
+  return !builtInMap(id) || (basedOnRev ?? 0) >= builtInRev(id);
+}
+
+/** The map served for `id` given its stored data (if any). */
+function pickMap(id: string, saved: unknown): OfficeMap | null {
+  const map = parseMap(saved);
+  return map && savedWins(id, map.basedOnRev) ? map : builtInMap(id);
+}
+
+/** What gets stored: a copy of a built-in map records the revision it was edited from. */
+function toStored(map: OfficeMap): OfficeMap {
+  const rev = builtInRev(map.id);
+  return rev ? { ...map, basedOnRev: rev } : map;
+}
+
+/**
+ * Built-in maps are always listed first, even before anyone saves a map (an up-to-date saved
+ * copy of one keeps its place under its saved name), then every other saved map.
+ */
+function withBuiltIn(saved: SavedSummary[]): MapSummary[] {
+  const maps = saved.filter((m) => savedWins(m.id, m.basedOnRev)).map(({ id, name }) => ({ id, name }));
   const builtIns = BUILT_IN_MAPS.map((b) => maps.find((m) => m.id === b.id) ?? { id: b.id, name: b.name ?? b.id });
   return [...builtIns, ...maps.filter((m) => !builtInMap(m.id))];
 }
@@ -36,21 +64,21 @@ function withBuiltIn(maps: MapSummary[]): MapSummary[] {
 export class SupabaseStore implements Store {
   async listMaps(): Promise<MapSummary[]> {
     const db = await getSupabase();
-    const { data, error } = await db.from('maps').select('id, name').order('name');
+    const { data, error } = await db.from('maps').select('id, name, basedOnRev:data->basedOnRev').order('name');
     if (error) throw error;
-    return withBuiltIn((data ?? []) as MapSummary[]);
+    return withBuiltIn((data ?? []) as SavedSummary[]);
   }
 
   async loadMap(id: string): Promise<OfficeMap | null> {
     const db = await getSupabase();
     const { data, error } = await db.from('maps').select('data').eq('id', id).maybeSingle();
     if (error) throw error;
-    return parseMap(data?.data) ?? builtInMap(id);
+    return pickMap(id, data?.data);
   }
 
   async saveMap(map: OfficeMap): Promise<void> {
     const db = await getSupabase();
-    const row = { id: map.id, name: map.name ?? map.id, data: map, updated_at: new Date().toISOString() };
+    const row = { id: map.id, name: map.name ?? map.id, data: toStored(map), updated_at: new Date().toISOString() };
     const { error } = await db.from('maps').upsert(row);
     if (error) throw error;
   }
@@ -109,16 +137,18 @@ export class LocalStore implements Store {
   async listMaps(): Promise<MapSummary[]> {
     const maps = Object.values(this.read<OfficeMap>(MAPS_KEY));
     return withBuiltIn(
-      maps.map((m) => ({ id: m.id, name: m.name ?? m.id })).sort((a, b) => a.name.localeCompare(b.name)),
+      maps
+        .map((m) => ({ id: m.id, name: m.name ?? m.id, basedOnRev: m.basedOnRev }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
     );
   }
 
   async loadMap(id: string): Promise<OfficeMap | null> {
-    return parseMap(this.read<OfficeMap>(MAPS_KEY)[id]) ?? builtInMap(id);
+    return pickMap(id, this.read<OfficeMap>(MAPS_KEY)[id]);
   }
 
   async saveMap(map: OfficeMap): Promise<void> {
-    this.write(MAPS_KEY, { ...this.read(MAPS_KEY), [map.id]: map });
+    this.write(MAPS_KEY, { ...this.read(MAPS_KEY), [map.id]: toStored(map) });
   }
 
   async deleteMap(id: string): Promise<void> {

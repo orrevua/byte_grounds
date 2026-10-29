@@ -5,7 +5,7 @@ export const POSITION_TICK_MS = 83; // ~12 Hz position broadcast
 export const CONNECT_RADIUS = 4; // tiles
 export const DISCONNECT_RADIUS = 5; // tiles
 export const STUN_URLS = ['stun:stun.l.google.com:19302'];
-export const DEFAULT_ROOM = 'office';
+export const DEFAULT_ROOM = 'lounge'; // = DEFAULT_MAP.id (shared/src/maps.ts)
 
 export type PeerId = string;
 

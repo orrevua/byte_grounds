@@ -1,7 +1,41 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-29 (built-in maps: refurnished Office, new Lounge & Café and Home; camera)
+**Last updated:** 2026-10-29 (Lounge & Café is the default map; built-in revisions beat stale saved copies)
 **Branch:** `claude/nifty-archimedes-e4o1ce`
+
+## Default map = Lounge & Café; built-in revisions vs saved copies — DONE, COMMITTED (2026-10-29)
+User report: "the office was not redone, didn't change". **Cause (verified):** production Supabase
+(`uxfircvmukgjosfdkxgw`, read with the public anon key from the deployed bundle at
+byte-grounds.vercel.app) has one `maps` row, `office` "Office", saved 2026-10-29 14:01 UTC: the
+old hand-built 20x15 office (300 tiles, 38 decor cells, no `basedOnRev`). The store served a saved
+copy over the built-in, so it hid the new 48x32 office. The deployed bundle (built 16:02 UTC) does
+contain the new maps, so it was not a stale build; no server-side map exists (the ws server only
+uses the default map's spawn as a fallback position).
+- **Revisions:** `tools/build_maps.py` writes `"rev"` into each `shared/src/maps/<id>.json`
+  (MapBuilder arg after the name; all 1 now). Bump it whenever a layout changes.
+  `shared/src/maps.ts` `builtInRev(id)` (0 = not a built-in).
+- **`OfficeMap.basedOnRev?`** (`shared/src/map.ts`): kept by `parseMap` only as a positive integer;
+  missing = stale. `store.saveMap` stamps it (`toStored`) when the id has a built-in.
+- **Precedence** (`client/src/store.ts` `savedWins(id, basedOnRev)`): a saved map wins if there is no
+  built-in with its id, or if `basedOnRev >= builtInRev(id)`; otherwise the built-in is listed and
+  loaded. Stale copies are not deleted (the old office row is still in Supabase); the editor's
+  Delete still removes the stored row. Supabase `listMaps` selects `basedOnRev:data->basedOnRev`
+  (checked against the live REST API); no schema change.
+- **Default map:** `BUILT_IN_MAPS` order is lounge, office, home; `DEFAULT_MAP` (= lounge) replaces
+  `OFFICE_MAP` in `main.ts` (placeholder option + load fallback), `net-supabase.ts` and
+  `server/src/index.ts` (spawn fallback), editor boot (`?map=` absent). `DEFAULT_ROOM` = `'lounge'`
+  (test asserts it equals `DEFAULT_MAP.id`). The join screen still preselects the map the player
+  last joined (`byte_grounds.map` in localStorage), so returning players who used the office see it
+  preselected; new players get the lounge.
+- Tests: maps (+1 rev, default order), map parse basedOnRev (+1), store stale precedence (+1) and
+  `savedWins` (+1). `npm test` 159 green; client typecheck + build green.
+- `docs/CONTEXT.md` → Maps → "Store precedence" still describes the old rule (saved always wins);
+  left for the Architect to update.
+
+### Manual checks (browser, NOT exercised here)
+1. After deploy: the join screen lists Lounge & Café, Office, Home; Office opens the new 48x32 map.
+2. Editor: open Office, change a tile, Save, reload: the edit sticks (row now has `basedOnRev: 1`).
+3. Fresh profile (no localStorage): the lounge is preselected; the editor opens the lounge.
 
 ## Built-in maps + scrolling camera — DONE, COMMITTED (2026-10-29)
 Creative content task (no spec). Three furnished maps ship with the app; see `docs/CONTEXT.md` → Maps.
@@ -29,8 +63,7 @@ Creative content task (no spec). Three furnished maps ship with the app; see `do
 4. Sit at a north-side desk chair (tucked under the desk): the desk covers the legs. Sit on a bar
    stool, a sofa, an armchair; lie on the double bed and on a single bed.
 5. Resize the window: canvas refits; a 20x15 saved map still shows whole on a big screen.
-6. If Supabase already has a saved `office` row, the old office still shows; delete it in the editor
-   to get the new one.
+6. (Superseded: a stale saved `office` row no longer hides the new office; see above.)
 
 **Next:** run the manual checks above; tweak layouts in `tools/build_maps.py` if anything looks off.
 
