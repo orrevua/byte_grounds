@@ -11,7 +11,14 @@ const SHEET_URLS: Record<string, string> = Object.fromEntries(
   ).map(([path, url]) => [path.replace(/^.*\//, '').replace(/\.png$/, ''), url]),
 );
 
-export const DECOR_SHEETS: string[] = Object.keys(SHEET_URLS).sort();
+/**
+ * Sheets offered in the editor picker. A sheet with a `<name>_grid` repack (same art moved onto
+ * whole cells by `tools/repack_decor.py`) is hidden in favour of it, but still loads and draws:
+ * saved maps reference its cells.
+ */
+export const DECOR_SHEETS: string[] = Object.keys(SHEET_URLS)
+  .filter((s) => !(`${s}_grid` in SHEET_URLS))
+  .sort();
 
 const images = new Map<string, HTMLImageElement>();
 

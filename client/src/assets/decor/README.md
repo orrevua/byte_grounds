@@ -7,6 +7,12 @@ without `.png`, is the sheet's name). Sheets are cut into 32×32 squares, the LP
 Keep file names stable: maps refer to sheets by name, so renaming a file makes its pieces
 disappear from maps that use it.
 
+If a sheet's objects straddle cell lines (picking a cell gives half a chair), repack it with
+`python tools/repack_decor.py <name> --preview <dir>` (`--analyze` reports every sheet). That
+writes `<name>_grid.png` with each object moved onto whole cells; the picker then shows the
+`_grid` sheet instead of the original, which stays (unchanged) so existing maps still draw.
+Don't repack seamless tile sheets (floors, walls). Credit the `_grid` file in `CREDITS.md`.
+
 ## Suggested free LPC packs (same style as the characters)
 
 Download from OpenGameArt, unzip, and copy the **PNG sheets** here:
