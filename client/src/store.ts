@@ -1,4 +1,5 @@
-import { OFFICE_MAP, parseMap, type OfficeMap } from '@byte_grounds/shared/map';
+import { parseMap, type OfficeMap } from '@byte_grounds/shared/map';
+import { BUILT_IN_MAPS, builtInMap } from '@byte_grounds/shared/maps';
 import { getSupabase, hasSupabase } from './supabase.ts';
 
 export interface MapSummary {
@@ -9,7 +10,7 @@ export interface MapSummary {
 /** Saved maps and each player's last spot per map. */
 export interface Store {
   listMaps(): Promise<MapSummary[]>;
-  /** A saved map, or the built-in office for `office` when it hasn't been edited. */
+  /** A saved map, or the built-in map with that id when it hasn't been edited. */
   loadMap(id: string): Promise<OfficeMap | null>;
   saveMap(map: OfficeMap): Promise<void>;
   deleteMap(id: string): Promise<void>;
@@ -22,10 +23,13 @@ export function playerKey(name: string): string {
   return name.trim().toLowerCase();
 }
 
-/** The built-in office is always listed, even before anyone saves a map. */
+/**
+ * Built-in maps are always listed first, even before anyone saves a map (a saved copy of one
+ * keeps its place under its saved name), then every other saved map.
+ */
 function withBuiltIn(maps: MapSummary[]): MapSummary[] {
-  if (maps.some((m) => m.id === OFFICE_MAP.id)) return maps;
-  return [{ id: OFFICE_MAP.id, name: OFFICE_MAP.name ?? 'Office' }, ...maps];
+  const builtIns = BUILT_IN_MAPS.map((b) => maps.find((m) => m.id === b.id) ?? { id: b.id, name: b.name ?? b.id });
+  return [...builtIns, ...maps.filter((m) => !builtInMap(m.id))];
 }
 
 /** Supabase tables from `supabase/schema.sql`. */
@@ -41,7 +45,7 @@ export class SupabaseStore implements Store {
     const db = await getSupabase();
     const { data, error } = await db.from('maps').select('data').eq('id', id).maybeSingle();
     if (error) throw error;
-    return parseMap(data?.data) ?? (id === OFFICE_MAP.id ? OFFICE_MAP : null);
+    return parseMap(data?.data) ?? builtInMap(id);
   }
 
   async saveMap(map: OfficeMap): Promise<void> {
@@ -110,7 +114,7 @@ export class LocalStore implements Store {
   }
 
   async loadMap(id: string): Promise<OfficeMap | null> {
-    return parseMap(this.read<OfficeMap>(MAPS_KEY)[id]) ?? (id === OFFICE_MAP.id ? OFFICE_MAP : null);
+    return parseMap(this.read<OfficeMap>(MAPS_KEY)[id]) ?? builtInMap(id);
   }
 
   async saveMap(map: OfficeMap): Promise<void> {
