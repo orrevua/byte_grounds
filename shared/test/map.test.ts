@@ -108,6 +108,24 @@ describe('parseMap decor transform', () => {
   });
 });
 
+describe('parseMap decor baseDy', () => {
+  const base = { id: 'd', width: 2, height: 2, tiles: [0, 0, 0, 0], spawn: { x: 0.5, y: 0.5 } };
+  const cell = { x: 0, y: 0, sheet: 's', sx: 0, sy: 0 };
+
+  it('keeps a positive integer baseDy', () => {
+    expect(parseMap({ ...base, decor: [{ ...cell, baseDy: 1 }] })!.decor).toEqual([{ ...cell, baseDy: 1 }]);
+  });
+
+  it('strips default and junk values', () => {
+    const parsed = parseMap({
+      ...base,
+      decor: [cell, { ...cell, baseDy: 0 }, { ...cell, baseDy: -1 }, { ...cell, baseDy: 1.5 }, { ...cell, baseDy: '1' }],
+    })!;
+    expect(parsed.decor).toEqual([cell, cell, cell, cell, cell]);
+    expect(parsed.decor!.every((d) => !('baseDy' in d))).toBe(true);
+  });
+});
+
 describe('decorLayer', () => {
   // tiles: (0,0) floor, (1,0) wall.
   const m: OfficeMap = { id: 'd', width: 2, height: 1, tiles: [0, 1], spawn: { x: 0.5, y: 0.5 } };

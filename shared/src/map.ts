@@ -16,6 +16,8 @@ export interface DecorCell {
   sy: number;
   /** Depth layer: `floor` draws under all avatars; `object` depth-sorts against them. */
   layer?: 'floor' | 'object';
+  /** Rows from this cell down to its object's base row (where it stands). Absent = 0. */
+  baseDy?: number;
   /** Clockwise rotation in degrees, applied after flipX. Absent = 0. */
   rot?: Rotation;
   /** Mirror horizontally (in the cell's own space, before rotating). Absent = false. */
@@ -123,6 +125,7 @@ export function parseMap(data: unknown): OfficeMap | null {
           .map((d) => {
             const cell: DecorCell = { x: d.x, y: d.y, sheet: d.sheet, sx: d.sx, sy: d.sy };
             if (d.layer === 'floor' || d.layer === 'object') cell.layer = d.layer;
+            if (Number.isInteger(d.baseDy) && d.baseDy! > 0 && d.baseDy! < MAX_MAP_SIZE) cell.baseDy = d.baseDy;
             if (d.rot === 90 || d.rot === 180 || d.rot === 270) cell.rot = d.rot;
             if (d.flipX === true) cell.flipX = true;
             return cell;
