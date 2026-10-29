@@ -11,6 +11,8 @@ export interface DecorCell {
   sheet: string;
   sx: number;
   sy: number;
+  /** Depth layer: `floor` draws under all avatars; `object` depth-sorts against them. */
+  layer?: 'floor' | 'object';
 }
 
 export type Facing = 'up' | 'down' | 'left' | 'right';
@@ -106,10 +108,16 @@ export function parseMap(data: unknown): OfficeMap | null {
     spawn: { x: spawn.x, y: spawn.y },
     colors: Array.isArray(m.colors) ? m.colors.map((c) => (typeof c === 'string' ? c : '')) : [],
     decor: Array.isArray(m.decor)
-      ? m.decor.filter(
-          (d): d is DecorCell =>
-            !!d && typeof d.sheet === 'string' && [d.x, d.y, d.sx, d.sy].every(Number.isInteger),
-        )
+      ? m.decor
+          .filter(
+            (d): d is DecorCell =>
+              !!d && typeof d.sheet === 'string' && [d.x, d.y, d.sx, d.sy].every(Number.isInteger),
+          )
+          .map((d) => {
+            const cell: DecorCell = { x: d.x, y: d.y, sheet: d.sheet, sx: d.sx, sy: d.sy };
+            if (d.layer === 'floor' || d.layer === 'object') cell.layer = d.layer;
+            return cell;
+          })
       : [],
     seats: Array.isArray(m.seats)
       ? m.seats.filter(
@@ -122,6 +130,14 @@ export function parseMap(data: unknown): OfficeMap | null {
         )
       : [],
   };
+}
+
+/**
+ * The depth layer of a decor cell: its explicit `layer` if set, else inferred from the tile
+ * under it — a wall tile (solid furniture) is an `object` (occludes avatars), anything else `floor`.
+ */
+export function decorLayer(m: OfficeMap, cell: DecorCell): 'floor' | 'object' {
+  return cell.layer ?? (tileAt(m, cell.x, cell.y) === 1 ? 'object' : 'floor');
 }
 
 /** Where a returning player starts: their saved spot if it's still walkable, else spawn. */

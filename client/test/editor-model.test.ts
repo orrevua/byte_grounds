@@ -25,8 +25,8 @@ describe('map editing', () => {
     const m = createBlankMap('a', 6, 6);
     stampDecor(m, 1, 1, { sheet: 'furniture', sx: 4, sy: 2, w: 2, h: 1 }, true);
     expect(m.decor).toEqual([
-      { x: 1, y: 1, sheet: 'furniture', sx: 4, sy: 2 },
-      { x: 2, y: 1, sheet: 'furniture', sx: 5, sy: 2 },
+      { x: 1, y: 1, sheet: 'furniture', sx: 4, sy: 2, layer: 'object' },
+      { x: 2, y: 1, sheet: 'furniture', sx: 5, sy: 2, layer: 'object' },
     ]);
     expect(isWalkable(m, 2.5, 1.5)).toBe(false);
 

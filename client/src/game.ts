@@ -1,7 +1,8 @@
-import { seatsNear, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
+import { decorLayer, seatsNear, type DecorCell, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
 import { POSITION_TICK_MS, TILE_SIZE } from '@byte_grounds/shared/protocol';
 import type { Appearance, PeerId, PeerState, Pose, ServerToClient } from '@byte_grounds/shared/protocol';
-import { drawAvatar, drawMap, drawNameLabel, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
+import { drawAvatar, drawDecorCellAt, drawMap, drawNameLabel, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
+import { avatarAnchorY, decorAnchorY, sortRenderables } from './depth.ts';
 import { Keyboard, TouchPad, isTouchDevice } from './input.ts';
 import { stepMovement, type MoveInput } from './movement.ts';
 import { distanceTiles, nextProxState, type ProxState } from './proximity.ts';
@@ -23,18 +24,22 @@ export interface SelfInfo {
   appearance: Appearance;
 }
 
-interface RemoteAvatar {
+/** The fields every drawable avatar (self or remote) shares. */
+interface Avatar {
   name: string;
   color: string;
   appearance: Appearance;
-  x: number; // rendered (interpolated) position
+  x: number;
   y: number;
-  tx: number; // latest target from the server
-  ty: number;
   dir: Direction;
   animMs: number;
   moving: boolean;
   pose: Pose;
+}
+
+interface RemoteAvatar extends Avatar {
+  tx: number; // latest target from the server
+  ty: number;
 }
 
 /** How close (tiles, to the seat's center) you must be to sit/lie on it. */
@@ -51,17 +56,7 @@ export class Game {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly keyboard = new Keyboard();
   private readonly touchpad = isTouchDevice() ? new TouchPad() : null;
-  private readonly self: {
-    name: string;
-    color: string;
-    appearance: Appearance;
-    x: number;
-    y: number;
-    dir: Direction;
-    animMs: number;
-    moving: boolean;
-    pose: Pose;
-  };
+  private readonly self: Avatar;
   /** The seat we're on, and where we stood before, to step back there when getting up. */
   private seat: { seat: Seat; standX: number; standY: number } | null = null;
   private readonly seatBtn: HTMLButtonElement;
@@ -348,39 +343,52 @@ export class Game {
     const scale = ctx.canvas.clientWidth / ctx.canvas.width || 1;
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     drawMap(ctx, map);
+
+    // One y-sorted pass over object-layer furniture + every avatar, drawn back-to-front so
+    // near furniture occludes avatars behind it (and avatars occlude furniture behind them).
+    type DecorItem = { anchorY: number; isAvatar: false; cell: DecorCell };
+    type AvatarItem = { anchorY: number; isAvatar: true; id: PeerId | null; av: Avatar; isSelf: boolean };
+    const items: (DecorItem | AvatarItem)[] = [];
+    for (const d of map.decor ?? []) {
+      if (decorLayer(map, d) === 'object') items.push({ anchorY: decorAnchorY(d), isAvatar: false, cell: d });
+    }
     for (const [id, r] of this.remotes) {
-      if (this.prox.get(id) === 'near') {
-        this.drawRing(r.x, r.y);
-        this.bubbles.setVolume(id, volumeForDistance(distanceTiles(this.self, r)));
+      items.push({ anchorY: avatarAnchorY(r), isAvatar: true, id, av: r, isSelf: false });
+    }
+    items.push({ anchorY: avatarAnchorY(this.self), isAvatar: true, id: null, av: this.self, isSelf: true });
+
+    for (const it of sortRenderables(items)) {
+      if (!it.isAvatar) {
+        drawDecorCellAt(ctx, it.cell);
+      } else {
+        if (!it.isSelf && it.id !== null && this.prox.get(it.id) === 'near') this.drawRing(it.av.x, it.av.y);
+        this.drawCharacter(it.av);
       }
-      this.drawCharacter(r.appearance, r.pose, r.dir, r.animMs, r.moving, r.x, r.y, r.color, r.name, false);
+    }
+
+    // Final pass on top of all furniture: name labels, and remote bubble placement + volume.
+    for (const r of this.remotes.values()) this.drawName(r);
+    this.drawName(this.self);
+    for (const [id, r] of this.remotes) {
+      if (this.prox.get(id) === 'near') this.bubbles.setVolume(id, volumeForDistance(distanceTiles(this.self, r)));
       const { px, py } = tileToScreen(r.x, r.y);
       this.bubbles.place(id, px * scale, py * scale);
     }
-    const s = this.self;
-    this.drawCharacter(s.appearance, s.pose, s.dir, s.animMs, s.moving, s.x, s.y, s.color, s.name, true);
   }
 
   /** Draw an avatar as its animated sprite, falling back to the disc until layers load. */
-  private drawCharacter(
-    appearance: Appearance,
-    pose: Pose,
-    dir: Direction,
-    animMs: number,
-    moving: boolean,
-    x: number,
-    y: number,
-    color: string,
-    name: string,
-    isSelf: boolean,
-  ): void {
+  private drawCharacter(a: Avatar): void {
     const { ctx } = this;
-    if (appearanceReady(appearance)) {
-      drawPosedSprite(ctx, appearance, pose, dir, walkFrameIndex(animMs, moving), x, y);
-      drawNameLabel(ctx, x, y, name);
+    if (appearanceReady(a.appearance)) {
+      drawPosedSprite(ctx, a.appearance, a.pose, a.dir, walkFrameIndex(a.animMs, a.moving), a.x, a.y);
     } else {
-      drawAvatar(ctx, x, y, color, name, isSelf);
+      drawAvatar(ctx, a.x, a.y, a.color, a === this.self);
     }
+  }
+
+  /** Name label above an avatar (sprite or disc), drawn in the top pass so furniture can't cover it. */
+  private drawName(a: Avatar): void {
+    drawNameLabel(this.ctx, a.x, a.y, a.name);
   }
 
   private drawRing(x: number, y: number): void {
