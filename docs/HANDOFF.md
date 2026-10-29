@@ -1,9 +1,36 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-29 (decor grid repack — UNCOMMITTED, awaiting preview review)
+**Last updated:** 2026-10-29 (picker: click selects the whole object)
 **Branch:** `claude/nifty-archimedes-e4o1ce`
 
-## Decor grid repack — DONE, UNCOMMITTED (2026-10-29), awaiting orchestrator preview review
+## Picker click selects the whole object — DONE, COMMITTED (2026-10-29)
+User ask: clicking one cell of a multi-cell piece (office tables 36-61 px tall, beds, sofas) picked
+"half a table"; a click should pick every cell the object covers.
+- `client/src/decor-objects.ts` (pure): `labelObjects(buf)` labels a sheet's objects once with the
+  `tools/repack_decor.py` rules — 8-connected solid regions (alpha >= 200; 8 so 1px diagonal
+  outlines stay one piece, and so picker objects match the repacker's), translucent shadow pixels
+  given breadth-first from all regions at once (never bridge two neighbours), lone shadows are
+  their own object (rugs), bits < 48 px within 3 px join a big object. `objectAt(objs, px, py)`
+  looks up the object; a transparent pixel snaps to the nearest solid pixel in the clicked cell
+  (shadow pixel only if the cell has no solid), null for an empty cell / off-sheet.
+  `findObjectAt(buf, px, py)` = both in one call. `objectCells(box)` = covering cell rect.
+- Choice: the cell rect covers the object's **solid core**, not shadow spill (as in the repacker,
+  where spill never sizes a block) — a 1px shadow tail would otherwise drag in a neighbour's cell
+  row. The returned box still has the full extent (x0..y1) alongside the core (cx0..cy1).
+- `decor.ts`: `TILE_SHEETS` (interior, interior_tiles, castle, stairs, house_inside: seamless
+  wall/floor sets, click = single cell); `decorObjects(sheet)` draws the loaded image to an
+  offscreen canvas, `getImageData`, labels and caches per sheet (~30 ms for office 512x768).
+- `editor.ts` picker: plain click = `objectCells` of the object under the cursor (falls back to the
+  clicked cell when empty / tile sheet / not loaded); Alt+click = the single cell; once the pointer
+  leaves the pressed cell it is a drag and picks exactly the dragged rect (unchanged manual
+  override). Hover draws a dashed white outline of what a click would pick. Selection is the same
+  `DecorSelection` rect, so rotation/flip brush and stamping are untouched.
+- `client/test/decor-objects.test.ts` (+6). `npm test` 129 green; client typecheck + build green.
+- Manual (browser, NOT exercised here): office sheet, hover a table -> whole table outlined, click
+  -> 2x2/1x2 selection, stamps whole; drag still picks any rect; Alt+click picks one cell;
+  interior/castle click picks one cell; R/F on a picked table turns the whole block.
+
+## Decor grid repack — DONE, COMMITTED b9ee9d3 (2026-10-29)
 Bug: in several sheets objects straddle 32px cell lines (one cell = half a chair) or share a cell.
 - `tools/repack_decor.py` (Pillow, author-time). Objects = 8-connected regions of solid pixels
   (alpha >= 200); translucent shadow pixels (LPC uses alpha 45-153) join the object they touch
@@ -28,7 +55,7 @@ Bug: in several sheets objects straddle 32px cell lines (one cell = half a chair
   (0/14), upholstery (3/68), every other Base Object Kit sheet (0 moved).
 - Office tables (the user's example) are already on whole cells: each is 36-61 px tall, so it
   needs a 1x2 / 2x2 pick and can never fit one cell. A repack cannot fix "one click = half a
-  table"; a picker that expands a click to the object's cells would (not done).
+  table"; a picker that expands a click to the object's cells does (done, see above).
 - Known limits: touching items stay one object (tavern_furniture chair pairs in a column, the
   table cluster beside the long table; cabinets; tables_stools big table + bar). Kept as a block.
 - `decor.ts`: `DECOR_SHEETS` hides any sheet that has a `<name>_grid` sibling; `SHEET_URLS`

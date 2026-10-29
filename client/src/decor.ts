@@ -1,5 +1,6 @@
 import { TILE_SIZE } from '@byte_grounds/shared/protocol';
 import type { Rotation } from '@byte_grounds/shared/map';
+import { labelObjects, type SheetObjects } from './decor-objects.ts';
 
 /**
  * Decoration art sheets: every PNG in `src/assets/decor/` (bundled by Vite), keyed by file
@@ -20,7 +21,14 @@ export const DECOR_SHEETS: string[] = Object.keys(SHEET_URLS)
   .filter((s) => !(`${s}_grid` in SHEET_URLS))
   .sort();
 
+/**
+ * Wall/floor sets whose pieces are drawn to join across cells: "the object under the click"
+ * means nothing there, so a picker click selects just the clicked cell.
+ */
+export const TILE_SHEETS: ReadonlySet<string> = new Set(['interior', 'interior_tiles', 'castle', 'stairs', 'house_inside']);
+
 const images = new Map<string, HTMLImageElement>();
+const objects = new Map<string, SheetObjects>();
 
 /** The sheet's image, starting the load on first use; draw it once `complete`. */
 export function decorImage(sheet: string): HTMLImageElement | null {
@@ -33,6 +41,26 @@ export function decorImage(sheet: string): HTMLImageElement | null {
     images.set(sheet, img);
   }
   return img;
+}
+
+/**
+ * Every art object of a loaded sheet (see `decor-objects.ts`), read back from an offscreen
+ * canvas once per sheet and cached; null until the image has loaded.
+ */
+export function decorObjects(sheet: string): SheetObjects | null {
+  const cached = objects.get(sheet);
+  if (cached) return cached;
+  const img = decorImage(sheet);
+  if (!img?.complete || !img.naturalWidth) return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.drawImage(img, 0, 0);
+  const found = labelObjects(ctx.getImageData(0, 0, canvas.width, canvas.height));
+  objects.set(sheet, found);
+  return found;
 }
 
 export function loadDecorSheets(sheets: Iterable<string>): Promise<void> {

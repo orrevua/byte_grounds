@@ -1,7 +1,8 @@
 import { TILE_SIZE } from '@byte_grounds/shared/protocol';
 import { createBlankMap, mapIdFromName, tileAt, type Facing, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
 import { drawDecorCellAt, drawMap, drawObjectDecorFlat, mapPixelSize } from './render.ts';
-import { DECOR_SHEETS, decorImage, loadDecorSheets } from './decor.ts';
+import { DECOR_SHEETS, TILE_SHEETS, decorImage, decorObjects, loadDecorSheets } from './decor.ts';
+import { objectAt, objectCells, type CellRect } from './decor-objects.ts';
 import {
   IDENTITY,
   describeTransform,
@@ -420,7 +421,8 @@ function renderDecorPicker(): void {
     <div class="row" id="brush-tools" style="margin-top:6px">
       <button id="brush-reset">Reset</button> <span id="brush-transform" class="hint"></span>
     </div>
-    <p class="hint">Click a square, or drag to pick a bigger piece, then click the map to place it.</p>
+    <p class="hint">Click an object to pick all of it (Alt+click: just that square), or drag to pick
+      any block of squares, then click the map to place it.</p>
     <p class="hint">Turn or mirror it with R / Shift+R / F / V. Chairs, sofas and thrones already come
       facing each way in the sheet: pick that variant instead. Turning suits rugs, tables, beds and
       counters; a horizontal flip is almost always safe.</p>`;
@@ -449,6 +451,8 @@ function renderDecorPicker(): void {
 
   let sheet = DECOR_SHEETS[0]!;
   let dragFrom: { x: number; y: number } | null = null;
+  let dragged = false;
+  let hoverPick: CellRect | null = null;
 
   const drawSheet = () => {
     const img = decorImage(sheet);
@@ -476,14 +480,42 @@ function renderDecorPicker(): void {
       );
       sctx.lineWidth = 1;
     }
+    if (hoverPick) {
+      sctx.strokeStyle = '#ffffff';
+      sctx.setLineDash([4, 3]);
+      sctx.strokeRect(
+        hoverPick.sx * TILE_SIZE + 0.5,
+        hoverPick.sy * TILE_SIZE + 0.5,
+        hoverPick.w * TILE_SIZE - 1,
+        hoverPick.h * TILE_SIZE - 1,
+      );
+      sctx.setLineDash([]);
+    }
   };
 
-  const cellAt = (e: PointerEvent) => {
+  const pixelAt = (e: PointerEvent) => {
     const r = sheetCanvas.getBoundingClientRect();
     return {
-      x: Math.floor(((e.clientX - r.left) * (sheetCanvas.width / r.width)) / TILE_SIZE),
-      y: Math.floor(((e.clientY - r.top) * (sheetCanvas.height / r.height)) / TILE_SIZE),
+      x: Math.floor((e.clientX - r.left) * (sheetCanvas.width / r.width)),
+      y: Math.floor((e.clientY - r.top) * (sheetCanvas.height / r.height)),
     };
+  };
+  const cellAt = (e: PointerEvent) => {
+    const p = pixelAt(e);
+    return { x: Math.floor(p.x / TILE_SIZE), y: Math.floor(p.y / TILE_SIZE) };
+  };
+  /** What a click here picks: the whole object under it, or the one cell on tile sheets / Alt. */
+  const clickPick = (e: PointerEvent): CellRect => {
+    const p = pixelAt(e);
+    const objs = e.altKey || TILE_SHEETS.has(sheet) ? null : decorObjects(sheet);
+    const obj = objs && objectAt(objs, p.x, p.y);
+    return obj ? objectCells(obj) : { sx: Math.floor(p.x / TILE_SIZE), sy: Math.floor(p.y / TILE_SIZE), w: 1, h: 1 };
+  };
+  const rectKey = (r: CellRect | null) => (r ? `${r.sx},${r.sy},${r.w},${r.h}` : '');
+  const setHover = (pick: CellRect | null) => {
+    if (rectKey(pick) === rectKey(hoverPick)) return;
+    hoverPick = pick;
+    drawSheet();
   };
   const selectRect = (a: { x: number; y: number }, b: { x: number; y: number }) => {
     selection = {
@@ -495,20 +527,34 @@ function renderDecorPicker(): void {
     };
     drawSheet();
   };
+  // A click picks the object under it; once the pointer leaves the pressed cell it is a drag,
+  // which picks exactly the dragged block (the manual override, e.g. for wall/floor sets).
   sheetCanvas.addEventListener('pointerdown', (e) => {
     dragFrom = cellAt(e);
+    dragged = false;
     sheetCanvas.setPointerCapture(e.pointerId);
-    selectRect(dragFrom, dragFrom);
+    hoverPick = null;
+    selection = { sheet, ...clickPick(e) };
+    drawSheet();
   });
   sheetCanvas.addEventListener('pointermove', (e) => {
-    if (dragFrom) selectRect(dragFrom, cellAt(e));
+    if (!dragFrom) return setHover(clickPick(e));
+    const c = cellAt(e);
+    if (dragged || c.x !== dragFrom.x || c.y !== dragFrom.y) {
+      dragged = true;
+      selectRect(dragFrom, c);
+    }
   });
   sheetCanvas.addEventListener('pointerup', () => {
     dragFrom = null;
     setTool('decor');
   });
+  sheetCanvas.addEventListener('pointerleave', () => {
+    if (!dragFrom) setHover(null);
+  });
   sheetSelect.addEventListener('change', () => {
     sheet = sheetSelect.value;
+    hoverPick = null;
     drawSheet();
   });
   drawSheet();
