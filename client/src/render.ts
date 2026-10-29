@@ -1,16 +1,7 @@
 import { TILE_SIZE } from '@byte_grounds/shared/protocol';
-import { tileColor } from '@byte_grounds/shared/map';
-import type { OfficeMap } from '@byte_grounds/shared/map';
-import {
-  FRAME_SIZE,
-  LIE_COL,
-  LIE_ROW,
-  SIT_DROP,
-  SIT_KEEP,
-  WALK_ROW,
-  drawAppearance,
-  drawAppearanceRegion,
-} from './sprites.ts';
+import { decorLayer, tileColor } from '@byte_grounds/shared/map';
+import type { DecorCell, OfficeMap } from '@byte_grounds/shared/map';
+import { FRAME_SIZE, SIT_DROP, drawAppearance } from './sprites.ts';
 import { drawDecorCell } from './decor.ts';
 import type { Direction } from './sprites.ts';
 import type { Appearance, Pose } from '@byte_grounds/shared/protocol';
@@ -38,7 +29,19 @@ export function drawMap(ctx: CanvasRenderingContext2D, map: OfficeMap): void {
   }
   drawGrid(ctx, map);
   for (const d of map.decor ?? []) {
-    drawDecorCell(ctx, d.sheet, d.sx, d.sy, d.x * TILE_SIZE, d.y * TILE_SIZE);
+    if (decorLayer(map, d) === 'floor') drawDecorCellAt(ctx, d);
+  }
+}
+
+/** Draw one decor cell at its tile. */
+export function drawDecorCellAt(ctx: CanvasRenderingContext2D, cell: DecorCell): void {
+  drawDecorCell(ctx, cell.sheet, cell.sx, cell.sy, cell.x * TILE_SIZE, cell.y * TILE_SIZE);
+}
+
+/** Draw every object-layer decor cell flat (no depth sort) — used by the editor. */
+export function drawObjectDecorFlat(ctx: CanvasRenderingContext2D, map: OfficeMap): void {
+  for (const d of map.decor ?? []) {
+    if (decorLayer(map, d) === 'object') drawDecorCellAt(ctx, d);
   }
 }
 
@@ -60,13 +63,12 @@ export function drawGrid(ctx: CanvasRenderingContext2D, map: OfficeMap): void {
   }
 }
 
-/** Draw an avatar (tile-space center) as a colored disc with a name label. */
+/** Draw an avatar (tile-space center) as a colored disc (name label drawn separately). */
 export function drawAvatar(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   color: string,
-  name: string,
   isSelf: boolean,
 ): void {
   const px = x * TILE_SIZE;
@@ -80,8 +82,6 @@ export function drawAvatar(
   ctx.lineWidth = isSelf ? 3 : 1.5;
   ctx.strokeStyle = isSelf ? '#ffffff' : '#000000';
   ctx.stroke();
-
-  drawNameLabel(ctx, x, y, name);
 }
 
 /**
@@ -103,12 +103,12 @@ export function drawSprite(
   drawAppearance(ctx, a, dir, col, px - FRAME_SIZE / 2, py - FRAME_SIZE + FOOT_OFFSET);
 }
 
-/** Lying frame rotation by where the feet point (the frame's feet point up). */
+/** Rotation to lay the standing frame flat with its feet pointing `dir` (the frame's feet point down). */
 const LIE_ROTATION: Record<Direction, number> = {
-  up: 0,
-  right: Math.PI / 2,
-  down: Math.PI,
-  left: -Math.PI / 2,
+  down: 0,
+  up: Math.PI,
+  left: Math.PI / 2,
+  right: -Math.PI / 2,
 };
 const FEET_VECTOR: Record<Direction, { dx: number; dy: number }> = {
   up: { dx: 0, dy: -1 },
@@ -118,9 +118,9 @@ const FEET_VECTOR: Record<Direction, { dx: number; dy: number }> = {
 };
 
 /**
- * Draw an avatar in a pose at tile point (x, y). Sitting: the standing frame lowered onto the
- * seat with the legs hidden. Lying: the knocked-down frame rotated so the feet point `dir`,
- * shifted that way so the head rests on the pillow tile.
+ * Draw an avatar in a pose at tile point (x, y). Sitting: the full standing frame lowered onto
+ * the seat (furniture in front hides the legs via depth sort). Lying: the full standing frame
+ * rotated so the feet point `dir`, shifted that way so the head rests on the pillow tile.
  */
 export function drawPosedSprite(
   ctx: CanvasRenderingContext2D,
@@ -136,24 +136,14 @@ export function drawPosedSprite(
   const px = x * TILE_SIZE;
   const py = y * TILE_SIZE;
   if (pose === 'sit') {
-    const destY = py - FRAME_SIZE + FOOT_OFFSET + SIT_DROP;
-    drawAppearanceRegion(ctx, a, 0, WALK_ROW[dir] * FRAME_SIZE, FRAME_SIZE, SIT_KEEP, px - FRAME_SIZE / 2, destY);
+    drawAppearance(ctx, a, dir, 0, px - FRAME_SIZE / 2, py - FRAME_SIZE + FOOT_OFFSET + SIT_DROP);
     return;
   }
   const feet = FEET_VECTOR[dir];
   ctx.save();
   ctx.translate(px + (feet.dx * TILE_SIZE) / 2, py + (feet.dy * TILE_SIZE) / 2);
   ctx.rotate(LIE_ROTATION[dir]);
-  drawAppearanceRegion(
-    ctx,
-    a,
-    LIE_COL * FRAME_SIZE,
-    LIE_ROW * FRAME_SIZE,
-    FRAME_SIZE,
-    FRAME_SIZE,
-    -FRAME_SIZE / 2,
-    -FRAME_SIZE / 2,
-  );
+  drawAppearance(ctx, a, 'down', 0, -FRAME_SIZE / 2, -FRAME_SIZE / 2);
   ctx.restore();
 }
 
