@@ -44,7 +44,7 @@ export function drawMap(ctx: CanvasRenderingContext2D, map: OfficeMap): void {
 
 /** Draw one decor cell at its tile. */
 export function drawDecorCellAt(ctx: CanvasRenderingContext2D, cell: DecorCell): void {
-  drawDecorCell(ctx, cell.sheet, cell.sx, cell.sy, cell.x * TILE_SIZE, cell.y * TILE_SIZE);
+  drawDecorCell(ctx, cell.sheet, cell.sx, cell.sy, cell.x * TILE_SIZE, cell.y * TILE_SIZE, cell.rot ?? 0, cell.flipX === true);
 }
 
 /** Draw every object-layer decor cell flat (no depth sort) — used by the editor. */

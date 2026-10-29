@@ -1,4 +1,5 @@
 import { MAX_MAP_SIZE, type DecorCell, type Facing, type OfficeMap, type Seat, type Tile } from '@byte_grounds/shared/map';
+import { IDENTITY, transformFields, transformOffset, type DecorTransform } from './decor-transform.ts';
 
 /** A rectangle of cells picked from a decor sheet (in 32px cells). */
 export interface DecorSelection {
@@ -25,30 +26,55 @@ export function setBlocked(m: OfficeMap, x: number, y: number, blocked: boolean)
 }
 
 /**
- * Stamp a sheet selection with its top-left on tile (x, y), on top of what's there.
- * `block` also marks the covered tiles as not walkable (tables, shelves...).
+ * The cells a brush puts down with the top-left of its transformed footprint on tile (x, y):
+ * each source cell moves to its transformed offset and carries the transform. No bounds check.
  */
-export function stampDecor(m: OfficeMap, x: number, y: number, sel: DecorSelection, block: boolean): void {
-  m.decor ??= [];
+export function brushCells(
+  x: number,
+  y: number,
+  sel: DecorSelection,
+  t: DecorTransform,
+  layer?: 'floor' | 'object',
+): DecorCell[] {
+  const cells: DecorCell[] = [];
   for (let dy = 0; dy < sel.h; dy++) {
     for (let dx = 0; dx < sel.w; dx++) {
-      const tx = x + dx;
-      const ty = y + dy;
-      if (!inBounds(m, tx, ty)) continue;
-      const cell: DecorCell = {
-        x: tx,
-        y: ty,
-        sheet: sel.sheet,
-        sx: sel.sx + dx,
-        sy: sel.sy + dy,
-        layer: block ? 'object' : 'floor',
-      };
-      const dup = m.decor.some(
-        (d) => d.x === tx && d.y === ty && d.sheet === cell.sheet && d.sx === cell.sx && d.sy === cell.sy,
-      );
-      if (!dup) m.decor.push(cell);
-      if (block) setBlocked(m, tx, ty, true);
+      const o = transformOffset(dx, dy, sel.w, sel.h, t);
+      const cell: DecorCell = { x: x + o.dx, y: y + o.dy, sheet: sel.sheet, sx: sel.sx + dx, sy: sel.sy + dy };
+      if (layer) cell.layer = layer;
+      cells.push({ ...cell, ...transformFields(t) });
     }
+  }
+  return cells;
+}
+
+/**
+ * Stamp a sheet selection, turned/mirrored by `t`, with its top-left on tile (x, y), on top of
+ * what's there. `block` also marks the covered tiles as not walkable (tables, shelves...).
+ * Re-stamping an identical cell on the same tile only updates its transform.
+ */
+export function stampDecor(
+  m: OfficeMap,
+  x: number,
+  y: number,
+  sel: DecorSelection,
+  block: boolean,
+  t: DecorTransform = IDENTITY,
+): void {
+  m.decor ??= [];
+  for (const cell of brushCells(x, y, sel, t, block ? 'object' : 'floor')) {
+    if (!inBounds(m, cell.x, cell.y)) continue;
+    const dup = m.decor.find(
+      (d) => d.x === cell.x && d.y === cell.y && d.sheet === cell.sheet && d.sx === cell.sx && d.sy === cell.sy,
+    );
+    if (dup) {
+      delete dup.rot;
+      delete dup.flipX;
+      Object.assign(dup, transformFields(t));
+    } else {
+      m.decor.push(cell);
+    }
+    if (block) setBlocked(m, cell.x, cell.y, true);
   }
 }
 

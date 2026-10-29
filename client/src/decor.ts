@@ -1,4 +1,5 @@
 import { TILE_SIZE } from '@byte_grounds/shared/protocol';
+import type { Rotation } from '@byte_grounds/shared/map';
 
 /**
  * Decoration art sheets: every PNG in `src/assets/decor/` (bundled by Vite), keyed by file
@@ -36,7 +37,10 @@ export function loadDecorSheets(sheets: Iterable<string>): Promise<void> {
   return Promise.all(pending).then(() => undefined);
 }
 
-/** Draw sheet cell (sx, sy) at canvas pixel (px, py); no-op until the sheet has loaded. */
+/**
+ * Draw sheet cell (sx, sy) at canvas pixel (px, py), mirrored by `flipX` then turned `rot`
+ * degrees clockwise within its tile; no-op until the sheet has loaded.
+ */
 export function drawDecorCell(
   ctx: CanvasRenderingContext2D,
   sheet: string,
@@ -44,8 +48,22 @@ export function drawDecorCell(
   sy: number,
   px: number,
   py: number,
+  rot: Rotation = 0,
+  flipX = false,
 ): void {
   const img = decorImage(sheet);
   if (!img?.complete || !img.naturalWidth) return;
-  ctx.drawImage(img, sx * TILE_SIZE, sy * TILE_SIZE, TILE_SIZE, TILE_SIZE, px, py, TILE_SIZE, TILE_SIZE);
+  if (rot === 0 && !flipX) {
+    ctx.drawImage(img, sx * TILE_SIZE, sy * TILE_SIZE, TILE_SIZE, TILE_SIZE, px, py, TILE_SIZE, TILE_SIZE);
+    return;
+  }
+  const half = TILE_SIZE / 2;
+  ctx.save();
+  // 90° steps around the integer tile centre are a lossless pixel permutation; keep them crisp.
+  ctx.imageSmoothingEnabled = false;
+  ctx.translate(px + half, py + half);
+  ctx.rotate((rot * Math.PI) / 180);
+  if (flipX) ctx.scale(-1, 1);
+  ctx.drawImage(img, sx * TILE_SIZE, sy * TILE_SIZE, TILE_SIZE, TILE_SIZE, -half, -half, TILE_SIZE, TILE_SIZE);
+  ctx.restore();
 }
