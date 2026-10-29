@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tileAt, isWalkable, decorLayer, parseMap, OFFICE_MAP, type OfficeMap } from '../src/map.ts';
+import { tileAt, isWalkable, decorLayer, parseMap, type OfficeMap } from '../src/map.ts';
 
 const m: OfficeMap = {
   id: 'test',
@@ -36,18 +36,6 @@ describe('isWalkable', () => {
   it('out-of-bounds floats are blocked', () => {
     expect(isWalkable(m, -0.5, 0.5)).toBe(false);
     expect(isWalkable(m, 3.5, 0.5)).toBe(false);
-  });
-});
-
-describe('OFFICE_MAP', () => {
-  it('has consistent dimensions and a walkable spawn', () => {
-    expect(OFFICE_MAP.tiles.length).toBe(OFFICE_MAP.width * OFFICE_MAP.height);
-    expect(isWalkable(OFFICE_MAP, OFFICE_MAP.spawn.x, OFFICE_MAP.spawn.y)).toBe(true);
-  });
-
-  it('has a solid border wall', () => {
-    expect(tileAt(OFFICE_MAP, 0, 0)).toBe(1);
-    expect(tileAt(OFFICE_MAP, OFFICE_MAP.width - 1, OFFICE_MAP.height - 1)).toBe(1);
   });
 });
 

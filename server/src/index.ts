@@ -8,7 +8,7 @@ import type {
   PeerState,
   ServerToClient,
 } from '@byte_grounds/shared/protocol';
-import { OFFICE_MAP } from '@byte_grounds/shared/map';
+import { OFFICE_MAP } from '@byte_grounds/shared/maps';
 import { Room } from './room.ts';
 
 const PORT = Number(process.env.PORT ?? 8080);

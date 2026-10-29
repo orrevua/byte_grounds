@@ -13,7 +13,8 @@ import {
   shuffleAppearance,
 } from './sprites.ts';
 import type { Appearance, PeerId } from '@byte_grounds/shared/protocol';
-import { OFFICE_MAP, startPosition, type OfficeMap } from '@byte_grounds/shared/map';
+import { startPosition, type OfficeMap } from '@byte_grounds/shared/map';
+import { OFFICE_MAP } from '@byte_grounds/shared/maps';
 import { createStore, type MapSummary } from './store.ts';
 import { loadDecorSheets } from './decor.ts';
 

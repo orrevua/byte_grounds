@@ -173,35 +173,3 @@ export function seatsNear(m: OfficeMap, x: number, y: number, reach: number): Se
     .sort((a, b) => a.d - b.d)
     .map(({ st }) => st);
 }
-
-// Hand-authored 20x15 office: solid border wall, a couple of interior blocks.
-function buildOffice(): OfficeMap {
-  const width = 20;
-  const height = 15;
-  const tiles: Tile[] = new Array(width * height).fill(0);
-  const set = (tx: number, ty: number, v: Tile) => {
-    tiles[ty * width + tx] = v;
-  };
-
-  // Border walls.
-  for (let x = 0; x < width; x++) {
-    set(x, 0, 1);
-    set(x, height - 1, 1);
-  }
-  for (let y = 0; y < height; y++) {
-    set(0, y, 1);
-    set(width - 1, y, 1);
-  }
-
-  // Interior furniture/dividers.
-  for (let x = 4; x <= 8; x++) set(x, 5, 1); // horizontal divider
-  for (let y = 8; y <= 11; y++) set(13, y, 1); // vertical divider
-  set(6, 9, 1);
-  set(7, 9, 1);
-  set(6, 10, 1);
-  set(7, 10, 1); // 2x2 block (meeting table)
-
-  return { id: 'office', name: 'Office', width, height, tiles, spawn: { x: 2.5, y: 2.5 } };
-}
-
-export const OFFICE_MAP: OfficeMap = buildOffice();
