@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import {
@@ -26,6 +26,9 @@ import {
   parseAppearance,
   shuffleAppearance,
   lieTransform,
+  lieMode,
+  tuckLayout,
+  BLANKET_URL,
   sitFrame,
 } from '../src/sprites.ts';
 import type { Direction } from '../src/sprites.ts';
@@ -67,11 +70,6 @@ describe('lieTransform', () => {
     expect(lieTransform('right')).toEqual({ src: 'left', rot: -Math.PI / 2 });
   });
 
-  it('falls back to a horizontal side-lie for up/down', () => {
-    expect(lieTransform('up')).toEqual({ src: 'right', rot: Math.PI / 2 });
-    expect(lieTransform('down')).toEqual({ src: 'left', rot: -Math.PI / 2 });
-  });
-
   it('rotates the feet (local 0,+28) to the dir side and the belly to screen-down', () => {
     for (const dir of ['left', 'right'] as const) {
       const { src, rot } = lieTransform(dir);
@@ -83,6 +81,38 @@ describe('lieTransform', () => {
       const belly = rotate(src === 'right' ? 1 : -1, 0);
       expect(Math.sign(feet.x)).toBe(dir === 'left' ? -1 : 1);
       expect(belly).toEqual({ x: 0, y: 1 });
+    }
+  });
+});
+
+describe('lieMode', () => {
+  it('lies on the side along left/right beds and tucks in on up/down beds', () => {
+    expect(lieMode('left')).toBe('side');
+    expect(lieMode('right')).toBe('side');
+    expect(lieMode('up')).toBe('tucked');
+    expect(lieMode('down')).toBe('tucked');
+  });
+});
+
+describe('tuckLayout', () => {
+  it('shows the face on a down bed and the crown (back frame turned π) on an up bed', () => {
+    expect(tuckLayout('down')).toMatchObject({ src: 'down', rot: 0 });
+    expect(tuckLayout('up')).toMatchObject({ src: 'up', rot: Math.PI });
+  });
+
+  it('keeps the blanket inside one tile width and the 2-tile bed, below the head', () => {
+    for (const dir of ['up', 'down'] as const) {
+      const { frameX, frameY, crop, blanket } = tuckLayout(dir);
+      expect(blanket).toEqual({ x: -13, y: 11, w: 26, h: 35 });
+      expect(blanket.x).toBeGreaterThan(-16);
+      expect(blanket.x + blanket.w).toBeLessThan(16);
+      expect(blanket.y + blanket.h).toBeLessThanOrEqual(48);
+      // the blanket overlaps the bottom of the cropped frame so no body gap shows
+      expect(blanket.y).toBeLessThan(frameY + crop);
+      expect(frameX).toBe(-32);
+      for (const v of [frameX, frameY, crop, blanket.x, blanket.y, blanket.w, blanket.h]) {
+        expect(Number.isInteger(v)).toBe(true);
+      }
     }
   });
 });
@@ -302,6 +332,12 @@ describe('sit pose layers', () => {
 describe('ALL_LAYER_URLS', () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const pub = resolve(here, '../public');
+
+  it('ships the blanket sprite at the tucked-in blanket size', () => {
+    const png = readFileSync(resolve(pub, BLANKET_URL.replace(/^\//, '')));
+    const { w, h } = tuckLayout('down').blanket;
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([w, h]); // IHDR width, height
+  });
 
   it('lists only real vendored files', () => {
     for (const url of ALL_LAYER_URLS) {

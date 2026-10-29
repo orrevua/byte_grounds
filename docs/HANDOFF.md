@@ -1,7 +1,35 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-29 (sit & side-lie poses, uncommitted)
+**Last updated:** 2026-10-29 (tucked-in lie on up/down beds, uncommitted)
 **Branch:** master (git initialized)
+
+## Tucked-in lie on up/down beds — DONE, UNCOMMITTED (2026-10-29)
+Bug fix (no spec): on up/down beds the rotated side-lie profile was horizontal and overhung the
+vertical bed. Branch `claude/nifty-archimedes-e4o1ce`, on top of 8699218; **not committed —
+awaiting review of `scratchpad/poses/preview_lie_v2.png`**. `npm test` → **106 green** (103 −1
+obsolete up/down fallback test +4: lieMode, tuckLayout ×2, blanket PNG size); typecheck + build green.
+- `sprites.ts`: pure `lieMode(dir)` (`left/right` → `side`, unchanged; `up/down` → `tucked`) and
+  `tuckLayout(dir)` (local px around the pillow-tile center, feet toward +y, drawn rotated by
+  `rot`): standing frame col 0 with the head center (row 22) 2px above the pillow center, only
+  the top 38 rows drawn (head + shoulders), blanket `{x:-13,y:11,w:26,h:35}` = one tile minus a
+  3px inset per side, from the shoulders to 2px inside the foot end of the 2-tile bed.
+  `drawTuckedAppearance` blits the cropped frame then the blanket (same renderable → blanket is
+  always on top of its own body; depth sort/name pass untouched). `blitLayers` got an optional
+  source height. `preloadAppearance` also preloads `BLANKET_URL`.
+- Frame choice: `down` bed → face-on `down` frame, upright. `up` bed (head toward the viewer) →
+  back-of-head `up` frame turned π (crown on the pillow, shoulders toward the blanket). The
+  physically "correct" upside-down face (down frame turned π) was previewed and read as a
+  bearded blob, so it was rejected.
+- `render.ts` lie branch: `tucked` → translate to the tile point, rotate `tuckLayout(dir).rot`,
+  `drawTuckedAppearance`; `side` path is byte-for-byte the previous code.
+- Blanket art: `tools/gen_blanket.py` (Pillow) → `client/public/sprites/blanket.png` (26×35,
+  linen fill, dark rounded outline, white folded hem across the chest, side/foot shading, quilt
+  seams). Original art, CC0 (`client/public/sprites/CREDITS.md`). If the blanket rect changes,
+  update `W, H` in the script (a test asserts the PNG IHDR size equals `tuckLayout().blanket`).
+- Weaknesses: one neutral blanket colour regardless of the bed's own colour; layout assumes a
+  2-tile bed with the seat on the pillow tile's center (real `beds_single` art is ~44px wide and
+  its pillow sits low in the tile, so the head may land a few px above the pillow); shoulders
+  poke ~1px past the blanket sides (intentional, reads as arms); manual in-browser check pending.
 
 ## Sit & side-lie poses — UNITS 1–3, 5–11 DONE, UNCOMMITTED (2026-10-29)
 Spec: `docs/specs/sit-lie-poses.md`. Branch `claude/nifty-archimedes-e4o1ce`. **Not committed /
@@ -26,7 +54,7 @@ not pushed — awaiting the user's review of the preview PNGs.** `npm test` → 
   `blitLayers`); render sit branch feet-anchored like standing; `SIT_DROP` removed.
 - Previews (session scratchpad, 4× nearest): `scratchpad/poses/preview_{sit,lie,stand}.png`.
 - Known weaknesses: up/down sit is a squash (reads as short legs, not a clear bend); up/down lie
-  is the horizontal fallback and overhangs a vertical bed; female formal dress turns into a
+  was the horizontal fallback (fixed: tucked-in lie, see above); female formal dress turns into a
   white "hem blob" at the feet in profile sit; lie uses the walk-idle stride (legs slightly apart);
   `appearanceReady` still only checks stand layers (sit layers preload together, so a gap is unlikely).
 - **Pending:** U4 + U12 manual two-tab checks; user preview approval; commit.

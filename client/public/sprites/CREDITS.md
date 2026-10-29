@@ -96,3 +96,11 @@ layer: the Universal LPC Spritesheet contributors (`LICENSE/AUTHORS.txt`), Jaidy
 (tunics), Thane Brimhall (formal shirt/vest/tie and sash dress) and Lanea Zimmerman (AKA
 Sharm) (underdress), as credited in the tables above. Regenerate with
 `python tools/gen_pose_sheets.py` (needs Pillow).
+
+## Bed blanket (`blanket.png`)
+
+`blanket.png` (26×35 px) — the blanket drawn over a tucked-in avatar on an up/down bed.
+**Original art** made for ByteGrounds, generated programmatically by `tools/gen_blanket.py`
+(no third-party pixels). Released under **CC0 1.0** (public domain dedication,
+https://creativecommons.org/publicdomain/zero/1.0/). Regenerate with
+`python tools/gen_blanket.py` (needs Pillow).
