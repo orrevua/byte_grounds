@@ -50,3 +50,18 @@ describe('OFFICE_MAP', () => {
     expect(tileAt(OFFICE_MAP, OFFICE_MAP.width - 1, OFFICE_MAP.height - 1)).toBe(1);
   });
 });
+
+describe('seatsNear', () => {
+  it('finds seats in reach, nearest first', async () => {
+    const { createBlankMap, seatsNear, seatAt } = await import('../src/map.ts');
+    const m = createBlankMap('a', 10, 10);
+    m.seats = [
+      { x: 5, y: 5, kind: 'sit', dir: 'down' },
+      { x: 3, y: 3, kind: 'lie', dir: 'down' },
+    ];
+    expect(seatsNear(m, 3.5, 4.5, 1.6).map((s) => s.x)).toEqual([3]);
+    expect(seatsNear(m, 4.5, 4.5, 1.6).map((s) => s.x)).toEqual([5, 3]);
+    expect(seatsNear(m, 8.5, 8.5, 1.6)).toEqual([]);
+    expect(seatAt(m, 5, 5)?.kind).toBe('sit');
+  });
+});

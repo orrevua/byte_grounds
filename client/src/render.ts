@@ -1,10 +1,19 @@
 import { TILE_SIZE } from '@byte_grounds/shared/protocol';
 import { tileColor } from '@byte_grounds/shared/map';
 import type { OfficeMap } from '@byte_grounds/shared/map';
-import { FRAME_SIZE, drawAppearance } from './sprites.ts';
+import {
+  FRAME_SIZE,
+  LIE_COL,
+  LIE_ROW,
+  SIT_DROP,
+  SIT_KEEP,
+  WALK_ROW,
+  drawAppearance,
+  drawAppearanceRegion,
+} from './sprites.ts';
 import { drawDecorCell } from './decor.ts';
 import type { Direction } from './sprites.ts';
-import type { Appearance } from '@byte_grounds/shared/protocol';
+import type { Appearance, Pose } from '@byte_grounds/shared/protocol';
 
 /** Drop the 64px frame so the character's feet sit on the tile point. */
 const FOOT_OFFSET = 16;
@@ -92,6 +101,60 @@ export function drawSprite(
   const px = x * TILE_SIZE;
   const py = y * TILE_SIZE;
   drawAppearance(ctx, a, dir, col, px - FRAME_SIZE / 2, py - FRAME_SIZE + FOOT_OFFSET);
+}
+
+/** Lying frame rotation by where the feet point (the frame's feet point up). */
+const LIE_ROTATION: Record<Direction, number> = {
+  up: 0,
+  right: Math.PI / 2,
+  down: Math.PI,
+  left: -Math.PI / 2,
+};
+const FEET_VECTOR: Record<Direction, { dx: number; dy: number }> = {
+  up: { dx: 0, dy: -1 },
+  down: { dx: 0, dy: 1 },
+  left: { dx: -1, dy: 0 },
+  right: { dx: 1, dy: 0 },
+};
+
+/**
+ * Draw an avatar in a pose at tile point (x, y). Sitting: the standing frame lowered onto the
+ * seat with the legs hidden. Lying: the knocked-down frame rotated so the feet point `dir`,
+ * shifted that way so the head rests on the pillow tile.
+ */
+export function drawPosedSprite(
+  ctx: CanvasRenderingContext2D,
+  a: Appearance,
+  pose: Pose,
+  dir: Direction,
+  col: number,
+  x: number,
+  y: number,
+): void {
+  if (pose === 'stand') return drawSprite(ctx, a, dir, col, x, y);
+  ctx.imageSmoothingEnabled = false;
+  const px = x * TILE_SIZE;
+  const py = y * TILE_SIZE;
+  if (pose === 'sit') {
+    const destY = py - FRAME_SIZE + FOOT_OFFSET + SIT_DROP;
+    drawAppearanceRegion(ctx, a, 0, WALK_ROW[dir] * FRAME_SIZE, FRAME_SIZE, SIT_KEEP, px - FRAME_SIZE / 2, destY);
+    return;
+  }
+  const feet = FEET_VECTOR[dir];
+  ctx.save();
+  ctx.translate(px + (feet.dx * TILE_SIZE) / 2, py + (feet.dy * TILE_SIZE) / 2);
+  ctx.rotate(LIE_ROTATION[dir]);
+  drawAppearanceRegion(
+    ctx,
+    a,
+    LIE_COL * FRAME_SIZE,
+    LIE_ROW * FRAME_SIZE,
+    FRAME_SIZE,
+    FRAME_SIZE,
+    -FRAME_SIZE / 2,
+    -FRAME_SIZE / 2,
+  );
+  ctx.restore();
 }
 
 /** Draw a centered name label just above the tile point. */

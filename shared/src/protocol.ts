@@ -9,6 +9,10 @@ export const DEFAULT_ROOM = 'office';
 
 export type PeerId = string;
 
+/** What an avatar is doing: walking/standing, sitting on a seat, or lying on a bed. */
+export type Pose = 'stand' | 'sit' | 'lie';
+export type Facing = 'up' | 'down' | 'left' | 'right';
+
 /** Structured, typed character descriptor (replaces the old `variant` id). */
 export interface Appearance {
   body: 'male' | 'female'; // sex; light skin only (asset limit)
@@ -24,6 +28,9 @@ export interface PeerState {
   appearance: Appearance; // structured character descriptor
   x: number; // tile-space float
   y: number;
+  /** Absent = standing; facing then comes from movement. */
+  pose?: Pose;
+  dir?: Facing;
 }
 
 export interface Position {
@@ -46,6 +53,8 @@ export interface PositionMsg {
   type: 'position';
   x: number;
   y: number;
+  pose?: Pose;
+  dir?: Facing;
 }
 export interface OfferMsg {
   type: 'offer';
@@ -92,6 +101,8 @@ export interface PeerMovedMsg {
   id: PeerId;
   x: number;
   y: number;
+  pose?: Pose;
+  dir?: Facing;
 }
 // relayed signaling (server stamps `from`)
 export interface RelayOfferMsg {

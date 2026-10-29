@@ -176,6 +176,31 @@ export function appearanceReady(a: Appearance): boolean {
   });
 }
 
+/** Last frame of the "hurt" row: the character flat on the ground, feet toward the top. */
+export const LIE_ROW = 20;
+export const LIE_COL = 5;
+/** Sitting = the standing frame with the legs hidden (rows below SIT_KEEP), lowered SIT_DROP px. */
+export const SIT_KEEP = 46;
+export const SIT_DROP = 10;
+
+/** Blit a source region of every loaded layer (all layers share one sheet layout). */
+export function drawAppearanceRegion(
+  ctx: CanvasRenderingContext2D,
+  a: Appearance,
+  sx: number,
+  sy: number,
+  sw: number,
+  sh: number,
+  destX: number,
+  destY: number,
+): void {
+  for (const url of appearanceToLayers(a)) {
+    const img = cache.get(url);
+    if (!img || !img.complete || img.naturalWidth === 0) continue;
+    ctx.drawImage(img, sx, sy, sw, sh, destX, destY, sw, sh);
+  }
+}
+
 /** Blit the (dir, col) frame of each loaded layer to (destX, destY). Skips unloaded layers. */
 export function drawAppearance(
   ctx: CanvasRenderingContext2D,

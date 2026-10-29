@@ -1,5 +1,5 @@
 import { TILE_SIZE } from '@byte_grounds/shared/protocol';
-import { createBlankMap, mapIdFromName, tileAt, type OfficeMap } from '@byte_grounds/shared/map';
+import { createBlankMap, mapIdFromName, tileAt, type Facing, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
 import { drawMap, mapPixelSize } from './render.ts';
 import { DECOR_SHEETS, decorImage, loadDecorSheets } from './decor.ts';
 import {
@@ -9,11 +9,12 @@ import {
   setBlocked,
   setSpawn,
   stampDecor,
+  toggleSeat,
   type DecorSelection,
 } from './editor-model.ts';
 import { createStore, type MapSummary } from './store.ts';
 
-type Tool = 'paint' | 'block' | 'walk' | 'decor' | 'erase' | 'spawn';
+type Tool = 'paint' | 'block' | 'walk' | 'decor' | 'erase' | 'spawn' | 'seat';
 
 const TOOLS: { id: Tool; label: string }[] = [
   { id: 'paint', label: 'Paint color' },
@@ -22,7 +23,10 @@ const TOOLS: { id: Tool; label: string }[] = [
   { id: 'walk', label: 'Walkable' },
   { id: 'erase', label: 'Erase decor' },
   { id: 'spawn', label: 'Spawn point' },
+  { id: 'seat', label: 'Seat / bed' },
 ];
+
+const ARROW: Record<Facing, string> = { up: '↑', down: '↓', left: '←', right: '→' };
 
 /** Starter palette: floors (wood, carpet, tile), walls, outdoors. */
 const SWATCHES = [
@@ -42,6 +46,8 @@ let tool: Tool = 'paint';
 let color = SWATCHES[2]!;
 let selection: DecorSelection | null = null;
 let blockDecor = true;
+let seatKind: Seat['kind'] = 'sit';
+let seatDir: Facing = 'down';
 let showWalls = true;
 let zoom = 1;
 let hover: { x: number; y: number } | null = null;
@@ -91,6 +97,17 @@ root.innerHTML = `
     <section id="decor-section">
       <h2>Decoration</h2>
       <div id="decor-body"></div>
+    </section>
+    <section id="seat-section">
+      <h2>Seat / bed</h2>
+      <div class="row">
+        <select id="seat-kind"><option value="sit">Sit (chair, sofa)</option><option value="lie">Lie (bed)</option></select>
+        <select id="seat-dir">
+          <option value="down">↓ down</option><option value="up">↑ up</option>
+          <option value="left">← left</option><option value="right">→ right</option>
+        </select>
+      </div>
+      <p class="hint" id="seat-hint"></p>
     </section>
     <section>
       <h2>View</h2>
@@ -307,6 +324,24 @@ addEventListener('beforeunload', (e) => {
   if (dirty()) e.preventDefault();
 });
 
+const seatHint = $<HTMLParagraphElement>('#seat-hint');
+function updateSeatHint(): void {
+  seatHint.textContent =
+    seatKind === 'sit'
+      ? 'Click the chair/sofa tile. The arrow is the way the person faces. Click again to remove.'
+      : 'Click the bed tile with the pillow. The arrow is where the feet point. Click again to remove.';
+}
+$<HTMLSelectElement>('#seat-kind').addEventListener('change', (e) => {
+  seatKind = (e.target as HTMLSelectElement).value as Seat['kind'];
+  updateSeatHint();
+  setTool('seat');
+});
+$<HTMLSelectElement>('#seat-dir').addEventListener('change', (e) => {
+  seatDir = (e.target as HTMLSelectElement).value as Facing;
+  setTool('seat');
+});
+updateSeatHint();
+
 // ---------- decoration sheet picker ----------
 
 function renderDecorPicker(): void {
@@ -431,6 +466,20 @@ function draw(): void {
     }
     ctx.restore();
   }
+  // Seat / bed markers: a badge with the facing arrow.
+  ctx.font = 'bold 12px system-ui';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const st of map.seats ?? []) {
+    const cx = st.x * TILE_SIZE + TILE_SIZE / 2;
+    const cy = st.y * TILE_SIZE + TILE_SIZE / 2;
+    ctx.fillStyle = st.kind === 'lie' ? 'rgba(160, 110, 255, 0.85)' : 'rgba(255, 190, 60, 0.9)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#14161a';
+    ctx.fillText(ARROW[st.dir], cx, cy + 0.5);
+  }
   // Spawn marker.
   ctx.fillStyle = '#4fe0a0';
   ctx.beginPath();
@@ -482,6 +531,9 @@ function apply(x: number, y: number, first: boolean): void {
       break;
     case 'spawn':
       if (first) setSpawn(map, x, y);
+      break;
+    case 'seat':
+      if (first) toggleSeat(map, x, y, seatKind, seatDir);
       break;
   }
   draw();

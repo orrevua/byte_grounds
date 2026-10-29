@@ -111,8 +111,10 @@ export class SupabaseNet implements Net {
 
     channel
       .on('broadcast', { event: 'position' }, ({ payload }) => {
-        const { id, x, y, seq } = payload as { id: PeerId; x: number; y: number; seq?: number };
-        if (this.known.has(id) && this.isNewer(id, seq)) this.emit({ type: 'peer-moved', id, x, y });
+        const { id, x, y, seq, pose, dir } = payload as PeerState & { seq?: number };
+        if (this.known.has(id) && this.isNewer(id, seq)) {
+          this.emit({ type: 'peer-moved', id, x, y, pose, dir });
+        }
       })
       .on('broadcast', { event: 'bye' }, ({ payload }) => {
         this.dropPeer((payload as { id: PeerId }).id);
@@ -127,7 +129,9 @@ export class SupabaseNet implements Net {
         if (!peer) return;
         if (this.known.has(key)) {
           this.cancelLeave(key);
-          if (this.isNewer(key, peer.seq)) this.emit({ type: 'peer-moved', id: key, x: peer.x, y: peer.y });
+          if (this.isNewer(key, peer.seq)) {
+            this.emit({ type: 'peer-moved', id: key, x: peer.x, y: peer.y, pose: peer.pose, dir: peer.dir });
+          }
         } else {
           this.known.add(key);
           this.isNewer(key, peer.seq);
@@ -222,6 +226,8 @@ export class SupabaseNet implements Net {
       case 'position':
         this.self!.x = msg.x;
         this.self!.y = msg.y;
+        this.self!.pose = msg.pose;
+        this.self!.dir = msg.dir;
         this.seq += 1;
         this.pendingPos = true;
         return;
@@ -248,11 +254,11 @@ export class SupabaseNet implements Net {
     if (!this.channel || !this.subscribed) return;
     if (this.pendingPos) {
       this.pendingPos = false;
-      const { id, x, y } = this.self!;
+      const { id, x, y, pose, dir } = this.self!;
       void this.channel.send({
         type: 'broadcast',
         event: 'position',
-        payload: { id, x, y, seq: this.seq },
+        payload: { id, x, y, pose, dir, seq: this.seq },
       });
       if (Date.now() - this.lastPresenceAt >= PRESENCE_REFRESH_MS) this.trackPresence();
     } else if (this.trackedSeq !== this.seq) {
@@ -330,6 +336,6 @@ export class SupabaseNet implements Net {
 
 /** Strip Supabase's presence bookkeeping (`presence_ref`) back down to a `PeerState`. */
 function toPeer(meta: PeerState): PeerState {
-  const { id, name, color, appearance, x, y } = meta;
-  return { id, name, color, appearance, x, y };
+  const { id, name, color, appearance, x, y, pose, dir } = meta;
+  return { id, name, color, appearance, x, y, pose, dir };
 }
