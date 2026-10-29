@@ -24,8 +24,11 @@ Dual-licensed, your choice of:
 These assets are used under CC-BY-SA 3.0, which requires **attribution** (given
 above) and **share-alike**: any derivative of these sprite sheets must be
 distributed under the same CC-BY-SA 3.0 (or GPL-3.0) terms, carrying this
-attribution and the license files. The sheets here are vendored verbatim
-(unmodified PNG layers); ByteGrounds only composites them at runtime.
+attribution and the license files. Most sheets here are vendored verbatim
+(unmodified PNG layers); the wardrobe additions below include **derivatives**
+(hue-recolors and layer composites) which are redistributed under the same
+CC-BY-SA 3.0 share-alike terms, crediting the original layer author(s).
+ByteGrounds composites all layers at runtime.
 
 ## Vendored layers
 
@@ -36,4 +39,44 @@ attribution and the license files. The sheets here are vendored verbatim
 | torso | `lpc/torso/{teal,maroon,brown}_longsleeve_male.png`, `lpc/torso/{teal,maroon,brown}_tunic_female.png` |
 | hair  | `lpc/hair/{brown,black,blonde}_{male,female}.png` |
 
-All are standard LPC sheets (832×1344 px, 64×64 frame grid).
+## Wardrobe additions (avatar-wardrobe spec)
+
+Twelve extra clothing sheets for the expanded editor (white + pink casual, a
+green business/formal outfit, navy + pink pants). All are standard LPC sheets
+(832×1344 px, 64×64 frame grid). Per-layer authorship is from the LPC
+`LICENSE/AUTHORS.txt`.
+
+**Fetched verbatim**
+
+| File | LPC source | Author(s) |
+| --- | --- | --- |
+| `lpc/torso/white_longsleeve_male.png` | `torso/shirts/longsleeve/male/white_longsleeve.png` | LPC base clothing (see `AUTHORS.txt`) |
+| `lpc/torso/white_tunic_female.png` | `torso/tunics/female/white_tunic.png` | JaidynReiman |
+
+**Composites** (CC-BY-SA 3.0 derivatives — multiple LPC layers merged into one sheet)
+
+| File | Composited from | Author(s) |
+| --- | --- | --- |
+| `lpc/torso/green_formal_male.png` | `formal_male_no_th-sh/{shirt,vest,tie}.png` | Thane Brimhall (Formal Male Attire group) |
+| `lpc/torso/green_formal_female.png` | `torso/dress_female/underdress.png` + `dress_w_sash_female.png` | underdress: Lanea Zimmerman (AKA Sharm); dress with sash: Thane Brimhall |
+
+**Recolored derivatives** (CC-BY-SA 3.0 — hue-recolor of the source sheet, alpha/shading preserved)
+
+| File | Recolored from | Original author(s) |
+| --- | --- | --- |
+| `lpc/torso/pink_longsleeve_male.png` | `white_longsleeve_male.png` | LPC base clothing (see `AUTHORS.txt`) |
+| `lpc/torso/pink_tunic_female.png` | `white_tunic_female.png` | JaidynReiman |
+| `lpc/torso/pink_formal_male.png` | `green_formal_male.png` | Thane Brimhall |
+| `lpc/torso/pink_formal_female.png` | `green_formal_female.png` | Lanea Zimmerman (AKA Sharm) + Thane Brimhall |
+| `lpc/legs/navy_pants_male.png` | `white_pants_male.png` | LPC base clothing (see `AUTHORS.txt`) |
+| `lpc/legs/navy_pants_female.png` | `white_pants_female.png` | LPC base clothing (see `AUTHORS.txt`) |
+| `lpc/legs/pink_pants_male.png` | `white_pants_male.png` | LPC base clothing (see `AUTHORS.txt`) |
+| `lpc/legs/pink_pants_female.png` | `white_pants_female.png` | LPC base clothing (see `AUTHORS.txt`) |
+
+Notes: LPC has no single "formal" sheet (the male formal is component layers) and
+no female formal sheet, so the business torsos are composited (male suit =
+shirt+vest+tie; female = underdress + sash dress) — the real base color is
+**green**, not navy. LPC ships no navy or pink pants, so those are PIL
+hue-recolors of the white pants. Each composite and recolor is a derivative work
+under CC-BY-SA 3.0 and is shared under the same license, retaining the original
+author credit above.

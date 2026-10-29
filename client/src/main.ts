@@ -5,6 +5,8 @@ import {
   DEFAULT_APPEARANCE,
   PRESETS,
   drawAppearance,
+  optionsFor,
+  outfitTorso,
   parseAppearance,
   preloadAll,
   serializeAppearance,
@@ -115,11 +117,18 @@ function renderJoin(): void {
     const cat = CATEGORIES.find((c) => c.key === axis.dataset.key)!;
     for (const arrow of axis.querySelectorAll<HTMLButtonElement>('.arrow')) {
       arrow.addEventListener('click', () => {
-        const opts = cat.options;
+        const opts = optionsFor(cat, appearance);
         const cur = opts.indexOf(appearance[cat.key]);
         const step = Number(arrow.dataset.dir);
         const next = opts[(cur + step + opts.length) % opts.length];
         appearance = { ...appearance, [cat.key]: next };
+        // Changing outfit may leave torso outside the new palette — clamp it.
+        if (cat.key === 'outfit') {
+          const topPalette = outfitTorso(appearance.outfit);
+          if (!topPalette.includes(appearance.torso)) {
+            appearance = { ...appearance, torso: topPalette[0] as Appearance['torso'] };
+          }
+        }
         redraw();
       });
     }

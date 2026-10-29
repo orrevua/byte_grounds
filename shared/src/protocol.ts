@@ -17,8 +17,9 @@ export type Facing = 'up' | 'down' | 'left' | 'right';
 export interface Appearance {
   body: 'male' | 'female'; // sex; light skin only (asset limit)
   hair: 'brown' | 'black' | 'blonde' | 'none'; // 'none' = omit the hair layer
-  torso: 'teal' | 'maroon' | 'brown'; // shirt color (style auto by body)
-  legs: 'teal' | 'red' | 'white'; // pants color
+  outfit: 'casual' | 'business'; // garment family (casual longsleeve/tunic vs formal)
+  torso: 'teal' | 'maroon' | 'brown' | 'white' | 'pink' | 'green'; // top color (clamped to the outfit's palette)
+  legs: 'teal' | 'red' | 'white' | 'navy' | 'pink'; // pants color
 }
 
 export interface PeerState {
