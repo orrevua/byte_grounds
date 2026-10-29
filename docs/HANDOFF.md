@@ -1,7 +1,41 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-29 (picker: click selects the whole object)
+**Last updated:** 2026-10-29 (object footprint: base row blocks, base row sorts)
 **Branch:** `claude/nifty-archimedes-e4o1ce`
+
+## Object footprint (base row blocks, base row sorts) — U1–U4 DONE, COMMITTED (2026-10-29)
+Spec: `docs/specs/object-footprint.md`. A 3x2 desk now blocks only its bottom row and the whole
+desk depth-sorts by that row, so an avatar in the row behind is hidden behind it.
+- **U1** `shared/src/map.ts`: `DecorCell.baseDy?` (rows down to the object's base row; absent = 0).
+  `parseMap` keeps it only as an integer in `1..MAX_MAP_SIZE-1`.
+- **U2** `client/src/depth.ts`: `decorAnchorY = y + (baseDy ?? 0) + 0.5`. `game.ts` unchanged.
+- **U3** `client/src/editor-model.ts`: `BlockMode = 'none' | 'base' | 'all'`, `cellBlocks(cell, mode)`.
+  `brushCells(..., mode?)` writes `layer` and, in `base`, `baseDy = footprint(w,h,t).h - 1 - o.dy`
+  (omitted when 0). `stampDecor(m, x, y, sel, mode, t)` blocks per `cellBlocks`, never unblocks; a
+  duplicate re-stamp now replaces `layer`, `baseDy` and transform. `all` = old `true`, `none` = old
+  `false` (byte-identical output).
+- **U4** `client/src/editor.ts`: "Block" select `#block-decor` (Base row [default] / Whole piece /
+  Nothing), ghost tints only the blocking cells red, hint line under it.
+- Tests: map baseDy parse (+2), depth desk sort (+4), editor-model block modes (+4).
+  `npm test` 139 green; client typecheck + build green.
+
+### U5 — Manual checks (browser, NOT exercised here)
+1. Pick the 3x2 desk with Block = Base row. The ghost is red only on the bottom row. Stamp it: only
+   the bottom row shows a red X.
+2. In game, walk into the row behind the desk. The avatar is hidden behind the desktop (head shows
+   above if the sprite is taller). Walk in front of it: the avatar draws over the drawers.
+3. Put a chair in the row behind the desk facing down with a Sit seat, then sit. The desk covers the
+   legs. A chair in front facing up draws over the desk.
+4. Whole piece blocks all 6 tiles, as before. Nothing gives no X and draws under avatars.
+5. Press R on the desk (footprint 2x3) with Base row: only the bottom row is red. Whole piece blocks
+   all of it.
+6. An old saved map looks and blocks the same. Re-stamping a desk on its own anchor with Base row,
+   then using Walk on its top row, converts it.
+7. Save, reload, open in game: `baseDy` persists.
+
+**Next unit:** run the 7 manual checks above in the browser (`npm run dev`) and record results;
+fix anything they surface. Optional later (spec Open Questions): a "Base: 2 rows" 4th mode for deep
+tables (`cellBlocks` would compare `baseDy < 2`; no model change).
 
 ## Picker click selects the whole object — DONE, COMMITTED (2026-10-29)
 User ask: clicking one cell of a multi-cell piece (office tables 36-61 px tall, beds, sofas) picked
