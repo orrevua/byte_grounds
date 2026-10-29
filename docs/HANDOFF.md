@@ -1,7 +1,45 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-29 (tucked-in lie on up/down beds, uncommitted)
-**Branch:** master (git initialized)
+**Last updated:** 2026-10-29 (decor rotation & flip U1–U8 committed; U9 manual check pending)
+**Branch:** `claude/nifty-archimedes-e4o1ce`
+
+## Decor rotation & flip — U1–U8 DONE, COMMITTED (2026-10-29)
+Spec: `docs/specs/decor-rotation.md`. `npm test` → **121 green** (106 +2 shared parseMap transform,
++11 decor-transform, +2 editor-model); `npm run typecheck --workspace client` + `npm run build` green.
+- **U1** `shared/src/map.ts`: `Rotation = 0|90|180|270`; `DecorCell.rot?` / `flipX?` (canonical:
+  `parseMap` keeps only `rot` 90/180/270 and `flipX === true`; identity cells serialize as before).
+- **U2–3** `client/src/decor-transform.ts` (new, pure): `DecorTransform {rot, flipX}`, `IDENTITY`,
+  `rotateCW/CCW`, `flipH/V`, `footprint`, `transformOffset`, `transformFacing`, `transformFields`,
+  `describeTransform`.
+- **U4** `editor-model.ts`: `brushCells(x, y, sel, t, layer?)` (target tile = anchor + transformed
+  offset; source `sx+dx, sy+dy`); `stampDecor(..., t = IDENTITY)`; re-stamping an identical cell on
+  the same tile replaces its `rot`/`flipX` instead of adding a cell.
+- **U5** `decor.ts` `drawDecorCell(..., rot = 0, flipX = false)`: identity = the old single
+  `drawImage`; otherwise save / smoothing off / translate to the tile centre / rotate / scale(-1,1) /
+  draw / restore. `render.ts` `drawDecorCellAt` passes `cell.rot ?? 0, cell.flipX === true` (all
+  floor/object/editor/game decor paths go through it). The tucked-lie code draws only the body +
+  blanket sprite, never bed decor cells, so rotated beds need nothing more.
+- **U6–8** `editor.ts`: `brushT` state (persists across piece picks; not an undo/dirty edit);
+  R / Shift+R / F / V (ignored in input/select/textarea or with Ctrl/Meta/Alt); toolbar ⟲ ⟳ ⇋ ⇵ +
+  Reset + label + hint; ghost preview at alpha 0.6 with the transformed-footprint outline; in the
+  Seat tool the same keys turn `seatDir` via `transformFacing` and sync `#seat-dir`.
+- Visual math check (no browser): `scratchpad/rotation_preview.py` → `scratchpad/rotation_preview.png`
+  (house_inside 2x3 framed bed, beds_single 1x2, decorative banner; 8 orientations, 4× nearest).
+  Correct turns/flips, crisp, no seams between cells; a rotated bed shows its headboard sideways (LPC
+  3/4 art, expected per spec §1).
+
+### Decor rotation — U9 manual checklist (browser, NOT exercised here)
+1. Pick a 2-tile bed (or the 2x3 framed bed in `house_inside`), press R: the ghost turns into the
+   rotated footprint; click stamps it exactly there; Shift+R turns it back.
+2. F mirrors a rug/table, V mirrors vertically; R ×4 and F ×2 return to the original (label reads
+   "No rotation").
+3. Zoom 2: pixels stay crisp (no blur, no 1px seams between rotated cells).
+4. "Block tiles" ON → a rotated table occludes avatars correctly in game; OFF → a rotated rug stays
+   under avatars.
+5. Vertical bed + Lie seat whose arrow was turned with R in the Seat tool (down/up) → lying/tucked
+   works like a native vertical bed.
+6. Save, reload the editor, open in game: transforms persist; an old map looks unchanged.
+7. Typing R/F/V in the map-name field (or with a dropdown focused) does not change the brush.
 
 ## Tucked-in lie on up/down beds — DONE, UNCOMMITTED (2026-10-29)
 Bug fix (no spec): on up/down beds the rotated side-lie profile was horizontal and overhung the

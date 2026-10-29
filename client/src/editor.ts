@@ -1,8 +1,20 @@
 import { TILE_SIZE } from '@byte_grounds/shared/protocol';
 import { createBlankMap, mapIdFromName, tileAt, type Facing, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
-import { drawMap, drawObjectDecorFlat, mapPixelSize } from './render.ts';
+import { drawDecorCellAt, drawMap, drawObjectDecorFlat, mapPixelSize } from './render.ts';
 import { DECOR_SHEETS, decorImage, loadDecorSheets } from './decor.ts';
 import {
+  IDENTITY,
+  describeTransform,
+  flipH,
+  flipV,
+  footprint,
+  rotateCCW,
+  rotateCW,
+  transformFacing,
+  type DecorTransform,
+} from './decor-transform.ts';
+import {
+  brushCells,
   eraseDecor,
   paintColor,
   resizeMap,
@@ -28,6 +40,29 @@ const TOOLS: { id: Tool; label: string }[] = [
 
 const ARROW: Record<Facing, string> = { up: '↑', down: '↓', left: '←', right: '→' };
 
+type TransformOp = (t: DecorTransform) => DecorTransform;
+
+const TRANSFORM_BUTTONS: { label: string; title: string; op: TransformOp }[] = [
+  { label: '⟲', title: 'Rotate left (Shift+R)', op: rotateCCW },
+  { label: '⟳', title: 'Rotate right (R)', op: rotateCW },
+  { label: '⇋', title: 'Flip horizontal (F)', op: flipH },
+  { label: '⇵', title: 'Flip vertical (V)', op: flipV },
+];
+
+/** The brush transform a key stands for: R / Shift+R turn, F / V mirror. */
+function transformForKey(e: KeyboardEvent): TransformOp | null {
+  switch (e.key.toLowerCase()) {
+    case 'r':
+      return e.shiftKey ? rotateCCW : rotateCW;
+    case 'f':
+      return flipH;
+    case 'v':
+      return flipV;
+    default:
+      return null;
+  }
+}
+
 /** Starter palette: floors (wood, carpet, tile), walls, outdoors. */
 const SWATCHES = [
   '#2a2f37', '#454d5a', '#8b6a4a', '#a8825a', '#6b4f3a', '#c9b48f', '#d9d4c7', '#9aa0a6',
@@ -45,6 +80,7 @@ let savedJson = '';
 let tool: Tool = 'paint';
 let color = SWATCHES[2]!;
 let selection: DecorSelection | null = null;
+let brushT: DecorTransform = IDENTITY;
 let blockDecor = true;
 let seatKind: Seat['kind'] = 'sit';
 let seatDir: Facing = 'down';
@@ -318,6 +354,20 @@ addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
     e.preventDefault();
     doUndo();
+    return;
+  }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  if (t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLTextAreaElement) return;
+  const op = transformForKey(e);
+  if (!op) return;
+  if (tool === 'decor') {
+    e.preventDefault();
+    setBrushTransform(op(brushT));
+  } else if (tool === 'seat') {
+    e.preventDefault();
+    seatDir = transformFacing(seatDir, op(IDENTITY));
+    $<HTMLSelectElement>('#seat-dir').value = seatDir;
   }
 });
 addEventListener('beforeunload', (e) => {
@@ -329,7 +379,8 @@ function updateSeatHint(): void {
   seatHint.textContent =
     seatKind === 'sit'
       ? 'Click the chair/sofa tile. The arrow is the way the person faces. Click again to remove.'
-      : 'Click the bed tile with the pillow. The arrow is where the feet point. Click again to remove.';
+      : 'Click the bed tile with the pillow. The arrow is where the feet point. Click again to remove. ' +
+        'Rotated a bed? Press R here to turn the arrow the same way.';
 }
 $<HTMLSelectElement>('#seat-kind').addEventListener('change', (e) => {
   seatKind = (e.target as HTMLSelectElement).value as Seat['kind'];
@@ -343,6 +394,14 @@ $<HTMLSelectElement>('#seat-dir').addEventListener('change', (e) => {
 updateSeatHint();
 
 // ---------- decoration sheet picker ----------
+
+/** Brush rotation/mirror for the next stamps; not a map edit (no undo, not dirty). */
+function setBrushTransform(t: DecorTransform): void {
+  brushT = t;
+  const label = root.querySelector<HTMLSpanElement>('#brush-transform');
+  if (label) label.textContent = describeTransform(brushT);
+  draw();
+}
 
 function renderDecorPicker(): void {
   const body = $<HTMLDivElement>('#decor-body');
@@ -358,13 +417,35 @@ function renderDecorPicker(): void {
     <div id="sheet-wrap"><canvas id="sheet"></canvas></div>
     <label class="check" style="margin-top:6px"><input id="block-decor" type="checkbox" checked />
       Block tiles under it (tables, shelves)</label>
-    <p class="hint">Click a square, or drag to pick a bigger piece, then click the map to place it.</p>`;
+    <div class="row" id="brush-tools" style="margin-top:6px">
+      <button id="brush-reset">Reset</button> <span id="brush-transform" class="hint"></span>
+    </div>
+    <p class="hint">Click a square, or drag to pick a bigger piece, then click the map to place it.</p>
+    <p class="hint">Turn or mirror it with R / Shift+R / F / V. Chairs, sofas and thrones already come
+      facing each way in the sheet: pick that variant instead. Turning suits rugs, tables, beds and
+      counters; a horizontal flip is almost always safe.</p>`;
   const sheetSelect = body.querySelector<HTMLSelectElement>('#sheet-select')!;
   const sheetCanvas = body.querySelector<HTMLCanvasElement>('#sheet')!;
   const sctx = sheetCanvas.getContext('2d')!;
   body.querySelector<HTMLInputElement>('#block-decor')!.addEventListener('change', (e) => {
     blockDecor = (e.target as HTMLInputElement).checked;
   });
+  const resetBtn = body.querySelector<HTMLButtonElement>('#brush-reset')!;
+  for (const { label, title, op } of TRANSFORM_BUTTONS) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.title = title;
+    b.addEventListener('click', () => {
+      setBrushTransform(op(brushT));
+      setTool('decor');
+    });
+    resetBtn.before(b);
+  }
+  resetBtn.addEventListener('click', () => {
+    setBrushTransform(IDENTITY);
+    setTool('decor');
+  });
+  setBrushTransform(brushT);
 
   let sheet = DECOR_SHEETS[0]!;
   let dragFrom: { x: number; y: number } | null = null;
@@ -493,11 +574,18 @@ function draw(): void {
   ctx.fillText('S', map.spawn.x * TILE_SIZE, map.spawn.y * TILE_SIZE + 0.5);
   // Brush preview.
   if (hover) {
-    const w = tool === 'decor' && selection ? selection.w : 1;
-    const h = tool === 'decor' && selection ? selection.h : 1;
+    let size = { w: 1, h: 1 };
+    if (tool === 'decor' && selection) {
+      // Ghost of the piece exactly where a click stamps it.
+      ctx.save();
+      ctx.globalAlpha = 0.6;
+      for (const cell of brushCells(hover.x, hover.y, selection, brushT)) drawDecorCellAt(ctx, cell);
+      ctx.restore();
+      size = footprint(selection.w, selection.h, brushT);
+    }
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
-    ctx.strokeRect(hover.x * TILE_SIZE + 1, hover.y * TILE_SIZE + 1, w * TILE_SIZE - 2, h * TILE_SIZE - 2);
+    ctx.strokeRect(hover.x * TILE_SIZE + 1, hover.y * TILE_SIZE + 1, size.w * TILE_SIZE - 2, size.h * TILE_SIZE - 2);
     ctx.lineWidth = 1;
   }
 }
@@ -528,7 +616,7 @@ function apply(x: number, y: number, first: boolean): void {
       break;
     case 'decor':
       if (!selection) return setStatus('Pick a piece from the decoration sheet first', true);
-      if (first) stampDecor(map, x, y, selection, blockDecor);
+      if (first) stampDecor(map, x, y, selection, blockDecor, brushT);
       break;
     case 'spawn':
       if (first) setSpawn(map, x, y);
