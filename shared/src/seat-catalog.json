@@ -1,0 +1,27 @@
+{
+  "rules": [
+    { "sheet": "chairs", "x": 0, "y": 0, "w": 16, "h": 10, "step": [2, 2], "kind": "sit", "dir": "down" },
+    { "sheet": "chairs", "x": 1, "y": 0, "w": 15, "h": 10, "step": [2, 2], "kind": "sit", "dir": "up" },
+    { "sheet": "chairs", "x": 0, "y": 1, "w": 16, "h": 9, "step": [2, 2], "kind": "sit", "dir": "right" },
+    { "sheet": "chairs", "x": 1, "y": 1, "w": 15, "h": 9, "step": [2, 2], "kind": "sit", "dir": "left" },
+
+    { "sheet": "armchairs", "x": 0, "y": 0, "w": 16, "h": 14, "step": [2, 2], "kind": "sit", "dir": "down" },
+    { "sheet": "armchairs", "x": 1, "y": 0, "w": 15, "h": 14, "step": [2, 2], "kind": "sit", "dir": "up" },
+    { "sheet": "armchairs", "x": 0, "y": 1, "w": 16, "h": 13, "step": [2, 2], "kind": "sit", "dir": "right" },
+    { "sheet": "armchairs", "x": 1, "y": 1, "w": 15, "h": 13, "step": [2, 2], "kind": "sit", "dir": "left" },
+
+    { "sheet": "sofas", "x": 0, "y": 0, "w": 16, "h": 2, "kind": "sit", "dir": "down" },
+    { "sheet": "sofas", "x": 0, "y": 5, "w": 16, "h": 13, "step": [1, 4], "kind": "sit", "dir": "down" },
+    { "sheet": "sofas", "x": 0, "y": 4, "w": 16, "h": 17, "step": [1, 4], "kind": "sit", "dir": "up" },
+    { "sheet": "sofas", "x": 0, "y": 2, "w": 16, "h": 17, "step": [2, 4], "kind": "sit", "dir": "right" },
+    { "sheet": "sofas", "x": 0, "y": 3, "w": 16, "h": 17, "step": [2, 4], "kind": "sit", "dir": "right" },
+    { "sheet": "sofas", "x": 1, "y": 2, "w": 15, "h": 17, "step": [2, 4], "kind": "sit", "dir": "left" },
+    { "sheet": "sofas", "x": 1, "y": 3, "w": 15, "h": 17, "step": [2, 4], "kind": "sit", "dir": "left" },
+
+    { "sheet": "bar_stools", "x": 0, "y": 0, "w": 8, "kind": "sit", "dir": "up" },
+    { "sheet": "ottomans", "x": 0, "y": 0, "w": 8, "h": 7, "kind": "sit", "dir": "down" },
+
+    { "sheet": "house_inside", "x": 0, "y": 5, "w": 2, "kind": "lie", "dir": "down" },
+    { "sheet": "wooden_furniture", "x": 13, "y": 13, "w": 3, "step": [2, 1], "kind": "lie", "dir": "down" }
+  ]
+}

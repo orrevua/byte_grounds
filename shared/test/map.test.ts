@@ -154,3 +154,36 @@ describe('seatsNear', () => {
     expect(seatAt(m, 5, 5)?.kind).toBe('sit');
   });
 });
+
+describe('parseMap noSeats', () => {
+  const base = { id: 'd', width: 2, height: 2, tiles: [0, 0, 0, 0], spawn: { x: 0.5, y: 0.5 } };
+
+  it('keeps valid integer tiles and drops junk', () => {
+    const parsed = parseMap({
+      ...base,
+      noSeats: [{ x: 1, y: 0 }, { x: 1.5, y: 0 }, { x: '1', y: 1 }, null, { x: 0, y: 1, extra: true }],
+    })!;
+    expect(parsed.noSeats).toEqual([
+      { x: 1, y: 0 },
+      { x: 0, y: 1 },
+    ]);
+  });
+
+  it('omits the field when nothing valid is left', () => {
+    for (const junk of [undefined, [], [{ x: 0.5, y: 0 }], 'x']) {
+      expect('noSeats' in parseMap({ ...base, noSeats: junk })!).toBe(false);
+    }
+  });
+});
+
+describe('seatsNearIn', () => {
+  it('searches a plain seat array, nearest first', async () => {
+    const { seatsNearIn } = await import('../src/map.ts');
+    const seats = [
+      { x: 5, y: 5, kind: 'sit', dir: 'down' },
+      { x: 4, y: 4, kind: 'lie', dir: 'up' },
+    ] as const;
+    expect(seatsNearIn(seats, 4.5, 4.5, 1.6).map((s) => s.x)).toEqual([4, 5]);
+    expect(seatsNearIn(seats, 0.5, 0.5, 1.6)).toEqual([]);
+  });
+});

@@ -39,6 +39,14 @@ export interface Seat {
 
 const FACINGS: readonly Facing[] = ['up', 'down', 'left', 'right'];
 
+const CLOCKWISE: readonly Facing[] = ['up', 'right', 'down', 'left'];
+
+/** A facing carried through a decor transform: mirror swaps left/right, then turn clockwise. */
+export function transformFacing(dir: Facing, t: { rot: Rotation; flipX: boolean }): Facing {
+  const mirrored = t.flipX && dir === 'left' ? 'right' : t.flipX && dir === 'right' ? 'left' : dir;
+  return CLOCKWISE[(CLOCKWISE.indexOf(mirrored) + t.rot / 90) % 4]!;
+}
+
 export interface OfficeMap {
   id: string;
   name?: string;
@@ -50,6 +58,8 @@ export interface OfficeMap {
   colors?: string[];
   decor?: DecorCell[];
   seats?: Seat[];
+  /** Tiles whose automatic (catalog-derived) seat is turned off. Absent = none. */
+  noSeats?: { x: number; y: number }[];
   /** A saved copy of a built-in map: the built-in `rev` it was edited from. Absent = stale. */
   basedOnRev?: number;
 }
@@ -143,8 +153,20 @@ export function parseMap(data: unknown): OfficeMap | null {
             FACINGS.includes(st.dir),
         )
       : [],
+    ...parseNoSeats(m.noSeats),
     ...(Number.isInteger(m.basedOnRev) && m.basedOnRev! > 0 ? { basedOnRev: m.basedOnRev } : {}),
   };
+}
+
+/** `{noSeats}` with the valid integer tiles, or `{}` when there are none (canonical: field absent). */
+function parseNoSeats(data: unknown): Pick<OfficeMap, 'noSeats'> {
+  if (!Array.isArray(data)) return {};
+  const noSeats = data
+    .filter(
+      (t): t is { x: number; y: number } => !!t && typeof t === 'object' && Number.isInteger(t.x) && Number.isInteger(t.y),
+    )
+    .map(({ x, y }) => ({ x, y }));
+  return noSeats.length > 0 ? { noSeats } : {};
 }
 
 /**
@@ -170,7 +192,12 @@ export function seatAt(m: OfficeMap, x: number, y: number): Seat | undefined {
 
 /** Seats within `reach` tiles of (x, y), nearest first (distance to the seat's center). */
 export function seatsNear(m: OfficeMap, x: number, y: number, reach: number): Seat[] {
-  return (m.seats ?? [])
+  return seatsNearIn(m.seats ?? [], x, y, reach);
+}
+
+/** Seats of `seats` within `reach` tiles of (x, y), nearest first (distance to the seat's center). */
+export function seatsNearIn(seats: readonly Seat[], x: number, y: number, reach: number): Seat[] {
+  return seats
     .map((st) => ({ st, d: Math.hypot(st.x + 0.5 - x, st.y + 0.5 - y) }))
     .filter(({ d }) => d <= reach)
     .sort((a, b) => a.d - b.d)
