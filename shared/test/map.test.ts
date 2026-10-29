@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tileAt, isWalkable, OFFICE_MAP, type OfficeMap } from '../src/map.ts';
+import { tileAt, isWalkable, decorLayer, parseMap, OFFICE_MAP, type OfficeMap } from '../src/map.ts';
 
 const m: OfficeMap = {
   id: 'test',
@@ -48,6 +48,41 @@ describe('OFFICE_MAP', () => {
   it('has a solid border wall', () => {
     expect(tileAt(OFFICE_MAP, 0, 0)).toBe(1);
     expect(tileAt(OFFICE_MAP, OFFICE_MAP.width - 1, OFFICE_MAP.height - 1)).toBe(1);
+  });
+});
+
+describe('parseMap decor layer', () => {
+  const base = { id: 'd', width: 2, height: 1, tiles: [0, 1], spawn: { x: 0.5, y: 0.5 } };
+
+  it('keeps a valid layer and strips a junk one', () => {
+    const parsed = parseMap({
+      ...base,
+      decor: [
+        { x: 0, y: 0, sheet: 's', sx: 0, sy: 0, layer: 'object' },
+        { x: 1, y: 0, sheet: 's', sx: 0, sy: 0, layer: 'bogus' },
+        { x: 0, y: 0, sheet: 's', sx: 0, sy: 0 },
+      ],
+    })!;
+    expect(parsed.decor).toEqual([
+      { x: 0, y: 0, sheet: 's', sx: 0, sy: 0, layer: 'object' },
+      { x: 1, y: 0, sheet: 's', sx: 0, sy: 0 },
+      { x: 0, y: 0, sheet: 's', sx: 0, sy: 0 },
+    ]);
+  });
+});
+
+describe('decorLayer', () => {
+  // tiles: (0,0) floor, (1,0) wall.
+  const m: OfficeMap = { id: 'd', width: 2, height: 1, tiles: [0, 1], spawn: { x: 0.5, y: 0.5 } };
+
+  it('uses the explicit layer when set', () => {
+    expect(decorLayer(m, { x: 0, y: 0, sheet: 's', sx: 0, sy: 0, layer: 'object' })).toBe('object');
+    expect(decorLayer(m, { x: 1, y: 0, sheet: 's', sx: 0, sy: 0, layer: 'floor' })).toBe('floor');
+  });
+
+  it('infers object over a wall tile and floor otherwise', () => {
+    expect(decorLayer(m, { x: 1, y: 0, sheet: 's', sx: 0, sy: 0 })).toBe('object');
+    expect(decorLayer(m, { x: 0, y: 0, sheet: 's', sx: 0, sy: 0 })).toBe('floor');
   });
 });
 
