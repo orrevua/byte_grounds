@@ -1,5 +1,5 @@
 import { MAX_MAP_SIZE, type DecorCell, type Facing, type OfficeMap, type Seat, type Tile } from '@byte_grounds/shared/map';
-import { IDENTITY, transformFields, transformOffset, type DecorTransform } from './decor-transform.ts';
+import { IDENTITY, footprint, transformFields, transformOffset, type DecorTransform } from './decor-transform.ts';
 
 /** A rectangle of cells picked from a decor sheet (in 32px cells). */
 export interface DecorSelection {
@@ -26,22 +26,36 @@ export function setBlocked(m: OfficeMap, x: number, y: number, blocked: boolean)
 }
 
 /**
+ * How a stamp blocks walking: `none` = floor-layer art (rugs, beds), `base` = only the bottom row
+ * of the footprint (desks, shelves: people can walk behind them), `all` = every covered tile.
+ */
+export type BlockMode = 'none' | 'base' | 'all';
+
+/** Whether stamping `cell` in `mode` makes its tile not walkable. */
+export function cellBlocks(cell: DecorCell, mode: BlockMode): boolean {
+  return mode === 'all' || (mode === 'base' && (cell.baseDy ?? 0) === 0);
+}
+
+/**
  * The cells a brush puts down with the top-left of its transformed footprint on tile (x, y):
- * each source cell moves to its transformed offset and carries the transform. No bounds check.
+ * each source cell moves to its transformed offset and carries the transform. With a `mode`,
+ * cells get its layer and, in `base`, the rows down to the footprint's bottom row. No bounds check.
  */
 export function brushCells(
   x: number,
   y: number,
   sel: DecorSelection,
   t: DecorTransform,
-  layer?: 'floor' | 'object',
+  mode?: BlockMode,
 ): DecorCell[] {
+  const fh = footprint(sel.w, sel.h, t).h;
   const cells: DecorCell[] = [];
   for (let dy = 0; dy < sel.h; dy++) {
     for (let dx = 0; dx < sel.w; dx++) {
       const o = transformOffset(dx, dy, sel.w, sel.h, t);
       const cell: DecorCell = { x: x + o.dx, y: y + o.dy, sheet: sel.sheet, sx: sel.sx + dx, sy: sel.sy + dy };
-      if (layer) cell.layer = layer;
+      if (mode) cell.layer = mode === 'none' ? 'floor' : 'object';
+      if (mode === 'base' && fh - 1 - o.dy > 0) cell.baseDy = fh - 1 - o.dy;
       cells.push({ ...cell, ...transformFields(t) });
     }
   }
@@ -50,31 +64,34 @@ export function brushCells(
 
 /**
  * Stamp a sheet selection, turned/mirrored by `t`, with its top-left on tile (x, y), on top of
- * what's there. `block` also marks the covered tiles as not walkable (tables, shelves...).
- * Re-stamping an identical cell on the same tile only updates its transform.
+ * what's there. Tiles blocked by `mode` (see `cellBlocks`) become not walkable; stamping never
+ * unblocks. Re-stamping an identical cell on the same tile takes the brush's layer, base row and
+ * transform instead of adding a copy.
  */
 export function stampDecor(
   m: OfficeMap,
   x: number,
   y: number,
   sel: DecorSelection,
-  block: boolean,
+  mode: BlockMode,
   t: DecorTransform = IDENTITY,
 ): void {
   m.decor ??= [];
-  for (const cell of brushCells(x, y, sel, t, block ? 'object' : 'floor')) {
+  for (const cell of brushCells(x, y, sel, t, mode)) {
     if (!inBounds(m, cell.x, cell.y)) continue;
     const dup = m.decor.find(
       (d) => d.x === cell.x && d.y === cell.y && d.sheet === cell.sheet && d.sx === cell.sx && d.sy === cell.sy,
     );
     if (dup) {
+      delete dup.layer;
+      delete dup.baseDy;
       delete dup.rot;
       delete dup.flipX;
-      Object.assign(dup, transformFields(t));
+      Object.assign(dup, cell);
     } else {
       m.decor.push(cell);
     }
-    if (block) setBlocked(m, cell.x, cell.y, true);
+    if (cellBlocks(cell, mode)) setBlocked(m, cell.x, cell.y, true);
   }
 }
 

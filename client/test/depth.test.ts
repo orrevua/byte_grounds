@@ -6,6 +6,33 @@ describe('anchors', () => {
     expect(decorAnchorY({ y: 3 })).toBe(3.5);
     expect(avatarAnchorY({ y: 3.5 })).toBe(3.5);
   });
+
+  it('decor with a base row anchors at that row', () => {
+    expect(decorAnchorY({ y: 3, baseDy: 1 })).toBe(4.5);
+  });
+});
+
+describe('a 2-row desk sorted by its base row', () => {
+  const desk = [
+    { id: 'top', anchorY: decorAnchorY({ y: 4, baseDy: 1 }), isAvatar: false },
+    { id: 'base', anchorY: decorAnchorY({ y: 5 }), isAvatar: false },
+  ];
+  const order = (feetY: number) =>
+    sortRenderables([...desk, { id: 'avatar', anchorY: avatarAnchorY({ y: feetY }), isAvatar: true }]).map(
+      (r) => r.id,
+    );
+
+  it('an avatar in the row behind is drawn before (under) the whole desk', () => {
+    expect(order(4.7)).toEqual(['avatar', 'top', 'base']);
+  });
+
+  it('an avatar in front is drawn after (over) the whole desk', () => {
+    expect(order(6.2)).toEqual(['top', 'base', 'avatar']);
+  });
+
+  it('an avatar seated in front is drawn over the desk', () => {
+    expect(order(6.5)).toEqual(['top', 'base', 'avatar']);
+  });
 });
 
 describe('sortRenderables', () => {

@@ -16,6 +16,7 @@ import {
 } from './decor-transform.ts';
 import {
   brushCells,
+  cellBlocks,
   eraseDecor,
   paintColor,
   resizeMap,
@@ -23,6 +24,7 @@ import {
   setSpawn,
   stampDecor,
   toggleSeat,
+  type BlockMode,
   type DecorSelection,
 } from './editor-model.ts';
 import { createStore, type MapSummary } from './store.ts';
@@ -82,7 +84,7 @@ let tool: Tool = 'paint';
 let color = SWATCHES[2]!;
 let selection: DecorSelection | null = null;
 let brushT: DecorTransform = IDENTITY;
-let blockDecor = true;
+let blockMode: BlockMode = 'base';
 let seatKind: Seat['kind'] = 'sit';
 let seatDir: Facing = 'down';
 let showWalls = true;
@@ -416,8 +418,15 @@ function renderDecorPicker(): void {
       <select id="sheet-select" style="flex:1">${DECOR_SHEETS.map((s) => `<option>${s}</option>`).join('')}</select>
     </div>
     <div id="sheet-wrap"><canvas id="sheet"></canvas></div>
-    <label class="check" style="margin-top:6px"><input id="block-decor" type="checkbox" checked />
-      Block tiles under it (tables, shelves)</label>
+    <div class="row" style="margin-top:6px">
+      Block <select id="block-decor" style="flex:1">
+        <option value="base" selected>Base row (desks, shelves)</option>
+        <option value="all">Whole piece</option>
+        <option value="none">Nothing (rugs, beds)</option>
+      </select>
+    </div>
+    <p class="hint">Base row: only the bottom row blocks; people can walk behind it. Use Whole piece for
+      pieces turned sideways.</p>
     <div class="row" id="brush-tools" style="margin-top:6px">
       <button id="brush-reset">Reset</button> <span id="brush-transform" class="hint"></span>
     </div>
@@ -429,8 +438,9 @@ function renderDecorPicker(): void {
   const sheetSelect = body.querySelector<HTMLSelectElement>('#sheet-select')!;
   const sheetCanvas = body.querySelector<HTMLCanvasElement>('#sheet')!;
   const sctx = sheetCanvas.getContext('2d')!;
-  body.querySelector<HTMLInputElement>('#block-decor')!.addEventListener('change', (e) => {
-    blockDecor = (e.target as HTMLInputElement).checked;
+  body.querySelector<HTMLSelectElement>('#block-decor')!.addEventListener('change', (e) => {
+    blockMode = (e.target as HTMLSelectElement).value as BlockMode;
+    draw();
   });
   const resetBtn = body.querySelector<HTMLButtonElement>('#brush-reset')!;
   for (const { label, title, op } of TRANSFORM_BUTTONS) {
@@ -623,10 +633,15 @@ function draw(): void {
     let size = { w: 1, h: 1 };
     if (tool === 'decor' && selection) {
       // Ghost of the piece exactly where a click stamps it.
+      const ghost = brushCells(hover.x, hover.y, selection, brushT, blockMode);
       ctx.save();
       ctx.globalAlpha = 0.6;
-      for (const cell of brushCells(hover.x, hover.y, selection, brushT)) drawDecorCellAt(ctx, cell);
+      for (const cell of ghost) drawDecorCellAt(ctx, cell);
       ctx.restore();
+      ctx.fillStyle = 'rgba(220, 60, 60, 0.35)';
+      for (const cell of ghost) {
+        if (cellBlocks(cell, blockMode)) ctx.fillRect(cell.x * TILE_SIZE, cell.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+      }
       size = footprint(selection.w, selection.h, brushT);
     }
     ctx.strokeStyle = '#ffffff';
@@ -662,7 +677,7 @@ function apply(x: number, y: number, first: boolean): void {
       break;
     case 'decor':
       if (!selection) return setStatus('Pick a piece from the decoration sheet first', true);
-      if (first) stampDecor(map, x, y, selection, blockDecor, brushT);
+      if (first) stampDecor(map, x, y, selection, blockMode, brushT);
       break;
     case 'spawn':
       if (first) setSpawn(map, x, y);

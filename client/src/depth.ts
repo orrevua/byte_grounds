@@ -3,9 +3,12 @@
  * ordered by a screen-row anchor (tile-space Y; larger = lower on screen = nearer the viewer).
  */
 
-/** An object decor cell's anchor is its vertical center. */
-export function decorAnchorY(cell: { y: number }): number {
-  return cell.y + 0.5;
+/**
+ * An object decor cell's anchor is the vertical center of its object's base row (`baseDy` rows
+ * down), so every cell of a desk sorts where the desk stands, not where its top row is drawn.
+ */
+export function decorAnchorY(cell: { y: number; baseDy?: number }): number {
+  return cell.y + (cell.baseDy ?? 0) + 0.5;
 }
 
 /** An avatar's anchor is its feet point. */
