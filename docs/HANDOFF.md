@@ -3,6 +3,50 @@
 **Last updated:** 2026-10-28 (project renamed to ByteGrounds)
 **Branch:** master (git initialized)
 
+## Furniture depth + pose fix — UNITS 1–7 DONE (2026-10-28)
+Spec: `docs/specs/furniture-depth-pose-fix.md`. All 7 units implemented, committed, and pushed to
+`claude/nifty-archimedes-e4o1ce`. `npm test` → **96 tests green** (was 88: +4 depth, +4 shared
+layer/parseMap); `npm run typecheck --workspace client` + `npm run build` green. No protocol/network
+change; existing maps render via `decorLayer` inference (no re-tag/migration).
+
+What shipped:
+- **U1** `shared/src/map.ts`: `DecorCell.layer?: 'floor'|'object'`; `parseMap` keeps a valid layer,
+  strips junk (+ shared test).
+- **U2** `shared/src/map.ts`: pure `decorLayer(map, cell)` = `cell.layer ?? (tileAt==1?'object':'floor')`
+  (+ shared test).
+- **U3** `client/src/depth.ts` (new) + `client/test/depth.test.ts`: `decorAnchorY` (`y+0.5`),
+  `avatarAnchorY` (`y`), stable `sortRenderables` (anchor asc; tie → decor before avatar).
+- **U4** `client/src/render.ts`: `drawMap` draws tiles+grid+**floor** decor only; new
+  `drawDecorCellAt` + `drawObjectDecorFlat`.
+- **U5** `client/src/render.ts`+`sprites.ts`: full-body **sit** (standing frame, col 0, lowered
+  `SIT_DROP`, no crop) and **lie** (standing `down` frame rotated to point `dir`, half-tile shift).
+  Removed dead `SIT_KEEP`/`LIE_COL`/`LIE_ROW` and now-unused `drawAppearanceRegion`. **[M]**
+  - Lie rotation chosen: `down:0, up:π, left:+π/2, right:-π/2` (standing feet point south). The
+    left/right sign is a visual guess — **flip left/right if a body lies head-first** (see checklist).
+- **U6** `client/src/game.ts` `render()`: merged y-sorted pass over object-decor + all avatars
+  (remotes + self), `sortRenderables`, draw back-to-front (prox ring then sprite); **final pass**
+  draws all name labels + places/volumes bubbles so furniture never covers names/bubbles. Added a
+  shared `Avatar` interface (self + `RemoteAvatar extends Avatar`); `drawAvatar` no longer draws the
+  name (names are the top pass). **[M]**
+- **U7** `client/src/editor-model.ts`: `stampDecor` writes `layer: block?'object':'floor'`;
+  `editor.ts` `draw()` calls `drawObjectDecorFlat` after `drawMap`; `editor-model.test.ts`
+  expectations updated (block=true cells → `layer:'object'`).
+
+### Two-tab / browser manual checklist (units 5, 6, 7 — NOT exercised here)
+1. Sit on a **plain chair** (no desk in front) → full body with **feet visible**, settled on the seat.
+2. Sit on a chair with a **desk one tile below (in front, facing down)** → desk draws **over** the
+   legs/feet (reads as sitting at the desk); chair stays behind.
+3. Walk a standing avatar **behind** a desk/table (row above) → occluded; **in front** (row below) →
+   draws over it.
+4. **Lie on a bed** → whole body incl. **feet**, flat, feet pointing the seat `dir`; bed stays under.
+   **If the body lies head-first, flip the left/right rotation sign** in `render.ts` `LIE_ROTATION`.
+5. Second tab: a remote seated/lying/occluded avatar renders identically; **name labels never covered**
+   by furniture; proximity rings + video bubbles still track.
+6. Editor: all furniture still shows; stamp with "Block tiles under it" ON → occludes (object), OFF →
+   stays under (floor).
+7. An **existing saved map** (no `layer` fields) still renders: solid tables now occlude seated
+   avatars; rugs/beds stay under (inference check).
+
 ## Project rename (2026-10-28)
 Renamed in-place from "business_city" to **ByteGrounds** (top-level folder path unchanged:
 `C:/Users/felip/repositories/business_city`). Display/product name → `ByteGrounds`; identifiers
