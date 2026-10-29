@@ -1,7 +1,16 @@
 import { TILE_SIZE } from '@byte_grounds/shared/protocol';
 import { decorLayer, tileColor } from '@byte_grounds/shared/map';
 import type { DecorCell, OfficeMap } from '@byte_grounds/shared/map';
-import { FRAME_SIZE, SIT_DROP, drawAppearance } from './sprites.ts';
+import {
+  FRAME_SIZE,
+  LIE_SHIFT,
+  drawAppearance,
+  drawSitAppearance,
+  drawTuckedAppearance,
+  lieMode,
+  lieTransform,
+  tuckLayout,
+} from './sprites.ts';
 import { drawDecorCell } from './decor.ts';
 import type { Direction } from './sprites.ts';
 import type { Appearance, Pose } from '@byte_grounds/shared/protocol';
@@ -35,7 +44,7 @@ export function drawMap(ctx: CanvasRenderingContext2D, map: OfficeMap): void {
 
 /** Draw one decor cell at its tile. */
 export function drawDecorCellAt(ctx: CanvasRenderingContext2D, cell: DecorCell): void {
-  drawDecorCell(ctx, cell.sheet, cell.sx, cell.sy, cell.x * TILE_SIZE, cell.y * TILE_SIZE);
+  drawDecorCell(ctx, cell.sheet, cell.sx, cell.sy, cell.x * TILE_SIZE, cell.y * TILE_SIZE, cell.rot ?? 0, cell.flipX === true);
 }
 
 /** Draw every object-layer decor cell flat (no depth sort) — used by the editor. */
@@ -103,13 +112,6 @@ export function drawSprite(
   drawAppearance(ctx, a, dir, col, px - FRAME_SIZE / 2, py - FRAME_SIZE + FOOT_OFFSET);
 }
 
-/** Rotation to lay the standing frame flat with its feet pointing `dir` (the frame's feet point down). */
-const LIE_ROTATION: Record<Direction, number> = {
-  down: 0,
-  up: Math.PI,
-  left: Math.PI / 2,
-  right: -Math.PI / 2,
-};
 const FEET_VECTOR: Record<Direction, { dx: number; dy: number }> = {
   up: { dx: 0, dy: -1 },
   down: { dx: 0, dy: 1 },
@@ -118,9 +120,10 @@ const FEET_VECTOR: Record<Direction, { dx: number; dy: number }> = {
 };
 
 /**
- * Draw an avatar in a pose at tile point (x, y). Sitting: the full standing frame lowered onto
- * the seat (furniture in front hides the legs via depth sort). Lying: the full standing frame
- * rotated so the feet point `dir`, shifted that way so the head rests on the pillow tile.
+ * Draw an avatar in a pose at tile point (x, y). Sitting: the bent-leg sit frame, feet-anchored
+ * like standing (furniture in front hides the legs via depth sort). Lying on a left/right bed: the
+ * profile frame rotated onto its side (`lieTransform`), shifted along `dir` so the head rests on
+ * the pillow. On an up/down bed: tucked in, head on the pillow and a blanket over the body.
  */
 export function drawPosedSprite(
   ctx: CanvasRenderingContext2D,
@@ -136,14 +139,23 @@ export function drawPosedSprite(
   const px = x * TILE_SIZE;
   const py = y * TILE_SIZE;
   if (pose === 'sit') {
-    drawAppearance(ctx, a, dir, 0, px - FRAME_SIZE / 2, py - FRAME_SIZE + FOOT_OFFSET + SIT_DROP);
+    drawSitAppearance(ctx, a, dir, px - FRAME_SIZE / 2, py - FRAME_SIZE + FOOT_OFFSET);
+    return;
+  }
+  if (lieMode(dir) === 'tucked') {
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(tuckLayout(dir).rot);
+    drawTuckedAppearance(ctx, a, dir);
+    ctx.restore();
     return;
   }
   const feet = FEET_VECTOR[dir];
+  const { src, rot } = lieTransform(dir);
   ctx.save();
-  ctx.translate(px + (feet.dx * TILE_SIZE) / 2, py + (feet.dy * TILE_SIZE) / 2);
-  ctx.rotate(LIE_ROTATION[dir]);
-  drawAppearance(ctx, a, 'down', 0, -FRAME_SIZE / 2, -FRAME_SIZE / 2);
+  ctx.translate(px + feet.dx * LIE_SHIFT, py + feet.dy * LIE_SHIFT);
+  ctx.rotate(rot);
+  drawAppearance(ctx, a, src, 0, -FRAME_SIZE / 2, -FRAME_SIZE / 2);
   ctx.restore();
 }
 

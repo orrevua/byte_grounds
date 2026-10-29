@@ -1,5 +1,8 @@
 export type Tile = 0 | 1; // 0 = floor (walkable), 1 = wall (blocked)
 
+/** Clockwise rotation of a decor cell, in degrees. */
+export type Rotation = 0 | 90 | 180 | 270;
+
 /**
  * One decoration piece: a 32x32 cell (`sx`, `sy`, in cells) of an art sheet in
  * `client/src/assets/decor/<sheet>.png`, drawn on map tile (`x`, `y`) above the floor.
@@ -13,6 +16,10 @@ export interface DecorCell {
   sy: number;
   /** Depth layer: `floor` draws under all avatars; `object` depth-sorts against them. */
   layer?: 'floor' | 'object';
+  /** Clockwise rotation in degrees, applied after flipX. Absent = 0. */
+  rot?: Rotation;
+  /** Mirror horizontally (in the cell's own space, before rotating). Absent = false. */
+  flipX?: boolean;
 }
 
 export type Facing = 'up' | 'down' | 'left' | 'right';
@@ -116,6 +123,8 @@ export function parseMap(data: unknown): OfficeMap | null {
           .map((d) => {
             const cell: DecorCell = { x: d.x, y: d.y, sheet: d.sheet, sx: d.sx, sy: d.sy };
             if (d.layer === 'floor' || d.layer === 'object') cell.layer = d.layer;
+            if (d.rot === 90 || d.rot === 180 || d.rot === 270) cell.rot = d.rot;
+            if (d.flipX === true) cell.flipX = true;
             return cell;
           })
       : [],

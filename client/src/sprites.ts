@@ -1,4 +1,5 @@
-import type { Appearance } from '@byte_grounds/shared/protocol';
+import { TILE_SIZE } from '@byte_grounds/shared/protocol';
+import type { Appearance, Pose } from '@byte_grounds/shared/protocol';
 
 export type Direction = 'up' | 'left' | 'down' | 'right';
 
@@ -73,18 +74,30 @@ export function optionsFor(c: (typeof CATEGORIES)[number], a: Appearance): reado
   return typeof c.options === 'function' ? c.options(a) : c.options;
 }
 
-/** Ordered bottom→top layer URLs (body, legs, torso, hair) for an appearance. */
-export function appearanceToLayers(a: Appearance): string[] {
+/**
+ * Ordered bottom→top layer URLs (body, legs, torso, hair) for an appearance. `sit` resolves the
+ * same files under the generated `sit/` subtree; `stand`/`lie` use the walk sheets.
+ */
+export function appearanceToLayers(a: Appearance, pose: Pose = 'stand'): string[] {
+  const root = pose === 'sit' ? `${LPC}/sit` : LPC;
   const style = a.outfit === 'business' ? 'formal' : a.body === 'male' ? 'longsleeve' : 'tunic';
   const palette = outfitTorso(a.outfit);
   const topColor = palette.includes(a.torso) ? a.torso : palette[0];
   const layers = [
-    `${LPC}/body/${a.body}_light.png`,
-    `${LPC}/legs/${a.legs}_pants_${a.body}.png`,
-    `${LPC}/torso/${topColor}_${style}_${a.body}.png`,
+    `${root}/body/${a.body}_light.png`,
+    `${root}/legs/${a.legs}_pants_${a.body}.png`,
+    `${root}/torso/${topColor}_${style}_${a.body}.png`,
   ];
-  if (a.hair !== 'none') layers.push(`${LPC}/hair/${a.hair}_${a.body}.png`);
+  if (a.hair !== 'none') layers.push(`${root}/hair/${a.hair}_${a.body}.png`);
   return layers;
+}
+
+/** Sit-sheet column per facing (one row; written by tools/gen_pose_sheets.py). */
+const SIT_COL: Record<Direction, number> = { up: 0, left: 1, down: 2, right: 3 };
+
+/** Frame of the seated pose for a facing within a sit sheet. */
+export function sitFrame(dir: Direction): { row: number; col: number } {
+  return { row: 0, col: SIT_COL[dir] };
 }
 
 /** The old 6 variants re-expressed as appearances, offered as quick-start presets. */
@@ -101,16 +114,17 @@ export const PRESETS: { id: string; label: string; appearance: Appearance }[] = 
 
 export const DEFAULT_APPEARANCE: Appearance = PRESETS[0].appearance;
 
-/** The full vendored PNG set (every real per-outfit combination's layers), deduped. */
+/** The full vendored PNG set (every real per-outfit combination's stand + sit layers), deduped. */
 export const ALL_LAYER_URLS: string[] = [
   ...new Set(
     BODY.flatMap((body) =>
       HAIR.flatMap((hair) =>
         LEGS.flatMap((legs) =>
           OUTFIT.flatMap((outfit) =>
-            outfitTorso(outfit).flatMap((torso) =>
-              appearanceToLayers({ body, hair, outfit, torso: torso as Appearance['torso'], legs }),
-            ),
+            outfitTorso(outfit).flatMap((torso) => {
+              const a: Appearance = { body, hair, outfit, torso: torso as Appearance['torso'], legs };
+              return [...appearanceToLayers(a), ...appearanceToLayers(a, 'sit')];
+            }),
           ),
         ),
       ),
@@ -195,9 +209,9 @@ function preloadUrls(urls: Iterable<string>): Promise<void> {
   return Promise.all(pending).then(() => undefined);
 }
 
-/** Preload every layer image for the given appearance (idempotent via the cache). */
+/** Preload every stand + sit layer image (and the bed blanket) for the appearance (idempotent via the cache). */
 export function preloadAppearance(a: Appearance): Promise<void> {
-  return preloadUrls(appearanceToLayers(a));
+  return preloadUrls([...appearanceToLayers(a), ...appearanceToLayers(a, 'sit'), BLANKET_URL]);
 }
 
 /** Preload the full vendored layer set once (editor init). */
@@ -213,8 +227,90 @@ export function appearanceReady(a: Appearance): boolean {
   });
 }
 
-/** Sitting = the full standing frame lowered SIT_DROP px onto the seat. */
-export const SIT_DROP = 10;
+/**
+ * How a lying body is drawn: on its side along a left/right bed, or tucked in face-up under a
+ * blanket on an up/down bed (a rotated profile would be wider than a vertical bed).
+ */
+export function lieMode(dir: Direction): 'side' | 'tucked' {
+  return dir === 'left' || dir === 'right' ? 'side' : 'tucked';
+}
+
+/**
+ * Side-lie (left/right beds): which profile frame to draw and its clockwise rotation so the feet
+ * point `dir` and the belly faces the viewer (screen-down). The side is chosen by the source
+ * frame, not the angle.
+ */
+export function lieTransform(dir: Direction): { src: Direction; rot: number } {
+  return dir === 'left'
+    ? { src: 'right', rot: Math.PI / 2 }
+    : { src: 'left', rot: -Math.PI / 2 };
+}
+
+/** Px shift from the pillow-tile center along the feet so the head rests on the pillow. */
+export const LIE_SHIFT = 8;
+
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Original-art blanket (tools/gen_blanket.py); its size matches `tuckLayout().blanket`. */
+export const BLANKET_URL = '/sprites/blanket.png';
+/** Head center row and the shoulder cut (rows kept) of a standing up/down frame. */
+const TUCK_HEAD_Y = 22;
+const TUCK_CROP = 38;
+/** Blanket: one tile wide minus a 3px inset per side, from the shoulders to the bed's foot end. */
+const BLANKET_INSET = 3;
+const BLANKET_TOP = 11;
+
+/**
+ * Tucked-in lie (up/down beds), in local px around the pillow-tile center with the feet toward
+ * +y; draw rotated by `rot`. `down`: the face-on `down` frame. `up`: the back-of-head `up` frame
+ * turned π (the head points at the viewer, so the crown shows; an upside-down face reads badly).
+ * The head sits on the pillow, only the top `crop` rows (head + shoulders) are drawn, and the
+ * blanket covers the rest of the 2-tile bed.
+ */
+export function tuckLayout(dir: Direction): {
+  src: Direction;
+  rot: number;
+  frameX: number;
+  frameY: number;
+  crop: number;
+  blanket: Rect;
+} {
+  const bottom = TILE_SIZE * 1.5 - 2; // foot end of the 2-tile bed, inside its outline
+  return {
+    src: dir === 'up' ? 'up' : 'down',
+    rot: dir === 'up' ? Math.PI : 0,
+    frameX: -FRAME_SIZE / 2,
+    frameY: -TUCK_HEAD_Y - 2,
+    crop: TUCK_CROP,
+    blanket: {
+      x: -TILE_SIZE / 2 + BLANKET_INSET,
+      y: BLANKET_TOP,
+      w: TILE_SIZE - 2 * BLANKET_INSET,
+      h: bottom - BLANKET_TOP,
+    },
+  };
+}
+
+function blitLayers(
+  ctx: CanvasRenderingContext2D,
+  urls: string[],
+  sx: number,
+  sy: number,
+  destX: number,
+  destY: number,
+  h: number = FRAME_SIZE,
+): void {
+  for (const url of urls) {
+    const img = cache.get(url);
+    if (!img || !img.complete || img.naturalWidth === 0) continue;
+    ctx.drawImage(img, sx, sy, FRAME_SIZE, h, destX, destY, FRAME_SIZE, h);
+  }
+}
 
 /** Blit the (dir, col) frame of each loaded layer to (destX, destY). Skips unloaded layers. */
 export function drawAppearance(
@@ -225,11 +321,25 @@ export function drawAppearance(
   destX: number,
   destY: number,
 ): void {
-  const sx = col * FRAME_SIZE;
-  const sy = WALK_ROW[dir] * FRAME_SIZE;
-  for (const url of appearanceToLayers(a)) {
-    const img = cache.get(url);
-    if (!img || !img.complete || img.naturalWidth === 0) continue;
-    ctx.drawImage(img, sx, sy, FRAME_SIZE, FRAME_SIZE, destX, destY, FRAME_SIZE, FRAME_SIZE);
-  }
+  blitLayers(ctx, appearanceToLayers(a), col * FRAME_SIZE, WALK_ROW[dir] * FRAME_SIZE, destX, destY);
+}
+
+/** Blit the seated frame for `dir` of each loaded sit layer to (destX, destY). Skips unloaded layers. */
+export function drawSitAppearance(
+  ctx: CanvasRenderingContext2D,
+  a: Appearance,
+  dir: Direction,
+  destX: number,
+  destY: number,
+): void {
+  const { row, col } = sitFrame(dir);
+  blitLayers(ctx, appearanceToLayers(a, 'sit'), col * FRAME_SIZE, row * FRAME_SIZE, destX, destY);
+}
+
+/** Tucked-in lie at local origin (see `tuckLayout`): head + shoulders, then the blanket over the body. */
+export function drawTuckedAppearance(ctx: CanvasRenderingContext2D, a: Appearance, dir: Direction): void {
+  const { src, frameX, frameY, crop, blanket } = tuckLayout(dir);
+  blitLayers(ctx, appearanceToLayers(a), 0, WALK_ROW[src] * FRAME_SIZE, frameX, frameY, crop);
+  const img = loadImage(BLANKET_URL);
+  if (img.complete && img.naturalWidth > 0) ctx.drawImage(img, blanket.x, blanket.y, blanket.w, blanket.h);
 }

@@ -36,6 +36,29 @@ describe('map editing', () => {
     expect(eraseDecor(m, 2, 1)).toBe(false);
   });
 
+  it('stamps a turned piece on its turned footprint', () => {
+    const m = createBlankMap('a', 6, 6);
+    stampDecor(m, 1, 1, { sheet: 'furniture', sx: 4, sy: 2, w: 2, h: 1 }, true, { rot: 90, flipX: false });
+    expect(m.decor).toEqual([
+      { x: 1, y: 1, sheet: 'furniture', sx: 4, sy: 2, layer: 'object', rot: 90 },
+      { x: 1, y: 2, sheet: 'furniture', sx: 5, sy: 2, layer: 'object', rot: 90 },
+    ]);
+    expect(isWalkable(m, 1.5, 1.5)).toBe(false);
+    expect(isWalkable(m, 1.5, 2.5)).toBe(false);
+    expect(isWalkable(m, 2.5, 1.5)).toBe(true);
+    expect(parseMap(JSON.parse(JSON.stringify(m)))).toEqual(m);
+  });
+
+  it('re-stamping the same cell updates its transform instead of adding one', () => {
+    const m = createBlankMap('a', 6, 6);
+    const sel = { sheet: 's', sx: 0, sy: 0, w: 1, h: 1 };
+    stampDecor(m, 2, 2, sel, false, { rot: 90, flipX: false });
+    stampDecor(m, 2, 2, sel, false, { rot: 0, flipX: true });
+    expect(m.decor).toEqual([{ x: 2, y: 2, sheet: 's', sx: 0, sy: 0, layer: 'floor', flipX: true }]);
+    stampDecor(m, 2, 2, sel, false);
+    expect(m.decor).toEqual([{ x: 2, y: 2, sheet: 's', sx: 0, sy: 0, layer: 'floor' }]);
+  });
+
   it('moving the spawn makes that tile walkable', () => {
     const m = createBlankMap('a', 5, 5);
     setSpawn(m, 0, 0); // a border wall

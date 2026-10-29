@@ -1,7 +1,101 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-28 (project renamed to ByteGrounds)
-**Branch:** master (git initialized)
+**Last updated:** 2026-10-29 (decor rotation & flip U1–U8 committed; U9 manual check pending)
+**Branch:** `claude/nifty-archimedes-e4o1ce`
+
+## Decor rotation & flip — U1–U8 DONE, COMMITTED (2026-10-29)
+Spec: `docs/specs/decor-rotation.md`. `npm test` → **121 green** (106 +2 shared parseMap transform,
++11 decor-transform, +2 editor-model); `npm run typecheck --workspace client` + `npm run build` green.
+- **U1** `shared/src/map.ts`: `Rotation = 0|90|180|270`; `DecorCell.rot?` / `flipX?` (canonical:
+  `parseMap` keeps only `rot` 90/180/270 and `flipX === true`; identity cells serialize as before).
+- **U2–3** `client/src/decor-transform.ts` (new, pure): `DecorTransform {rot, flipX}`, `IDENTITY`,
+  `rotateCW/CCW`, `flipH/V`, `footprint`, `transformOffset`, `transformFacing`, `transformFields`,
+  `describeTransform`.
+- **U4** `editor-model.ts`: `brushCells(x, y, sel, t, layer?)` (target tile = anchor + transformed
+  offset; source `sx+dx, sy+dy`); `stampDecor(..., t = IDENTITY)`; re-stamping an identical cell on
+  the same tile replaces its `rot`/`flipX` instead of adding a cell.
+- **U5** `decor.ts` `drawDecorCell(..., rot = 0, flipX = false)`: identity = the old single
+  `drawImage`; otherwise save / smoothing off / translate to the tile centre / rotate / scale(-1,1) /
+  draw / restore. `render.ts` `drawDecorCellAt` passes `cell.rot ?? 0, cell.flipX === true` (all
+  floor/object/editor/game decor paths go through it). The tucked-lie code draws only the body +
+  blanket sprite, never bed decor cells, so rotated beds need nothing more.
+- **U6–8** `editor.ts`: `brushT` state (persists across piece picks; not an undo/dirty edit);
+  R / Shift+R / F / V (ignored in input/select/textarea or with Ctrl/Meta/Alt); toolbar ⟲ ⟳ ⇋ ⇵ +
+  Reset + label + hint; ghost preview at alpha 0.6 with the transformed-footprint outline; in the
+  Seat tool the same keys turn `seatDir` via `transformFacing` and sync `#seat-dir`.
+- Visual math check (no browser): `scratchpad/rotation_preview.py` → `scratchpad/rotation_preview.png`
+  (house_inside 2x3 framed bed, beds_single 1x2, decorative banner; 8 orientations, 4× nearest).
+  Correct turns/flips, crisp, no seams between cells; a rotated bed shows its headboard sideways (LPC
+  3/4 art, expected per spec §1).
+
+### Decor rotation — U9 manual checklist (browser, NOT exercised here)
+1. Pick a 2-tile bed (or the 2x3 framed bed in `house_inside`), press R: the ghost turns into the
+   rotated footprint; click stamps it exactly there; Shift+R turns it back.
+2. F mirrors a rug/table, V mirrors vertically; R ×4 and F ×2 return to the original (label reads
+   "No rotation").
+3. Zoom 2: pixels stay crisp (no blur, no 1px seams between rotated cells).
+4. "Block tiles" ON → a rotated table occludes avatars correctly in game; OFF → a rotated rug stays
+   under avatars.
+5. Vertical bed + Lie seat whose arrow was turned with R in the Seat tool (down/up) → lying/tucked
+   works like a native vertical bed.
+6. Save, reload the editor, open in game: transforms persist; an old map looks unchanged.
+7. Typing R/F/V in the map-name field (or with a dropdown focused) does not change the brush.
+
+## Tucked-in lie on up/down beds — DONE, UNCOMMITTED (2026-10-29)
+Bug fix (no spec): on up/down beds the rotated side-lie profile was horizontal and overhung the
+vertical bed. Branch `claude/nifty-archimedes-e4o1ce`, on top of 8699218; **not committed —
+awaiting review of `scratchpad/poses/preview_lie_v2.png`**. `npm test` → **106 green** (103 −1
+obsolete up/down fallback test +4: lieMode, tuckLayout ×2, blanket PNG size); typecheck + build green.
+- `sprites.ts`: pure `lieMode(dir)` (`left/right` → `side`, unchanged; `up/down` → `tucked`) and
+  `tuckLayout(dir)` (local px around the pillow-tile center, feet toward +y, drawn rotated by
+  `rot`): standing frame col 0 with the head center (row 22) 2px above the pillow center, only
+  the top 38 rows drawn (head + shoulders), blanket `{x:-13,y:11,w:26,h:35}` = one tile minus a
+  3px inset per side, from the shoulders to 2px inside the foot end of the 2-tile bed.
+  `drawTuckedAppearance` blits the cropped frame then the blanket (same renderable → blanket is
+  always on top of its own body; depth sort/name pass untouched). `blitLayers` got an optional
+  source height. `preloadAppearance` also preloads `BLANKET_URL`.
+- Frame choice: `down` bed → face-on `down` frame, upright. `up` bed (head toward the viewer) →
+  back-of-head `up` frame turned π (crown on the pillow, shoulders toward the blanket). The
+  physically "correct" upside-down face (down frame turned π) was previewed and read as a
+  bearded blob, so it was rejected.
+- `render.ts` lie branch: `tucked` → translate to the tile point, rotate `tuckLayout(dir).rot`,
+  `drawTuckedAppearance`; `side` path is byte-for-byte the previous code.
+- Blanket art: `tools/gen_blanket.py` (Pillow) → `client/public/sprites/blanket.png` (26×35,
+  linen fill, dark rounded outline, white folded hem across the chest, side/foot shading, quilt
+  seams). Original art, CC0 (`client/public/sprites/CREDITS.md`). If the blanket rect changes,
+  update `W, H` in the script (a test asserts the PNG IHDR size equals `tuckLayout().blanket`).
+- Weaknesses: one neutral blanket colour regardless of the bed's own colour; layout assumes a
+  2-tile bed with the seat on the pillow tile's center (real `beds_single` art is ~44px wide and
+  its pillow sits low in the tile, so the head may land a few px above the pillow); shoulders
+  poke ~1px past the blanket sides (intentional, reads as arms); manual in-browser check pending.
+
+## Sit & side-lie poses — UNITS 1–3, 5–11 DONE, UNCOMMITTED (2026-10-29)
+Spec: `docs/specs/sit-lie-poses.md`. Branch `claude/nifty-archimedes-e4o1ce`. **Not committed /
+not pushed — awaiting the user's review of the preview PNGs.** `npm test` → **103 green** (was 96:
++3 lieTransform, +4 sit layers/frame); `npm run typecheck --workspace client` + `npm run build` green.
+- **U1–3 side-lie:** `sprites.ts` pure `lieTransform(dir)` (left/up → `right` frame +π/2; right/down →
+  `left` frame −π/2; side picked by source frame, belly toward viewer) + `LIE_SHIFT = 8`.
+  `render.ts` lie branch draws the profile frame rotated, shifted `LIE_SHIFT` along `dir`;
+  `LIE_ROTATION` + `down`-frame draw removed. Tests lock the table + feet/belly vectors.
+- **U5 recon:** sanderfrenken generator has `sit` rows for body + pants (extended 832×2944 sheets,
+  body is headless there), but longsleeve/tunic/vest/sash-dress are plain 832×1344 (no sit) and our
+  formal/pink/navy are our own derivatives → no complete drop-in set. Synthesis kept.
+- **U6–8 sit sheets:** `tools/gen_pose_sheets.py` (Pillow; `--preview OUT_DIR`). Profile bend for
+  left/right (torso kept, lowered `SEAT_DROP`; front-leg thigh band rotated 90°, stretched,
+  knee/underside outlined; front lower leg hung under the knee), row-cut squash for up/down.
+  Final constants: `HIP_Y=48 KNEE_Y=56 SHIN_Y=52 THIGH_X0,X1=33,39 SHIN_X0=31 THIGH_LEN=16
+  THIGH_AT=(28,47) SHIN_DX=6 SEAT_DROP=4 SQUASH_Y0,Y1=46,52`. Generated 32 sheets (256×64, cols
+  up/left/down/right) under `client/public/sprites/lpc/sit/{body,legs,torso,hair}/`;
+  `client/public/sprites/CREDITS.md` entry (CC-BY-SA 3.0 derivatives, original authors kept).
+- **U9–11 compose:** `appearanceToLayers(a, pose='stand')` (sit → `sit/` subtree), `sitFrame(dir)`,
+  `ALL_LAYER_URLS` + `preloadAppearance` include sit layers; `drawSitAppearance` (shared
+  `blitLayers`); render sit branch feet-anchored like standing; `SIT_DROP` removed.
+- Previews (session scratchpad, 4× nearest): `scratchpad/poses/preview_{sit,lie,stand}.png`.
+- Known weaknesses: up/down sit is a squash (reads as short legs, not a clear bend); up/down lie
+  was the horizontal fallback (fixed: tucked-in lie, see above); female formal dress turns into a
+  white "hem blob" at the feet in profile sit; lie uses the walk-idle stride (legs slightly apart);
+  `appearanceReady` still only checks stand layers (sit layers preload together, so a gap is unlikely).
+- **Pending:** U4 + U12 manual two-tab checks; user preview approval; commit.
 
 ## Furniture depth + pose fix — UNITS 1–7 DONE (2026-10-28)
 Spec: `docs/specs/furniture-depth-pose-fix.md`. All 7 units implemented, committed, and pushed to

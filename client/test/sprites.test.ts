@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import {
@@ -25,6 +25,11 @@ import {
   serializeAppearance,
   parseAppearance,
   shuffleAppearance,
+  lieTransform,
+  lieMode,
+  tuckLayout,
+  BLANKET_URL,
+  sitFrame,
 } from '../src/sprites.ts';
 import type { Direction } from '../src/sprites.ts';
 import type { Appearance } from '@byte_grounds/shared/protocol';
@@ -55,6 +60,59 @@ describe('directionFromDelta', () => {
     for (const d of dirs) {
       expect(directionFromDelta(0, 0, d)).toBe(d);
       expect(directionFromDelta(1e-6, -1e-6, d)).toBe(d);
+    }
+  });
+});
+
+describe('lieTransform', () => {
+  it('lays the profile frame on its side, feet toward dir, belly toward the viewer', () => {
+    expect(lieTransform('left')).toEqual({ src: 'right', rot: Math.PI / 2 });
+    expect(lieTransform('right')).toEqual({ src: 'left', rot: -Math.PI / 2 });
+  });
+
+  it('rotates the feet (local 0,+28) to the dir side and the belly to screen-down', () => {
+    for (const dir of ['left', 'right'] as const) {
+      const { src, rot } = lieTransform(dir);
+      const rotate = (x: number, y: number) => ({
+        x: Math.round(x * Math.cos(rot) - y * Math.sin(rot)) + 0,
+        y: Math.round(x * Math.sin(rot) + y * Math.cos(rot)),
+      });
+      const feet = rotate(0, 28);
+      const belly = rotate(src === 'right' ? 1 : -1, 0);
+      expect(Math.sign(feet.x)).toBe(dir === 'left' ? -1 : 1);
+      expect(belly).toEqual({ x: 0, y: 1 });
+    }
+  });
+});
+
+describe('lieMode', () => {
+  it('lies on the side along left/right beds and tucks in on up/down beds', () => {
+    expect(lieMode('left')).toBe('side');
+    expect(lieMode('right')).toBe('side');
+    expect(lieMode('up')).toBe('tucked');
+    expect(lieMode('down')).toBe('tucked');
+  });
+});
+
+describe('tuckLayout', () => {
+  it('shows the face on a down bed and the crown (back frame turned π) on an up bed', () => {
+    expect(tuckLayout('down')).toMatchObject({ src: 'down', rot: 0 });
+    expect(tuckLayout('up')).toMatchObject({ src: 'up', rot: Math.PI });
+  });
+
+  it('keeps the blanket inside one tile width and the 2-tile bed, below the head', () => {
+    for (const dir of ['up', 'down'] as const) {
+      const { frameX, frameY, crop, blanket } = tuckLayout(dir);
+      expect(blanket).toEqual({ x: -13, y: 11, w: 26, h: 35 });
+      expect(blanket.x).toBeGreaterThan(-16);
+      expect(blanket.x + blanket.w).toBeLessThan(16);
+      expect(blanket.y + blanket.h).toBeLessThanOrEqual(48);
+      // the blanket overlaps the bottom of the cropped frame so no body gap shows
+      expect(blanket.y).toBeLessThan(frameY + crop);
+      expect(frameX).toBe(-32);
+      for (const v of [frameX, frameY, crop, blanket.x, blanket.y, blanket.w, blanket.h]) {
+        expect(Number.isInteger(v)).toBe(true);
+      }
     }
   });
 });
@@ -243,9 +301,43 @@ describe('CATEGORIES / options', () => {
   });
 });
 
+describe('sit pose layers', () => {
+  it('keeps the walk-sheet URLs for stand (default) and lie', () => {
+    const a = casual({});
+    expect(appearanceToLayers(a, 'stand')).toEqual(appearanceToLayers(a));
+    expect(appearanceToLayers(a, 'lie')).toEqual(appearanceToLayers(a));
+  });
+
+  it('resolves the same files under the sit/ subtree for sit', () => {
+    for (const a of PRESETS.map((p) => p.appearance)) {
+      const sit = appearanceToLayers(a, 'sit');
+      expect(sit).toEqual(appearanceToLayers(a).map((u) => u.replace('/sprites/lpc/', '/sprites/lpc/sit/')));
+    }
+  });
+
+  it('pins the sit-sheet frame per facing (one row: up, left, down, right)', () => {
+    expect(sitFrame('up')).toEqual({ row: 0, col: 0 });
+    expect(sitFrame('left')).toEqual({ row: 0, col: 1 });
+    expect(sitFrame('down')).toEqual({ row: 0, col: 2 });
+    expect(sitFrame('right')).toEqual({ row: 0, col: 3 });
+  });
+
+  it('includes every sit layer in ALL_LAYER_URLS', () => {
+    for (const a of PRESETS.map((p) => p.appearance)) {
+      for (const url of appearanceToLayers(a, 'sit')) expect(ALL_LAYER_URLS).toContain(url);
+    }
+  });
+});
+
 describe('ALL_LAYER_URLS', () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const pub = resolve(here, '../public');
+
+  it('ships the blanket sprite at the tucked-in blanket size', () => {
+    const png = readFileSync(resolve(pub, BLANKET_URL.replace(/^\//, '')));
+    const { w, h } = tuckLayout('down').blanket;
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([w, h]); // IHDR width, height
+  });
 
   it('lists only real vendored files', () => {
     for (const url of ALL_LAYER_URLS) {

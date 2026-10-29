@@ -80,3 +80,27 @@ shirt+vest+tie; female = underdress + sash dress) — the real base color is
 hue-recolors of the white pants. Each composite and recolor is a derivative work
 under CC-BY-SA 3.0 and is shared under the same license, retaining the original
 author credit above.
+
+## Seated (sit) pose sheets (sit-lie-poses spec)
+
+`lpc/sit/<category>/<file>.png` — one 4-frame sheet (256×64 px; cols up/left/down/right)
+for **every** vendored layer above, including the formal composites and the pink/navy
+recolors (32 sheets). Each is an **algorithmic derivative** of the same-named source layer,
+produced by `tools/gen_pose_sheets.py` from its standing walk-row idle frames: left/right
+get a profile thigh-bend (torso lowered, thigh band turned 90° and outlined at the knee,
+lower leg hung under the knee); up/down get a vertical leg-squash (thigh rows removed).
+
+These are **CC-BY-SA 3.0 derivative works** (GPL-3.0 dual-licensed like their sources),
+shared under the same terms. Original authorship is unchanged and follows each source
+layer: the Universal LPC Spritesheet contributors (`LICENSE/AUTHORS.txt`), JaidynReiman
+(tunics), Thane Brimhall (formal shirt/vest/tie and sash dress) and Lanea Zimmerman (AKA
+Sharm) (underdress), as credited in the tables above. Regenerate with
+`python tools/gen_pose_sheets.py` (needs Pillow).
+
+## Bed blanket (`blanket.png`)
+
+`blanket.png` (26×35 px) — the blanket drawn over a tucked-in avatar on an up/down bed.
+**Original art** made for ByteGrounds, generated programmatically by `tools/gen_blanket.py`
+(no third-party pixels). Released under **CC0 1.0** (public domain dedication,
+https://creativecommons.org/publicdomain/zero/1.0/). Regenerate with
+`python tools/gen_blanket.py` (needs Pillow).

@@ -71,6 +71,43 @@ describe('parseMap decor layer', () => {
   });
 });
 
+describe('parseMap decor transform', () => {
+  const base = { id: 'd', width: 2, height: 1, tiles: [0, 0], spawn: { x: 0.5, y: 0.5 } };
+  const cell = { x: 0, y: 0, sheet: 's', sx: 0, sy: 0 };
+
+  it('keeps a valid rotation and flip', () => {
+    const parsed = parseMap({
+      ...base,
+      decor: [
+        { ...cell, rot: 90 },
+        { ...cell, rot: 180, flipX: true },
+        { ...cell, rot: 270 },
+        { ...cell, flipX: true },
+      ],
+    })!;
+    expect(parsed.decor).toEqual([
+      { ...cell, rot: 90 },
+      { ...cell, rot: 180, flipX: true },
+      { ...cell, rot: 270 },
+      { ...cell, flipX: true },
+    ]);
+  });
+
+  it('drops default and junk values', () => {
+    const parsed = parseMap({
+      ...base,
+      decor: [
+        { ...cell, rot: 0 },
+        { ...cell, rot: 45 },
+        { ...cell, rot: '90' },
+        { ...cell, flipX: false },
+        { ...cell, flipX: 'yes' },
+      ],
+    })!;
+    expect(parsed.decor).toEqual([cell, cell, cell, cell, cell]);
+  });
+});
+
 describe('decorLayer', () => {
   // tiles: (0,0) floor, (1,0) wall.
   const m: OfficeMap = { id: 'd', width: 2, height: 1, tiles: [0, 1], spawn: { x: 0.5, y: 0.5 } };
