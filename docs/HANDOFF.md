@@ -16,6 +16,20 @@ the literal folder path and dir-tree root `business_city/` in `byte-grounds-mvp.
 renamed). After rename: `npm install`, `npm run build`, `npm run typecheck --workspace client`, and
 `npm test` (52 tests) all green.
 
+## Decor sheets fetched (2026-10-28) — AWAIT LICENSE REVIEW + COMMIT
+Fetched LPC-style office/home furniture tile sheets from OpenGameArt into
+`client/src/assets/decor/` (uncommitted). **Do not commit until the orchestrator reviews licenses.**
+New files + their packs/authors/licenses are in `client/src/assets/decor/CREDITS.md`:
+- `office.png` — assembled from "[LPC Revised] The Office" item sprites (Eliza Wyatt / Death's
+  Darling, + Lanea Zimmerman / Sharm). OGA-BY 3.0 (page also lists CC-BY-SA 3.0).
+- `tables_stools.png` — "Tables & Stools" by Jordan Irwin (AntumDeluge). CC-BY 3.0 / OGA-BY 3.0.
+- `interior_tiles.png` — "Interior Tiles" by Connor Sherson. CC-BY-SA 3.0 / GPL 3.0.
+Skipped: **LPC House Insides** (both PNGs byte-identical to existing `house_inside.png`);
+**[LPC] Simple Modern Furniture** (all PNGs non-32-multiple dimensions — fail the 32px grid rule).
+Fetched pack-page HTML saved for license re-check in the session scratchpad under `scratchpad/`
+(`page-*.html`). `npm test` → 77 tests green; `npm run build` green (after `npm install` pulled the
+previously-missing `@supabase/supabase-js`).
+
 ## What this is
 A minimal Gather-like virtual office: 2D top-down tile map, WASD avatars moving in real time, proximity-based WebRTC audio/video for a handful of friends (2–8). Personal use, not production.
 

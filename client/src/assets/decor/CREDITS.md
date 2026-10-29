@@ -88,3 +88,23 @@ From an LPC-style interior pack (its pack preview image was not kept).
 ## bookshelf-brown.png, bookshelf-green.png, drawer_shelf-brown.png, drawer_shelf-green.png
 
 - Lanea Zimmerman (Sharm) & Tuomo Untinen (Reemax)
+
+## office.png
+
+- "[LPC Revised] The Office" by Eliza Wyatt (Death's Darling), with elements of the
+  Ornate Desk and Office Portraits by Lanea Zimmerman (Sharm). Assembled here from the
+  pack's individual item sprites into a single 32px sheet.
+- License: OGA-BY 3.0 (CC-BY 3.0 with DRM waiver); the source page also lists CC-BY-SA 3.0.
+- https://opengameart.org/content/lpc-revised-the-office
+
+## tables_stools.png
+
+- "Tables & Stools" created by Jordan Irwin (AntumDeluge).
+- License: CC-BY 3.0 / OGA-BY 3.0.
+- https://opengameart.org/content/tables-stools
+
+## interior_tiles.png
+
+- "Interior Tiles" by Connor Sherson.
+- License: CC-BY-SA 3.0 / GPL 3.0.
+- https://opengameart.org/content/interior-tiles
