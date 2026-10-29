@@ -1,7 +1,40 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-29 (decor rotation & flip U1–U8 committed; U9 manual check pending)
+**Last updated:** 2026-10-29 (decor grid repack — UNCOMMITTED, awaiting preview review)
 **Branch:** `claude/nifty-archimedes-e4o1ce`
+
+## Decor grid repack — DONE, UNCOMMITTED (2026-10-29), awaiting orchestrator preview review
+Bug: in several sheets objects straddle 32px cell lines (one cell = half a chair) or share a cell.
+- `tools/repack_decor.py` (Pillow, author-time). Objects = 8-connected regions of solid pixels
+  (alpha >= 200); translucent shadow pixels (LPC uses alpha 45-153) join the object they touch
+  instead of bridging neighbours (they were gluing whole table rows together) and never size a
+  block (spill is clipped). Small bits < 48 px within 3 px of a big object join it (sparks,
+  steam); pure-shadow objects (translucent rugs) are kept. Gap/bbox-proximity merging was tried
+  and dropped: these sheets pack items 0-2 px apart, so any gap merge glued neighbours.
+- "Moved" = core covers more cells than ceil(size/32) needs, or its solid pixels share a cell
+  with another object. Moved objects get the minimal block, centred + bottom-aligned; the rest keep
+  their source in-cell offset (modular pieces still line up). Blocks are shelf-packed in source
+  reading order, 8-12 cells wide. 1:1 pixels; verified no solid pixel lost in any repack.
+- `--analyze` reports every sheet; `--preview DIR` writes `<name>_before_after.png` (source with
+  yellow = moved / cyan = kept outlines | repack, 2x on a red grid), or `<name>_check.png` with
+  `--analyze`.
+- Repacked (new `<name>_grid.png`, originals untouched): beds (90 objects / 35 moved), beds_single
+  (56/28), bookshelf-brown + -green (2/2 each), drawer_shelf-brown + -green (2/2 each), cabinets
+  (9/3), plants (4/1), tables_stools (8/1), tavern_decor (368/60), tavern_furniture (70/17),
+  tavern_kitchen (64/14).
+- Left alone: tile/modular sets interior, interior_tiles, castle, stairs, house_inside (wall/floor
+  pieces meant to join across cells); wooden_furniture (its "moved" hits are modular bed
+  rails/posts sharing cells by design; only ~4 real straddlers); office (1/111, a copier), tables
+  (0/14), upholstery (3/68), every other Base Object Kit sheet (0 moved).
+- Office tables (the user's example) are already on whole cells: each is 36-61 px tall, so it
+  needs a 1x2 / 2x2 pick and can never fit one cell. A repack cannot fix "one click = half a
+  table"; a picker that expands a click to the object's cells would (not done).
+- Known limits: touching items stay one object (tavern_furniture chair pairs in a column, the
+  table cluster beside the long table; cabinets; tables_stools big table + bar). Kept as a block.
+- `decor.ts`: `DECOR_SHEETS` hides any sheet that has a `<name>_grid` sibling; `SHEET_URLS`
+  still has it, so old maps draw. `client/test/decor.test.ts` (+2): every sheet PNG is whole
+  32px cells; picker = all sheets minus repacked originals. CREDITS.md + README.md updated.
+- `npm test` 123 green; client typecheck + build green.
 
 ## Decor rotation & flip — U1–U8 DONE, COMMITTED (2026-10-29)
 Spec: `docs/specs/decor-rotation.md`. `npm test` → **121 green** (106 +2 shared parseMap transform,

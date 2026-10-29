@@ -141,3 +141,41 @@ Individual item sheets from the "[LPC Revised] Base Object Kit!" pack:
   chandeliers, candelabra, torches, mugs, bottles, food, plants, rugs/pelts, shields, banners and curtains.
 - License: CC-BY-SA 3.0.
 - https://opengameart.org/content/lpc-tavern
+
+## Grid repacks (`*_grid.png`)
+
+Each `<name>_grid.png` is rearranged onto a 32px grid from `<name>.png` by
+`tools/repack_decor.py` (same art, same authors/license): every object is copied pixel for pixel,
+unscaled, into whole cells. A rearrangement is a derivative of the original, so it is shared
+under the original's license (CC-BY-SA share-alike included).
+
+### beds_grid.png, beds_single_grid.png, cabinets_grid.png, plants_grid.png
+
+- Rearranged onto a 32px grid from beds.png, beds_single.png, cabinets.png and plants.png (same
+  art, same authors/license).
+- Individual item sheets from the "[LPC Revised] Base Object Kit!" pack.
+- Artists used in this pack: Eliza Wyatt, Lanea Zimmerman (Sharm), bluecarrot16, Hyptosis (DRM-waived).
+- License: CC-BY-SA 3.0 / CC-BY 3.0 / CC0.
+- https://opengameart.org/content/lpc-revised-base-object-kit
+
+### bookshelf-brown_grid.png, bookshelf-green_grid.png, drawer_shelf-brown_grid.png, drawer_shelf-green_grid.png
+
+- Rearranged onto a 32px grid from bookshelf-brown.png, bookshelf-green.png,
+  drawer_shelf-brown.png and drawer_shelf-green.png (same art, same authors/license).
+- Lanea Zimmerman (Sharm) & Tuomo Untinen (Reemax)
+
+### tables_stools_grid.png
+
+- Rearranged onto a 32px grid from tables_stools.png (same art, same authors/license).
+- "Tables & Stools" created by Jordan Irwin (AntumDeluge).
+- License: CC-BY 3.0 / OGA-BY 3.0.
+- https://opengameart.org/content/tables-stools
+
+### tavern_furniture_grid.png, tavern_kitchen_grid.png, tavern_decor_grid.png
+
+- Rearranged onto a 32px grid from tavern_furniture.png, tavern_kitchen.png and tavern_decor.png
+  (same art, same authors/license).
+- From "[LPC] Tavern" by bluecarrot16, Lanea Zimmerman (Sharm), William.Thompsonj, Jetrel,
+  DCSS Contributors, Reemax, Hyptosis, Daniel Eddeland (Daneeklu), BenCreating, Evert, tapatilorenzo.
+- License: CC-BY-SA 3.0.
+- https://opengameart.org/content/lpc-tavern
