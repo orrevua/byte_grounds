@@ -9,6 +9,9 @@ plus how it blocks walking, mirroring the editor's stamp rules (`client/src/edit
 Objects may not overlap (except `on=` table-top items and chairs tucked under a desk's walkable
 top row), every seat must be reachable from the spawn, and every room must connect; the script
 refuses to write a map that breaks a rule (`shared/test/maps.test.ts` re-checks the output).
+Seats on chairs, sofas, stools and beds are automatic (derived in the app from
+`shared/src/seat-catalog.json`), so the JSON keeps only the seats that differ from the derived one
+on their tile (overrides); the layout code still calls `seat()` for every seat it means.
 To look at a result, open it in the map editor (`/editor?map=<id>`).
 Bump a map's `rev` (the MapBuilder argument after its name) whenever its layout changes: a copy
 saved in the editor from an older revision then stops hiding the new built-in.
@@ -25,6 +28,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "shared" / "src" / "maps"
+SEAT_CATALOG = ROOT / "shared" / "src" / "seat-catalog.json"
 
 WALL = "#22262d"
 
@@ -34,6 +38,25 @@ class Obj:
 
     def __init__(self, sheet, sx, sy, w=1, h=1, block="base"):
         self.sheet, self.sx, self.sy, self.w, self.h, self.block = sheet, sx, sy, w, h, block
+
+
+def load_seat_catalog():
+    """(sheet, sx, sy) -> (kind, dir), expanded like `shared/src/seats.ts`: each rule covers its
+    rect with a stride, later rules override earlier ones, `none` removes cells."""
+    index = {}
+    for r in json.loads(SEAT_CATALOG.read_text(encoding="utf-8"))["rules"]:
+        step_x, step_y = r.get("step", [1, 1])
+        for dy in range(0, r.get("h", 1), step_y):
+            for dx in range(0, r.get("w", 1), step_x):
+                key = (r["sheet"], r["x"] + dx, r["y"] + dy)
+                if r["kind"] == "none":
+                    index.pop(key, None)
+                else:
+                    index[key] = (r["kind"], r["dir"])
+    return index
+
+
+SEAT_SPOTS = load_seat_catalog()
 
 
 # ---------- catalog ----------
@@ -316,6 +339,26 @@ class MapBuilder:
                     q.append((nx, ny))
         return seen
 
+    def derived_seats(self):
+        """Seats the app derives from the decor: (x, y) -> seat; the last seat cell on a tile wins."""
+        derived = {}
+        for c in self.floor_decor + self.object_decor:
+            assert "rot" not in c and "flipX" not in c, f"{self.id}: built-ins don't rotate decor"
+            spot = SEAT_SPOTS.get((c["sheet"], c["sx"], c["sy"]))
+            if spot:
+                derived[(c["x"], c["y"])] = {"x": c["x"], "y": c["y"], "kind": spot[0], "dir": spot[1]}
+        return derived
+
+    def override_seats(self):
+        """Authored seats the derivation doesn't already give (the ones written to the JSON)."""
+        derived = self.derived_seats()
+        return [st for st in self.seats if derived.get((st["x"], st["y"])) != st]
+
+    def effective_seats(self):
+        """What players get: authored seats, then derived ones on the other tiles."""
+        authored = {(st["x"], st["y"]) for st in self.seats}
+        return self.seats + [st for key, st in self.derived_seats().items() if key not in authored]
+
     def check(self):
         sx, sy = int(self.spawn[0]), int(self.spawn[1])
         if not self.walkable(sx, sy):
@@ -324,7 +367,7 @@ class MapBuilder:
         for name, p in self.rooms.items():
             if p not in seen:
                 raise ValueError(f"{self.id}: room {name} at {p} is unreachable")
-        for st in self.seats:
+        for st in self.effective_seats():
             x, y = st["x"], st["y"]
             near = [(x, y), (x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
             if not any(p in seen for p in near):
@@ -344,7 +387,7 @@ class MapBuilder:
             "spawn": {"x": self.spawn[0], "y": self.spawn[1]},
             "colors": [c for row in self.colors for c in row],
             "decor": self.floor_decor + self.object_decor,
-            "seats": self.seats,
+            "seats": self.override_seats(),
         }
 
 
@@ -353,6 +396,7 @@ def write(m):
     w = data["width"]
     rows = [json.dumps(data["tiles"][i : i + w]) for i in range(0, len(data["tiles"]), w)]
     crow = [json.dumps(data["colors"][i : i + w]) for i in range(0, len(data["colors"]), w)]
+    seats = ",\n    ".join(json.dumps(s, separators=(",", ":")) for s in data["seats"])
     parts = [
         f'  "id": {json.dumps(data["id"])}',
         f'  "name": {json.dumps(data["name"])}',
@@ -363,11 +407,12 @@ def write(m):
         f'  "spawn": {json.dumps(data["spawn"])}',
         '  "colors": [\n    ' + ",\n    ".join(r[1:-1] for r in crow) + "\n  ]",
         '  "decor": [\n    ' + ",\n    ".join(json.dumps(d, separators=(",", ":")) for d in data["decor"]) + "\n  ]",
-        '  "seats": [\n    ' + ",\n    ".join(json.dumps(s, separators=(",", ":")) for s in data["seats"]) + "\n  ]",
+        '  "seats": [\n    ' + seats + "\n  ]" if seats else '  "seats": []',
     ]
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / f"{m.id}.json").write_text("{\n" + ",\n".join(parts) + "\n}\n", encoding="utf-8")
-    print(f"{m.id}: {w}x{data['height']}, {len(data['decor'])} decor cells, {len(data['seats'])} seats")
+    seats, overrides = len(m.effective_seats()), len(data["seats"])
+    print(f"{m.id}: {w}x{data['height']}, {len(data['decor'])} decor cells, {seats} seats ({overrides} overrides)")
 
 
 # ---------- maps ----------
