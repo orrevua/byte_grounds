@@ -1,4 +1,4 @@
-import { MAX_MAP_SIZE, type OfficeMap, type Tile } from '@byte_grounds/shared/map';
+import { MAX_MAP_SIZE, type Facing, type OfficeMap, type Seat, type Tile } from '@byte_grounds/shared/map';
 
 /** A rectangle of cells picked from a decor sheet (in 32px cells). */
 export interface DecorSelection {
@@ -57,6 +57,24 @@ export function eraseDecor(m: OfficeMap, x: number, y: number): boolean {
   return false;
 }
 
+/**
+ * Mark a tile as a seat/bed spot, or update it if it differs; clicking the same kind and
+ * facing again removes it. Returns the seat now on the tile (undefined if removed).
+ */
+export function toggleSeat(m: OfficeMap, x: number, y: number, kind: Seat['kind'], dir: Facing): Seat | undefined {
+  if (!inBounds(m, x, y)) return undefined;
+  m.seats ??= [];
+  const i = m.seats.findIndex((st) => st.x === x && st.y === y);
+  if (i >= 0 && m.seats[i]!.kind === kind && m.seats[i]!.dir === dir) {
+    m.seats.splice(i, 1);
+    return undefined;
+  }
+  const seat: Seat = { x, y, kind, dir };
+  if (i >= 0) m.seats[i] = seat;
+  else m.seats.push(seat);
+  return seat;
+}
+
 /** Spawn at the tile's center; it also becomes walkable so players can't spawn in a wall. */
 export function setSpawn(m: OfficeMap, x: number, y: number): void {
   if (!inBounds(m, x, y)) return;
@@ -87,6 +105,7 @@ export function resizeMap(m: OfficeMap, width: number, height: number): OfficeMa
     colors,
     spawn,
     decor: (m.decor ?? []).filter((d) => d.x < w && d.y < h),
+    seats: (m.seats ?? []).filter((st) => st.x < w && st.y < h),
   };
 }
 

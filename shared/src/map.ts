@@ -13,6 +13,21 @@ export interface DecorCell {
   sy: number;
 }
 
+export type Facing = 'up' | 'down' | 'left' | 'right';
+
+/**
+ * A spot players can use: sit on a chair/sofa or lie on a bed. The player snaps to the
+ * tile's center facing `dir` (for a bed, the tile with the pillow; `dir` = where the feet point).
+ */
+export interface Seat {
+  x: number;
+  y: number;
+  kind: 'sit' | 'lie';
+  dir: Facing;
+}
+
+const FACINGS: readonly Facing[] = ['up', 'down', 'left', 'right'];
+
 export interface OfficeMap {
   id: string;
   name?: string;
@@ -23,6 +38,7 @@ export interface OfficeMap {
   /** Per-tile floor color (hex), row-major; missing = default floor/wall color. */
   colors?: string[];
   decor?: DecorCell[];
+  seats?: Seat[];
 }
 
 export const DEFAULT_FLOOR_COLOR = '#2a2f37';
@@ -68,7 +84,7 @@ export function createBlankMap(name: string, width: number, height: number): Off
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) tiles.push(x === 0 || y === 0 || x === w - 1 || y === h - 1 ? 1 : 0);
   }
-  return { id: mapIdFromName(name), name, width: w, height: h, tiles, spawn: { x: 1.5, y: 1.5 }, colors: [], decor: [] };
+  return { id: mapIdFromName(name), name, width: w, height: h, tiles, spawn: { x: 1.5, y: 1.5 }, colors: [], decor: [], seats: [] };
 }
 
 /** Validate map JSON from storage; null if it isn't a usable map. */
@@ -95,6 +111,16 @@ export function parseMap(data: unknown): OfficeMap | null {
             !!d && typeof d.sheet === 'string' && [d.x, d.y, d.sx, d.sy].every(Number.isInteger),
         )
       : [],
+    seats: Array.isArray(m.seats)
+      ? m.seats.filter(
+          (st): st is Seat =>
+            !!st &&
+            Number.isInteger(st.x) &&
+            Number.isInteger(st.y) &&
+            (st.kind === 'sit' || st.kind === 'lie') &&
+            FACINGS.includes(st.dir),
+        )
+      : [],
   };
 }
 
@@ -104,6 +130,20 @@ export function startPosition(m: OfficeMap, saved: { x: number; y: number } | nu
     return { x: saved.x, y: saved.y };
   }
   return { ...m.spawn };
+}
+
+/** The seat on tile (x, y), if any. */
+export function seatAt(m: OfficeMap, x: number, y: number): Seat | undefined {
+  return m.seats?.find((st) => st.x === x && st.y === y);
+}
+
+/** Seats within `reach` tiles of (x, y), nearest first (distance to the seat's center). */
+export function seatsNear(m: OfficeMap, x: number, y: number, reach: number): Seat[] {
+  return (m.seats ?? [])
+    .map((st) => ({ st, d: Math.hypot(st.x + 0.5 - x, st.y + 0.5 - y) }))
+    .filter(({ d }) => d <= reach)
+    .sort((a, b) => a.d - b.d)
+    .map(({ st }) => st);
 }
 
 // Hand-authored 20x15 office: solid border wall, a couple of interior blocks.

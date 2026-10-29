@@ -81,8 +81,15 @@ wss.on('connection', (ws) => {
         break;
       }
       case 'position': {
-        if (rooms.get(roomOf.get(selfId) ?? '')?.updatePosition(selfId, msg.x, msg.y)) {
-          broadcast(selfId, { type: 'peer-moved', id: selfId, x: msg.x, y: msg.y });
+        if (rooms.get(roomOf.get(selfId) ?? '')?.updatePosition(selfId, msg.x, msg.y, msg.pose, msg.dir)) {
+          broadcast(selfId, {
+            type: 'peer-moved',
+            id: selfId,
+            x: msg.x,
+            y: msg.y,
+            pose: msg.pose,
+            dir: msg.dir,
+          });
         }
         break;
       }

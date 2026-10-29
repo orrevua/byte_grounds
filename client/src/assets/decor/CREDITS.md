@@ -88,3 +88,56 @@ From an LPC-style interior pack (its pack preview image was not kept).
 ## bookshelf-brown.png, bookshelf-green.png, drawer_shelf-brown.png, drawer_shelf-green.png
 
 - Lanea Zimmerman (Sharm) & Tuomo Untinen (Reemax)
+
+## office.png
+
+- "[LPC Revised] The Office" by Eliza Wyatt (Death's Darling), with elements of the
+  Ornate Desk and Office Portraits by Lanea Zimmerman (Sharm). Assembled here from the
+  pack's individual item sprites into a single 32px sheet.
+- License: OGA-BY 3.0 (CC-BY 3.0 with DRM waiver); the source page also lists CC-BY-SA 3.0.
+- https://opengameart.org/content/lpc-revised-the-office
+
+## tables_stools.png
+
+- "Tables & Stools" created by Jordan Irwin (AntumDeluge).
+- License: CC-BY 3.0 / OGA-BY 3.0.
+- https://opengameart.org/content/tables-stools
+
+## interior_tiles.png
+
+- "Interior Tiles" by Connor Sherson.
+- License: CC-BY-SA 3.0 / GPL 3.0.
+- https://opengameart.org/content/interior-tiles
+
+## chairs.png, armchairs.png, bar_stools.png, ottomans.png, sofas.png, sofas_formal.png, thrones.png, beds.png, beds_single.png, tables.png, countertops.png, decorative_furniture.png, cabinets.png, chests.png, lamps.png, curtains.png, pillows.png, flowers.png, plants.png, paintings.png
+
+Individual item sheets from the "[LPC Revised] Base Object Kit!" pack:
+- chairs.png = dining chairs; armchairs.png = sofa/arm chairs; bar_stools.png = bar stools;
+  ottomans.png = ottomans/footstools; sofas.png = casual sofas; sofas_formal.png = formal sofas;
+  thrones.png = thrones; beds.png = double beds; beds_single.png = single beds; tables.png = tables;
+  countertops.png = kitchen countertops; decorative_furniture.png = rugs/carpets and grandfather clocks;
+  cabinets.png = cabinets/dressers/bookcases; chests.png = chests; lamps.png = lamps, lamp posts and
+  chandeliers; curtains.png = window curtains; pillows.png = pillows; flowers.png = potted flowers and vases;
+  plants.png = potted plants/planters; paintings.png = wall paintings and portraits.
+- Artists used in this pack: Eliza Wyatt, Lanea Zimmerman (Sharm), bluecarrot16, Hyptosis (DRM-waived).
+- License: CC-BY-SA 3.0 / CC-BY 3.0 / CC0.
+- https://opengameart.org/content/lpc-revised-base-object-kit
+
+## wooden_furniture.png
+
+- "LPC Wooden Furniture" by bluecarrot16, Baŝto, Lanea Zimmerman (Sharm), William Thompson,
+  Tuomo Untinen (Reemax), Janna/Lilius/Jannax. Transparent-background item sheet (beds, chairs,
+  cabinets, dressers, tables, stools, grandfather clocks, pianos, organs, fireplace, curtains,
+  kitchen counters).
+- License: CC-BY-SA 3.0 / CC-BY-SA 4.0 / GPL 3.0.
+- https://opengameart.org/content/lpc-wooden-furniture
+
+## tavern_furniture.png, tavern_kitchen.png, tavern_decor.png
+
+- From "[LPC] Tavern" by bluecarrot16, Lanea Zimmerman (Sharm), William.Thompsonj, Jetrel,
+  DCSS Contributors, Reemax, Hyptosis, Daniel Eddeland (Daneeklu), BenCreating, Evert, tapatilorenzo.
+- tavern_furniture.png = tables, benches, stools, chairs, bars and shelves; tavern_kitchen.png =
+  fireplaces, ovens, stoves, cauldrons, pots, firewood and distillers; tavern_decor.png = barrels,
+  chandeliers, candelabra, torches, mugs, bottles, food, plants, rugs/pelts, shields, banners and curtains.
+- License: CC-BY-SA 3.0.
+- https://opengameart.org/content/lpc-tavern

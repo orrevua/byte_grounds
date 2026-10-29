@@ -63,3 +63,29 @@ describe('startPosition', () => {
     expect(startPosition(m, null)).toEqual(m.spawn);
   });
 });
+
+describe('seats', () => {
+  it('toggles a seat: add, change facing/kind, remove on the same click', async () => {
+    const { toggleSeat } = await import('../src/editor-model.ts');
+    const m = createBlankMap('a', 6, 6);
+    expect(toggleSeat(m, 2, 2, 'sit', 'down')).toEqual({ x: 2, y: 2, kind: 'sit', dir: 'down' });
+    expect(toggleSeat(m, 2, 2, 'lie', 'down')).toEqual({ x: 2, y: 2, kind: 'lie', dir: 'down' });
+    expect(m.seats).toHaveLength(1);
+    expect(toggleSeat(m, 2, 2, 'lie', 'down')).toBeUndefined();
+    expect(m.seats).toEqual([]);
+  });
+
+  it('survive save/load and are dropped when resized away', async () => {
+    const { toggleSeat } = await import('../src/editor-model.ts');
+    const m = createBlankMap('a', 6, 6);
+    toggleSeat(m, 1, 1, 'sit', 'left');
+    toggleSeat(m, 5, 5, 'lie', 'down');
+    expect(parseMap(JSON.parse(JSON.stringify(m)))!.seats).toEqual(m.seats);
+    expect(resizeMap(m, 4, 4).seats).toEqual([{ x: 1, y: 1, kind: 'sit', dir: 'left' }]);
+  });
+
+  it('parseMap drops malformed seats', () => {
+    const m = { ...createBlankMap('a', 4, 4), seats: [{ x: 1, y: 1, kind: 'fly', dir: 'down' }, null] };
+    expect(parseMap(m)!.seats).toEqual([]);
+  });
+});

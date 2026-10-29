@@ -16,6 +16,90 @@ the literal folder path and dir-tree root `business_city/` in `byte-grounds-mvp.
 renamed). After rename: `npm install`, `npm run build`, `npm run typecheck --workspace client`, and
 `npm test` (52 tests) all green.
 
+## Decor sheets fetched (2026-10-28) — AWAIT LICENSE REVIEW + COMMIT
+Fetched LPC-style office/home furniture tile sheets from OpenGameArt into
+`client/src/assets/decor/` (uncommitted). **Do not commit until the orchestrator reviews licenses.**
+New files + their packs/authors/licenses are in `client/src/assets/decor/CREDITS.md`:
+- `office.png` — assembled from "[LPC Revised] The Office" item sprites (Eliza Wyatt / Death's
+  Darling, + Lanea Zimmerman / Sharm). OGA-BY 3.0 (page also lists CC-BY-SA 3.0).
+- `tables_stools.png` — "Tables & Stools" by Jordan Irwin (AntumDeluge). CC-BY 3.0 / OGA-BY 3.0.
+- `interior_tiles.png` — "Interior Tiles" by Connor Sherson. CC-BY-SA 3.0 / GPL 3.0.
+Skipped: **LPC House Insides** (both PNGs byte-identical to existing `house_inside.png`);
+**[LPC] Simple Modern Furniture** (all PNGs non-32-multiple dimensions — fail the 32px grid rule).
+Fetched pack-page HTML saved for license re-check in the session scratchpad under `scratchpad/`
+(`page-*.html`). `npm test` → 77 tests green; `npm run build` green (after `npm install` pulled the
+previously-missing `@supabase/supabase-js`).
+
+### More decor sheets fetched (2026-10-28, 2nd pass) — AWAIT LICENSE REVIEW + COMMIT
+Added **24 new sheets** (uncommitted) to `client/src/assets/decor/`, all with CREDITS.md entries.
+**Do not commit until the orchestrator reviews licenses.** Packs + licenses (all CC-BY-SA / CC-BY / CC0):
+- **[LPC Revised] Base Object Kit!** (Eliza Wyatt, Lanea Zimmerman/Sharm, bluecarrot16, Hyptosis;
+  CC-BY-SA 3.0 / CC-BY 3.0 / CC0) → `chairs.png`, `armchairs.png`, `bar_stools.png`, `ottomans.png`,
+  `sofas.png`, `sofas_formal.png`, `thrones.png`, `beds.png`, `beds_single.png`, `tables.png`,
+  `countertops.png`, `decorative_furniture.png` (rugs + clocks), `cabinets.png`, `chests.png`,
+  `lamps.png`, `curtains.png`, `pillows.png`, `flowers.png`, `plants.png`, `paintings.png`.
+- **[LPC] Wooden Furniture** (bluecarrot16, Baŝto, Lanea Zimmerman/Sharm, William Thompson,
+  Tuomo Untinen/Reemax, Janna/Lilius/Jannax; CC-BY-SA 3.0 / 4.0 / GPL 3.0) → `wooden_furniture.png`.
+- **[LPC] Tavern** (bluecarrot16, Lanea Zimmerman/Sharm, William.Thompsonj, Jetrel, DCSS Contributors,
+  Reemax, Hyptosis, Daniel Eddeland/Daneeklu, BenCreating, Evert, tapatilorenzo; CC-BY-SA 3.0) →
+  `tavern_furniture.png`, `tavern_kitchen.png`, `tavern_decor.png`.
+Skipped: **RPG Indoor Tileset Expansion 1** (176x192 — not a 32 multiple); **[LPC] Simple Modern
+Furniture** (individual sprites, non-32 dims); **[LPC] House Insides** (byte-identical to existing
+`house_inside.png`); **Home Objects** (small 192x192, overlaps existing wood sheets). Pack-page HTML
++ pack credits saved in the session scratchpad (`pages/*.html`, `ex/**/Credits*.txt`). `npm test` →
+77 tests green; `npm run build` green.
+
+## Avatar-wardrobe progress (W1-W9) — AWAIT LICENSE REVIEW + COMMIT
+Implementing `docs/specs/avatar-wardrobe.md` (expanded clothing: outfit axis, more colors,
+pink, business/formal). **Do not commit until the orchestrator reviews the new clothing licenses.**
+Real LPC assets forced documented deviations from the spec's assumed layout (see CREDITS + report):
+no single formal sheet (male formal composited from shirt+vest+tie), no female formal (composited
+from underdress+sash dress), formal base color is **green** not navy, and LPC has no navy/pink
+pants (recolored from white). Credit sources saved in session scratchpad (`W-credit-sources.md`,
+`AUTHORS.txt`, `tree.json`).
+- **W1 done** — fetched casual sheets: `torso/white_longsleeve_male.png` (LPC base),
+  `torso/white_tunic_female.png` (JaidynReiman). (navy pants unavailable in LPC -> deferred to W3 recolor.)
+- **W2 done** — composited business torsos: `torso/green_formal_male.png` (Thane Brimhall formal set),
+  `torso/green_formal_female.png` (Sharm underdress + Thane Brimhall sash dress).
+- **W3 done** — PIL recolors (CC-BY-SA derivatives): `torso/pink_{longsleeve_male,tunic_female,
+  formal_male,formal_female}.png`, `legs/{navy,pink}_pants_{male,female}.png`. All 12 new PNGs
+  832x1344, valid signature, alpha preserved.
+- **W4 done** — `client/public/sprites/CREDITS.md`: added fetched/composite/recolor tables with
+  per-layer authors + share-alike derivative notes.
+- **W5 done** — `shared/src/protocol.ts`: `Appearance` gained `outfit:'casual'|'business'`; `torso`
+  widened to `teal|maroon|brown|white|pink|green`, `legs` to `teal|red|white|navy|pink`.
+  `server/test/room.test.ts` + `client/test/net-supabase.test.ts` fixtures gained `outfit:'casual'`.
+- **W6 done** — `client/src/sprites.ts`: `OUTFIT`, `CASUAL_TORSO`, `BUSINESS_TORSO=['green','pink']`,
+  widened `TORSO`/`LEGS`, `outfitTorso`, `optionsFor`; `CATEGORIES` widened (+Outfit, functional Top
+  options); `appearanceToLayers` outfit branch (business→`formal`) + torso clamp to the outfit palette;
+  `ALL_LAYER_URLS` rebuilt from real per-outfit palettes; 6 presets gained `outfit:'casual'` + 2 new
+  presets `biz` (green/navy business M) and `pink` (casual pink F).
+- **W7 done** — `sprites.ts`: `normalizeAppearance` coerces `outfit`; 5-part `serializeAppearance`
+  (`body.hair.outfit.torso.legs`); `parseAppearance` tolerant of legacy 4-part strings; outfit-aware
+  `shuffleAppearance` (picks outfit first, torso from that palette).
+- **W8 done** — `client/test/sprites.test.ts`: outfit/formal/clamp/pink cases, legacy parse,
+  shuffle-in-palette, 8-preset integrity, `ALL_LAYER_URLS` real-file existence + new-layer coverage +
+  no-invented-combos. Suite 77→88 tests green; client typecheck + `npm run build` green.
+- **W9 done [M]** — `client/src/main.ts`: cycling loop resolves options via `optionsFor(cat,
+  appearance)`; changing Outfit clamps `torso` into the new palette before redraw. Needs two-tab
+  browser verification (checklist below).
+
+### Avatar-wardrobe real-asset notes (vs spec)
+- Business base color token is **green** (not navy): BUSINESS_TORSO=['green','pink'], biz preset
+  torso:'green'. Navy survives as a legs/pants color (recolored). navy_formal_* renamed green_formal_*.
+- Counts: 2 fetched verbatim, 2 composited, 8 recolored (6 pink + 2 navy pants) — differs from the
+  spec's assumed 6/6 split because LPC lacks single formal sheets, female formal, and navy/pink pants.
+
+### Avatar-wardrobe W9 two-tab manual checklist
+1. Join screen shows an **Outfit** row; cycling it swaps casual↔business garment in the preview.
+2. **Top** arrows cycle the outfit's colors (casual: teal/maroon/brown/white/pink; business:
+   green/pink); switching outfit clamps an out-of-palette color (no broken/empty preview).
+3. **Pants** arrows include navy + pink.
+4. **Business (M)** and **Casual Pink (F)** presets set the expected looks.
+5. Shuffle produces valid combos only (no 404s in the network tab); business shows the formal
+   garment; pink renders.
+6. A second tab building a pink/business character renders it correctly in the first tab.
+
 ## What this is
 A minimal Gather-like virtual office: 2D top-down tile map, WASD avatars moving in real time, proximity-based WebRTC audio/video for a handful of friends (2–8). Personal use, not production.
 
