@@ -30,6 +30,25 @@ Fetched pack-page HTML saved for license re-check in the session scratchpad unde
 (`page-*.html`). `npm test` → 77 tests green; `npm run build` green (after `npm install` pulled the
 previously-missing `@supabase/supabase-js`).
 
+### More decor sheets fetched (2026-10-28, 2nd pass) — AWAIT LICENSE REVIEW + COMMIT
+Added **24 new sheets** (uncommitted) to `client/src/assets/decor/`, all with CREDITS.md entries.
+**Do not commit until the orchestrator reviews licenses.** Packs + licenses (all CC-BY-SA / CC-BY / CC0):
+- **[LPC Revised] Base Object Kit!** (Eliza Wyatt, Lanea Zimmerman/Sharm, bluecarrot16, Hyptosis;
+  CC-BY-SA 3.0 / CC-BY 3.0 / CC0) → `chairs.png`, `armchairs.png`, `bar_stools.png`, `ottomans.png`,
+  `sofas.png`, `sofas_formal.png`, `thrones.png`, `beds.png`, `beds_single.png`, `tables.png`,
+  `countertops.png`, `decorative_furniture.png` (rugs + clocks), `cabinets.png`, `chests.png`,
+  `lamps.png`, `curtains.png`, `pillows.png`, `flowers.png`, `plants.png`, `paintings.png`.
+- **[LPC] Wooden Furniture** (bluecarrot16, Baŝto, Lanea Zimmerman/Sharm, William Thompson,
+  Tuomo Untinen/Reemax, Janna/Lilius/Jannax; CC-BY-SA 3.0 / 4.0 / GPL 3.0) → `wooden_furniture.png`.
+- **[LPC] Tavern** (bluecarrot16, Lanea Zimmerman/Sharm, William.Thompsonj, Jetrel, DCSS Contributors,
+  Reemax, Hyptosis, Daniel Eddeland/Daneeklu, BenCreating, Evert, tapatilorenzo; CC-BY-SA 3.0) →
+  `tavern_furniture.png`, `tavern_kitchen.png`, `tavern_decor.png`.
+Skipped: **RPG Indoor Tileset Expansion 1** (176x192 — not a 32 multiple); **[LPC] Simple Modern
+Furniture** (individual sprites, non-32 dims); **[LPC] House Insides** (byte-identical to existing
+`house_inside.png`); **Home Objects** (small 192x192, overlaps existing wood sheets). Pack-page HTML
++ pack credits saved in the session scratchpad (`pages/*.html`, `ex/**/Credits*.txt`). `npm test` →
+77 tests green; `npm run build` green.
+
 ## What this is
 A minimal Gather-like virtual office: 2D top-down tile map, WASD avatars moving in real time, proximity-based WebRTC audio/video for a handful of friends (2–8). Personal use, not production.
 
