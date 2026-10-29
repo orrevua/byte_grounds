@@ -7,7 +7,7 @@ import type {
   PeerState,
   ServerToClient,
 } from '@byte_grounds/shared/protocol';
-import { OFFICE_MAP } from '@byte_grounds/shared/maps';
+import { DEFAULT_MAP } from '@byte_grounds/shared/maps';
 import { getSupabase } from './supabase.ts';
 import { reconnectDelay, type Net, type NetHandlers } from './net.ts';
 
@@ -85,8 +85,8 @@ export class SupabaseNet implements Net {
       name: join.name,
       color: join.color,
       appearance: join.appearance,
-      x: join.x ?? OFFICE_MAP.spawn.x,
-      y: join.y ?? OFFICE_MAP.spawn.y,
+      x: join.x ?? DEFAULT_MAP.spawn.x,
+      y: join.y ?? DEFAULT_MAP.spawn.y,
     };
     handlers.onStatus?.('connecting');
     void getSupabase(this.url, this.key).then((client) => {

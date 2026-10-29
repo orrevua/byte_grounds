@@ -10,6 +10,8 @@ Objects may not overlap (except `on=` table-top items and chairs tucked under a 
 top row), every seat must be reachable from the spawn, and every room must connect; the script
 refuses to write a map that breaks a rule (`shared/test/maps.test.ts` re-checks the output).
 To look at a result, open it in the map editor (`/editor?map=<id>`).
+Bump a map's `rev` (the MapBuilder argument after its name) whenever its layout changes: a copy
+saved in the editor from an older revision then stops hiding the new built-in.
 
 Usage:
     python tools/build_maps.py            # writes shared/src/maps/{office,lounge,home}.json
@@ -179,8 +181,8 @@ FLOORS = {
 # ---------- builder ----------
 
 class MapBuilder:
-    def __init__(self, map_id, name, w, h, floor_color):
-        self.id, self.name, self.w, self.h = map_id, name, w, h
+    def __init__(self, map_id, name, rev, w, h, floor_color):
+        self.id, self.name, self.rev, self.w, self.h = map_id, name, rev, w, h
         self.tiles = [[0] * w for _ in range(h)]
         self.colors = [[floor_color] * w for _ in range(h)]
         self.floor_decor = []
@@ -335,6 +337,7 @@ class MapBuilder:
         return {
             "id": self.id,
             "name": self.name,
+            "rev": self.rev,
             "width": self.w,
             "height": self.h,
             "tiles": [t for row in self.tiles for t in row],
@@ -353,6 +356,7 @@ def write(m):
     parts = [
         f'  "id": {json.dumps(data["id"])}',
         f'  "name": {json.dumps(data["name"])}',
+        f'  "rev": {data["rev"]}',
         f'  "width": {w}',
         f'  "height": {data["height"]}',
         '  "tiles": [\n    ' + ",\n    ".join(r[1:-1] for r in rows) + "\n  ]",
@@ -369,7 +373,7 @@ def write(m):
 # ---------- maps ----------
 
 def build_office():
-    m = MapBuilder("office", "Office", 48, 32, "#4b5568")
+    m = MapBuilder("office", "Office", 1, 48, 32, "#4b5568")
     # Meeting room (top right), break room (bottom right), library (bottom left), lobby.
     m.vwall(31, 1, 30, gaps=(9, 10, 19, 20, 21, 27, 28))
     m.hwall(13, 32, 46)
@@ -503,7 +507,7 @@ def build_office():
 
 
 def build_lounge():
-    m = MapBuilder("lounge", "Lounge & Café", 44, 30, "#4a3f36")
+    m = MapBuilder("lounge", "Lounge & Café", 1, 44, 30, "#4a3f36")
     m.vwall(25, 1, 28, gaps=tuple(range(11, 18)))
     m.floor(1, 1, 24, 28, "stone_beige")
     m.floor(1, 1, 16, 3, "checker")
@@ -603,7 +607,7 @@ def build_lounge():
 
 
 def build_home():
-    m = MapBuilder("home", "Home", 40, 30, "#4a4038")
+    m = MapBuilder("home", "Home", 1, 40, 30, "#4a4038")
     m.hwall(12, 1, 20, gaps=tuple(range(7, 13)))
     m.vwall(21, 1, 28, gaps=(20, 21))
     m.hwall(12, 22, 38, gaps=(24, 25))

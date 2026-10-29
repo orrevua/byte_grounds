@@ -14,7 +14,7 @@ import {
 } from './sprites.ts';
 import type { Appearance, PeerId } from '@byte_grounds/shared/protocol';
 import { startPosition, type OfficeMap } from '@byte_grounds/shared/map';
-import { OFFICE_MAP } from '@byte_grounds/shared/maps';
+import { DEFAULT_MAP } from '@byte_grounds/shared/maps';
 import { createStore, type MapSummary } from './store.ts';
 import { loadDecorSheets } from './decor.ts';
 
@@ -81,7 +81,7 @@ function renderJoin(): void {
       <div class="panel">
         <h1>ByteGrounds</h1>
         <label>Name <input id="name" maxlength="16" placeholder="Your name" /></label>
-        <label>Map <select id="map"><option value="${OFFICE_MAP.id}">${OFFICE_MAP.name}</option></select></label>
+        <label>Map <select id="map"><option value="${DEFAULT_MAP.id}">${DEFAULT_MAP.name}</option></select></label>
         <div class="editor">
           <canvas id="preview" width="64" height="64"></canvas>
           <div class="axes">${categoryRows}</div>
@@ -185,7 +185,7 @@ async function join(name: string, appearance: Appearance, mapId: string): Promis
   localStorage.setItem(NAME_KEY, name);
   localStorage.setItem(MAP_KEY, mapId);
   const [map, saved] = await Promise.all([
-    store.loadMap(mapId).then((m) => m ?? OFFICE_MAP),
+    store.loadMap(mapId).then((m) => m ?? DEFAULT_MAP),
     store.loadPosition(mapId, name).catch(() => null),
   ]);
   await loadDecorSheets((map.decor ?? []).map((d) => d.sheet));

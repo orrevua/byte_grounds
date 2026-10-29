@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { isWalkable, parseMap, tileAt, type OfficeMap } from '../src/map.ts';
-import { BUILT_IN_MAPS, OFFICE_MAP, builtInMap } from '../src/maps.ts';
+import { BUILT_IN_MAPS, DEFAULT_MAP, builtInMap, builtInRev } from '../src/maps.ts';
+import { DEFAULT_ROOM } from '../src/protocol.ts';
 
 const DECOR_DIR = resolve(import.meta.dirname, '../../client/src/assets/decor');
 
@@ -34,11 +35,17 @@ function reachable(m: OfficeMap): Set<string> {
 }
 
 describe('built-in maps', () => {
-  it('ships the office, lounge and home with unique ids', () => {
-    expect(BUILT_IN_MAPS.map((m) => m.id)).toEqual(['office', 'lounge', 'home']);
-    expect(OFFICE_MAP.id).toBe('office');
+  it('ships the lounge (the default), office and home with unique ids', () => {
+    expect(BUILT_IN_MAPS.map((m) => m.id)).toEqual(['lounge', 'office', 'home']);
+    expect(DEFAULT_MAP.id).toBe('lounge');
+    expect(DEFAULT_ROOM).toBe(DEFAULT_MAP.id);
     expect(builtInMap('home')?.name).toBe('Home');
     expect(builtInMap('nope')).toBeNull();
+  });
+
+  it('gives every built-in a revision, and none to other ids', () => {
+    for (const m of BUILT_IN_MAPS) expect(builtInRev(m.id)).toBeGreaterThanOrEqual(1);
+    expect(builtInRev('nope')).toBe(0);
   });
 
   for (const m of BUILT_IN_MAPS) {

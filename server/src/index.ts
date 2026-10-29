@@ -8,7 +8,7 @@ import type {
   PeerState,
   ServerToClient,
 } from '@byte_grounds/shared/protocol';
-import { OFFICE_MAP } from '@byte_grounds/shared/maps';
+import { DEFAULT_MAP } from '@byte_grounds/shared/maps';
 import { Room } from './room.ts';
 
 const PORT = Number(process.env.PORT ?? 8080);
@@ -71,8 +71,8 @@ wss.on('connection', (ws) => {
           name: msg.name,
           color: msg.color,
           appearance: msg.appearance,
-          x: Number.isFinite(msg.x) ? msg.x! : OFFICE_MAP.spawn.x,
-          y: Number.isFinite(msg.y) ? msg.y! : OFFICE_MAP.spawn.y,
+          x: Number.isFinite(msg.x) ? msg.x! : DEFAULT_MAP.spawn.x,
+          y: Number.isFinite(msg.y) ? msg.y! : DEFAULT_MAP.spawn.y,
         };
         room.add(peer);
         send(ws, { type: 'welcome', selfId, room: roomId });

@@ -50,6 +50,8 @@ export interface OfficeMap {
   colors?: string[];
   decor?: DecorCell[];
   seats?: Seat[];
+  /** A saved copy of a built-in map: the built-in `rev` it was edited from. Absent = stale. */
+  basedOnRev?: number;
 }
 
 export const DEFAULT_FLOOR_COLOR = '#2a2f37';
@@ -141,6 +143,7 @@ export function parseMap(data: unknown): OfficeMap | null {
             FACINGS.includes(st.dir),
         )
       : [],
+    ...(Number.isInteger(m.basedOnRev) && m.basedOnRev! > 0 ? { basedOnRev: m.basedOnRev } : {}),
   };
 }
 

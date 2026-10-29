@@ -1,5 +1,6 @@
 import { TILE_SIZE } from '@byte_grounds/shared/protocol';
 import { createBlankMap, mapIdFromName, tileAt, type Facing, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
+import { DEFAULT_MAP } from '@byte_grounds/shared/maps';
 import { drawDecorCellAt, drawMap, drawObjectDecorFlat, mapPixelSize } from './render.ts';
 import { DECOR_SHEETS, TILE_SHEETS, decorImage, decorObjects, loadDecorSheets } from './decor.ts';
 import { objectAt, objectCells, type CellRect } from './decor-objects.ts';
@@ -745,7 +746,7 @@ canvas.addEventListener('contextmenu', (e) => {
 
 setTool('paint');
 renderDecorPicker();
-const wanted = new URLSearchParams(location.search).get('map') ?? 'office';
+const wanted = new URLSearchParams(location.search).get('map') ?? DEFAULT_MAP.id;
 refreshMaps(wanted)
   .then(() => openMap(maps.some((m) => m.id === wanted) ? wanted : maps[0]!.id))
   .catch((err) => {

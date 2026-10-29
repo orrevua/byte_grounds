@@ -114,6 +114,17 @@ describe('parseMap decor baseDy', () => {
   });
 });
 
+describe('parseMap basedOnRev', () => {
+  const base = { id: 'd', width: 2, height: 2, tiles: [0, 0, 0, 0], spawn: { x: 0.5, y: 0.5 } };
+
+  it('keeps a positive integer and drops a missing or junk one', () => {
+    expect(parseMap({ ...base, basedOnRev: 3 })!.basedOnRev).toBe(3);
+    for (const junk of [undefined, 0, -1, 1.5, '2']) {
+      expect('basedOnRev' in parseMap({ ...base, basedOnRev: junk })!).toBe(false);
+    }
+  });
+});
+
 describe('decorLayer', () => {
   // tiles: (0,0) floor, (1,0) wall.
   const m: OfficeMap = { id: 'd', width: 2, height: 1, tiles: [0, 1], spawn: { x: 0.5, y: 0.5 } };
