@@ -473,7 +473,7 @@ user steps"). Run `npm test` + `npm run typecheck --workspace client` after ever
    `game.attachGrants`), `client/index.html` (CSS) — change: small box at the click point: `<name> #a1b2`,
    two toggle buttons **"Allow building"** and **"Allow map editor"**, each showing on/off from
    `feed.has(uid, perm)` and calling `grant`/`revoke`; re-renders on `feed.onChange`; closes on outside
-   click / Esc. Remote without `uid` → "Can't grant: they need to reload". Errors inline. `RemoteAvatar`
+   click / Esc. Remote without `uid` → "Can't grant: this player isn't signed in…" (anonymous sign-ins off, or an old tab). Errors inline. `RemoteAvatar`
    keeps `uid`. (Building itself arrives in Phase 2; the grant is stored now.) — acceptance: typecheck;
    **[M]** checklist P1.
 8. **P1-U8 Editor permission gate** — files: `client/src/editor.ts`, `client/editor.html` (CSS for the

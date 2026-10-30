@@ -20,6 +20,7 @@ import { loadDecorSheets } from './decor.ts';
 import { hasSupabase } from './supabase.ts';
 import { adminEmail, checkIsAdmin, ensureSession, signInAdmin, signOutAdmin } from './auth.ts';
 import { GrantsFeed } from './grants.ts';
+import { LiveMap } from './live-map.ts';
 
 /** Color is vestigial now (the sprite appearance drives the look); keep a stable default. */
 const DEFAULT_COLOR = '#4f8cff';
@@ -276,9 +277,18 @@ function startGame(self: SelfInfo, selfId: PeerId, map: OfficeMap, start: { x: n
   game = new Game(canvas, self, net!, selfId, map, start);
   game.start();
   if (self.uid) {
+    const uid = self.uid;
     const feed = new GrantsFeed();
     void feed.start().catch((err) => console.warn('[grants] feed failed:', err));
     game.attachGrants(feed);
+    // Live building: `map` is the object the game draws, so applied edits show at once.
+    // Attach before start() so the first load already reaches the game's onChange.
+    const live = new LiveMap(map, map.id, uid, {
+      isAdmin: self.isAdmin,
+      canBake: () => self.isAdmin || feed.has(uid, 'editor'),
+    });
+    game.attachLive(live);
+    void live.start().catch((err) => console.warn('[live] edits feed failed:', err));
   }
   savePositionPeriodically(map.id, self.name);
 }
