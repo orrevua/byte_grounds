@@ -610,7 +610,7 @@ export class Game {
     type AvatarItem = { anchorY: number; isAvatar: true; id: PeerId | null; av: Avatar; isSelf: boolean };
     const items: (DecorItem | AvatarItem)[] = [];
     const objects = (map.decor ?? []).filter((d) => decorLayer(map, d) === 'object');
-    const anchors = stackedDecorAnchors(objects);
+    const anchors = stackedDecorAnchors(objects, (d) => !seatSpot(d.sheet, d.sx, d.sy));
     objects.forEach((d, i) => items.push({ anchorY: anchors[i]!, isAvatar: false, cell: d }));
     for (const [id, r] of this.remotes) {
       items.push({ anchorY: avatarAnchorY(r), isAvatar: true, id, av: r, isSelf: false });

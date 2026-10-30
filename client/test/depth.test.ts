@@ -81,4 +81,12 @@ describe('stackedDecorAnchors', () => {
     // Order matters: something drawn before the desk isn't lifted.
     expect(stackedDecorAnchors([monitor, deskTop])).toEqual([5.5, 6.5]);
   });
+
+  it('cells that are not liftable (seats behind a desk) keep their own row', async () => {
+    const { stackedDecorAnchors } = await import('../src/depth.ts');
+    const deskBack = { x: 4, y: 3, baseDy: 3 }; // a desk's back row, sorting at 6.5
+    const chair = { x: 4, y: 3, seat: true };
+    const phone = { x: 4, y: 3 };
+    expect(stackedDecorAnchors([deskBack, chair, phone], (c) => !('seat' in c))).toEqual([6.5, 3.5, 6.5]);
+  });
 });

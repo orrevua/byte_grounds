@@ -12,15 +12,22 @@ export function decorAnchorY(cell: { y: number; baseDy?: number }): number {
 }
 
 /**
- * Anchors for object cells in draw order: each is its own `decorAnchorY`, but never earlier than
- * an object cell below it on the same tile, so a monitor stacked on a desk's top row sorts with
- * the desk (by its base row) and stays on top of it instead of being drawn under it.
+ * Anchors for object cells in draw order: each is its own `decorAnchorY`, but a liftable cell is
+ * never earlier than an object cell below it on the same tile, so a monitor stacked on a desk's
+ * top row sorts with the desk (by its base row) and stays on top of it instead of under it.
+ * Seats are not liftable: a chair on a desk's back row stands *behind* the desk, which should
+ * keep covering it.
  */
-export function stackedDecorAnchors(cells: readonly { x: number; y: number; baseDy?: number }[]): number[] {
+export function stackedDecorAnchors<T extends { x: number; y: number; baseDy?: number }>(
+  cells: readonly T[],
+  liftable: (c: T) => boolean = () => true,
+): number[] {
   const floorOf = new Map<string, number>();
   return cells.map((c) => {
+    const own = decorAnchorY(c);
+    if (!liftable(c)) return own;
     const key = `${c.x},${c.y}`;
-    const anchor = Math.max(decorAnchorY(c), floorOf.get(key) ?? -Infinity);
+    const anchor = Math.max(own, floorOf.get(key) ?? -Infinity);
     floorOf.set(key, anchor);
     return anchor;
   });
