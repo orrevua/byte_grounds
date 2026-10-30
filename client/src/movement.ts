@@ -12,7 +12,8 @@ export interface MoveInput {
 
 /**
  * Integrate one movement step for `dt` seconds at MOVE_SPEED, with axis-separated
- * wall collision (so you slide along walls instead of sticking). Pure function.
+ * wall collision (so you slide along walls instead of sticking). From inside a blocked tile any
+ * step within the map is allowed, so you can walk out. Pure function.
  */
 export function stepMovement(
   map: OfficeMap,
@@ -33,7 +34,11 @@ export function stepMovement(
   const nx = x + dx * dist;
   const ny = y + dy * dist;
 
-  const outX = isWalkable(map, nx, y) ? nx : x;
-  const outY = isWalkable(map, outX, ny) ? ny : y;
+  // Standing inside a blocked tile (furniture placed on top of us live) must not trap us.
+  const stuck = !isWalkable(map, x, y);
+  const free = (px: number, py: number) =>
+    isWalkable(map, px, py) || (stuck && px >= 0 && py >= 0 && px < map.width && py < map.height);
+  const outX = free(nx, y) ? nx : x;
+  const outY = free(outX, ny) ? ny : y;
   return { x: outX, y: outY };
 }

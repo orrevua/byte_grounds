@@ -1,4 +1,4 @@
-import { decorLayer, seatsNearIn, type DecorCell, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
+import { decorLayer, seatsNearIn, tileAt, type DecorCell, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
 import { POSITION_TICK_MS, TILE_SIZE, normalizePose } from '@byte_grounds/shared/protocol';
 import { effectiveSeats } from '@byte_grounds/shared/seats';
 import type { Appearance, PeerId, PeerState, Pose, ServerToClient } from '@byte_grounds/shared/protocol';
@@ -13,6 +13,10 @@ import { WebrtcMesh } from './webrtc.ts';
 import { avatarAt, screenToWorld } from './hit.ts';
 import { AvatarMenu } from './avatar-menu.ts';
 import type { GrantsFeed } from './grants.ts';
+import type { LiveMap } from './live-map.ts';
+import { BuildPanel } from './build-panel.ts';
+import { brushCells, cellBlocks } from './editor-model.ts';
+import { placeOp } from './edit-ops.ts';
 import {
   appearanceReady,
   directionFromDelta,
@@ -60,6 +64,9 @@ const INTERP_RATE = 12;
 /** Movement below this per-frame delta (tiles) counts as idle (standing frame). */
 const MOVE_EPS = 1e-3;
 
+/** How long a toast (e.g. a refused edit) stays up. */
+const TOAST_MS = 4000;
+
 /** Canvas render loop, local movement, position broadcast, and remote avatars. */
 export class Game {
   private readonly ctx: CanvasRenderingContext2D;
@@ -67,7 +74,17 @@ export class Game {
   private readonly touchpad = isTouchDevice() ? new TouchPad() : null;
   private readonly self: Avatar;
   private readonly isAdmin: boolean;
+  private readonly uid: string | undefined;
   private menu: AvatarMenu | null = null;
+  private grants: GrantsFeed | null = null;
+  /** Live building (Supabase only): the room's edit log, the drawer, and its toggle button. */
+  private live: LiveMap | null = null;
+  private panel: BuildPanel | null = null;
+  private buildBtn: HTMLButtonElement | null = null;
+  /** The tile under the pointer while building (ghost position). */
+  private buildHover: { x: number; y: number } | null = null;
+  private toastEl: HTMLDivElement | null = null;
+  private toastTimer: ReturnType<typeof setTimeout> | undefined;
   /** The seat we're on, and where we stood before, to step back there when getting up. */
   private seat: { seat: Seat; standX: number; standY: number } | null = null;
   /** The map's usable seats (authored + automatic); recomputed by `refreshSeats`. */
@@ -109,6 +126,7 @@ export class Game {
     this.fitCanvas();
 
     this.isAdmin = self.isAdmin;
+    this.uid = self.uid;
     this.self = {
       name: self.name,
       color: self.color,
@@ -133,6 +151,8 @@ export class Game {
     addEventListener('keydown', this.onKey);
     addEventListener('resize', this.fitCanvas);
     canvas.addEventListener('pointerdown', this.onPointerDown);
+    canvas.addEventListener('pointermove', this.onPointerMove);
+    canvas.addEventListener('pointerleave', this.onPointerLeave);
 
     this.bubbles = new VideoBubbles(canvas.parentElement ?? document.body);
     this.mesh = new WebrtcMesh(
@@ -170,20 +190,76 @@ export class Game {
     removeEventListener('keydown', this.onKey);
     removeEventListener('resize', this.fitCanvas);
     this.ctx.canvas.removeEventListener('pointerdown', this.onPointerDown);
+    this.ctx.canvas.removeEventListener('pointermove', this.onPointerMove);
+    this.ctx.canvas.removeEventListener('pointerleave', this.onPointerLeave);
     this.menu?.close();
+    this.panel?.dispose();
+    this.buildBtn?.remove();
+    this.toastEl?.remove();
+    clearTimeout(this.toastTimer);
     this.seatBtn.remove();
     this.danceBtn.remove();
     this.mesh.closeAll();
   }
 
-  /** Live grants: the admin gets a permissions menu when clicking an avatar. */
+  /** Live grants: the admin gets a permissions menu when clicking an avatar; builders a Build button. */
   attachGrants(feed: GrantsFeed): void {
+    this.grants = feed;
+    feed.onChange(() => this.updateBuildAccess());
     if (!this.isAdmin) return;
     const menu = (this.menu = new AvatarMenu(feed));
     this.onAvatarClick = (id, clientX, clientY) => {
       const r = this.remotes.get(id);
       if (r) menu.open({ name: r.name, uid: r.uid }, clientX, clientY);
     };
+  }
+
+  /**
+   * Live building: a Build button (admin, or a `build` grant; re-checked on grant changes) opens
+   * the drawer; clicks on the map then send edits. Every applied change refreshes the seats.
+   */
+  attachLive(live: LiveMap): void {
+    this.live = live;
+    const panel = (this.panel = new BuildPanel(this.isAdmin));
+    panel.onUndo = () => void live.undoOwn();
+    const btn = (this.buildBtn = document.createElement('button'));
+    btn.id = 'build-btn';
+    btn.className = 'hidden';
+    btn.addEventListener('click', () => {
+      if (panel.isOpen) panel.close();
+      else {
+        this.menu?.close();
+        panel.open();
+      }
+    });
+    document.body.appendChild(btn);
+    live.onChange((resized) => {
+      this.refreshSeats();
+      if (resized) this.fitCanvas();
+    });
+    live.onError((msg) => this.toast(msg));
+    this.updateBuildAccess();
+  }
+
+  private canBuild(): boolean {
+    return this.isAdmin || !!this.grants?.has(this.uid, 'build');
+  }
+
+  /** Show the Build button only to builders; a revoked grant closes the drawer. */
+  private updateBuildAccess(): void {
+    if (!this.buildBtn) return;
+    const ok = this.canBuild();
+    this.buildBtn.classList.toggle('hidden', !ok);
+    if (!ok) this.panel?.close();
+  }
+
+  private toast(msg: string): void {
+    const el = (this.toastEl ??= document.body.appendChild(document.createElement('div')));
+    el.id = 'toast';
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => el.classList.add('hidden'), TOAST_MS);
   }
 
   /**
@@ -327,13 +403,64 @@ export class Game {
     else if (key === 'q') this.toggleDance();
   };
 
-  private readonly onPointerDown = (e: PointerEvent): void => {
-    if (!this.onAvatarClick) return;
+  private worldPoint(e: PointerEvent): { px: number; py: number } {
     const r = this.ctx.canvas.getBoundingClientRect();
-    const { px, py } = screenToWorld(e.clientX - r.left, e.clientY - r.top, this.scale, this.camX, this.camY);
+    return screenToWorld(e.clientX - r.left, e.clientY - r.top, this.scale, this.camX, this.camY);
+  }
+
+  /** While building, a click edits the tile; otherwise it may open the avatar menu. */
+  private readonly onPointerDown = (e: PointerEvent): void => {
+    const { px, py } = this.worldPoint(e);
+    if (this.panel?.isOpen) return this.buildAt(Math.floor(px / TILE_SIZE), Math.floor(py / TILE_SIZE));
+    if (!this.onAvatarClick) return;
     const id = avatarAt(this.remotes, px, py);
     if (id) this.onAvatarClick(id, e.clientX, e.clientY);
   };
+
+  private readonly onPointerMove = (e: PointerEvent): void => {
+    if (!this.panel?.isOpen) return;
+    const { px, py } = this.worldPoint(e);
+    this.buildHover = { x: Math.floor(px / TILE_SIZE), y: Math.floor(py / TILE_SIZE) };
+  };
+
+  private readonly onPointerLeave = (): void => {
+    this.buildHover = null;
+  };
+
+  private inMap(x: number, y: number): boolean {
+    return x >= 0 && y >= 0 && x < this.map.width && y < this.map.height;
+  }
+
+  /** The piece a click at (x, y) would place, and its blocking cells on blocked tiles (then a no-op). */
+  private ghostAt(x: number, y: number): { cells: DecorCell[]; blocked: DecorCell[] } | null {
+    const s = this.panel?.state();
+    if (this.panel?.tool !== 'place' || !s?.selection) return null;
+    const cells = brushCells(x, y, s.selection, s.t, s.mode);
+    const blocked = cells.filter((c) => cellBlocks(c, s.mode) && this.inMap(c.x, c.y) && tileAt(this.map, c.x, c.y) === 1);
+    return { cells, blocked };
+  }
+
+  /** Apply the build tool at tile (x, y); the database decides whether the edit is allowed. */
+  private buildAt(x: number, y: number): void {
+    const { live, panel } = this;
+    if (!live || !panel || !this.inMap(x, y)) return;
+    switch (panel.tool) {
+      case 'place': {
+        const s = panel.state();
+        if (!s?.selection) return this.toast('Pick a piece in the Build panel first');
+        if (this.ghostAt(x, y)?.blocked.length) return;
+        void live.send(placeOp(x, y, s.selection, s.mode, s.t));
+        return;
+      }
+      case 'erase':
+        void live.removeAt(x, y);
+        return;
+      case 'block':
+      case 'walk':
+        void live.send({ kind: 'tile', x, y, blocked: panel.tool === 'block' });
+        return;
+    }
+  }
 
   /** The nearest seat in reach that nobody else is using. */
   private freeSeatNearby(): Seat | undefined {
@@ -377,6 +504,10 @@ export class Game {
    * otherwise and while dancing. Dance button: "Dance (Q)" / "Stop dancing (Q)", hidden while seated.
    */
   private updateButtons(): void {
+    if (this.buildBtn && this.panel) {
+      const label = this.panel.isOpen ? 'Done building' : 'Build';
+      if (this.buildBtn.textContent !== label) this.buildBtn.textContent = label;
+    }
     const dancing = this.self.pose === 'dance';
     const danceLabel = this.seat ? '' : dancing ? 'Stop dancing (Q)' : 'Dance (Q)';
     if (this.danceBtn.textContent !== danceLabel) this.danceBtn.textContent = danceLabel;
@@ -460,6 +591,8 @@ export class Game {
       }
     }
 
+    this.drawBuildOverlay();
+
     // Final pass on top of all furniture: name labels, and remote bubble placement + volume.
     for (const r of this.remotes.values()) this.drawName(r);
     this.drawName(this.self);
@@ -468,6 +601,28 @@ export class Game {
       if (this.prox.get(id) === 'near') this.bubbles.setVolume(id, volumeForDistance(distanceTiles(this.self, r)));
       const { px, py } = tileToScreen(r.x, r.y);
       this.bubbles.place(id, (px - camX) * scale, (py - camY) * scale);
+    }
+  }
+
+  /** Own edits on their way (ghosts), and while building the piece / tile under the pointer. */
+  private drawBuildOverlay(): void {
+    const { ctx } = this;
+    const pending = this.live?.pending ?? [];
+    const hover = this.panel?.isOpen ? this.buildHover : null;
+    const ghost = hover && this.ghostAt(hover.x, hover.y);
+    if (pending.length === 0 && !hover) return;
+    ctx.save();
+    ctx.globalAlpha = 0.6;
+    for (const cell of pending) drawDecorCellAt(ctx, cell);
+    for (const cell of ghost?.cells ?? []) drawDecorCellAt(ctx, cell);
+    ctx.restore();
+    ctx.fillStyle = 'rgba(220, 60, 60, 0.45)';
+    for (const cell of ghost?.blocked ?? []) ctx.fillRect(cell.x * TILE_SIZE, cell.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+    if (hover && !ghost) {
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(hover.x * TILE_SIZE + 1, hover.y * TILE_SIZE + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+      ctx.lineWidth = 1;
     }
   }
 

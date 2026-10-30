@@ -43,6 +43,11 @@ describe('stepMovement', () => {
     expect(r.x).toBe(0.3);
   });
 
+  it('inside a blocked tile, moving works (walks out of furniture placed on top)', () => {
+    const r = stepMovement(map, 2.5, 0.5, input({ left: true }), 0.1);
+    expect(r.x).toBeCloseTo(2.5 - MOVE_SPEED * 0.1, 5);
+  });
+
   it('diagonal input is normalized to constant speed', () => {
     const r = stepMovement(map, 0.5, 0.5, input({ right: true, down: true }), 0.1);
     const moved = Math.hypot(r.x - 0.5, r.y - 0.5);

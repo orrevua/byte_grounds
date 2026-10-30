@@ -3,19 +3,9 @@ import { createBlankMap, mapIdFromName, tileAt, type Facing, type OfficeMap, typ
 import { DEFAULT_MAP } from '@byte_grounds/shared/maps';
 import { effectiveSeats } from '@byte_grounds/shared/seats';
 import { drawDecorCellAt, drawMap, drawObjectDecorFlat, mapPixelSize } from './render.ts';
-import { DECOR_SHEETS, TILE_SHEETS, decorImage, decorObjects, loadDecorSheets } from './decor.ts';
-import { objectAt, objectCells, type CellRect } from './decor-objects.ts';
-import {
-  IDENTITY,
-  describeTransform,
-  flipH,
-  flipV,
-  footprint,
-  rotateCCW,
-  rotateCW,
-  transformFacing,
-  type DecorTransform,
-} from './decor-transform.ts';
+import { decorImage, loadDecorSheets } from './decor.ts';
+import { IDENTITY, footprint, transformFacing, type DecorTransform } from './decor-transform.ts';
+import { mountDecorPicker, transformForKey } from './decor-picker.ts';
 import {
   brushCells,
   cellBlocks,
@@ -30,7 +20,8 @@ import {
   type BlockMode,
   type DecorSelection,
 } from './editor-model.ts';
-import { createStore, type MapSummary } from './store.ts';
+import { StaleSaveError, createStore, type MapSummary } from './store.ts';
+import { mergeLiveEdits } from './live-model.ts';
 import { hasSupabase } from './supabase.ts';
 import { checkCanEditMaps, ensureSession, shortId } from './auth.ts';
 import { createAutosave, type SaveStatus } from './autosave.ts';
@@ -49,29 +40,6 @@ const TOOLS: { id: Tool; label: string }[] = [
 
 const ARROW: Record<Facing, string> = { up: '↑', down: '↓', left: '←', right: '→' };
 
-type TransformOp = (t: DecorTransform) => DecorTransform;
-
-const TRANSFORM_BUTTONS: { label: string; title: string; op: TransformOp }[] = [
-  { label: '⟲', title: 'Rotate left (Shift+R)', op: rotateCCW },
-  { label: '⟳', title: 'Rotate right (R)', op: rotateCW },
-  { label: '⇋', title: 'Flip horizontal (F)', op: flipH },
-  { label: '⇵', title: 'Flip vertical (V)', op: flipV },
-];
-
-/** The brush transform a key stands for: R / Shift+R turn, F / V mirror. */
-function transformForKey(e: KeyboardEvent): TransformOp | null {
-  switch (e.key.toLowerCase()) {
-    case 'r':
-      return e.shiftKey ? rotateCCW : rotateCW;
-    case 'f':
-      return flipH;
-    case 'v':
-      return flipV;
-    default:
-      return null;
-  }
-}
-
 /** Starter palette: floors (wood, carpet, tile), walls, outdoors. */
 const SWATCHES = [
   '#2a2f37', '#454d5a', '#8b6a4a', '#a8825a', '#6b4f3a', '#c9b48f', '#d9d4c7', '#9aa0a6',
@@ -84,6 +52,13 @@ const AUTOSAVE_DELAY_MS = 1500;
 const AUTOSAVE_RETRY_MS = 15000;
 /** Postgres "insufficient privilege": RLS refused the write (no editor permission). */
 const NO_PERMISSION = '42501';
+/** Saves retried when live edits keep landing between the merge and the save. */
+const STALE_RETRIES = 3;
+
+/** Another editor saved or deleted this map since we loaded it (a 'reset' in its live log). */
+class ConflictError extends Error {}
+
+const knownSheet = (s: string) => decorImage(s) !== null;
 
 const store = createStore();
 const root = document.querySelector<HTMLDivElement>('#editor')!;
@@ -102,6 +77,13 @@ let showWalls = true;
 let zoom = 1;
 let hover: { x: number; y: number } | null = null;
 const undo: string[] = [];
+/**
+ * The last live edit folded into `map` (from the load, each merge and each save); null for a new
+ * map that was never stored, whose first save overwrites.
+ */
+let loadedSeq: number | null = null;
+/** The user chose Overwrite after a conflict: the next save skips the merge. */
+let overwrite = false;
 /** May this page save maps: always in local dev; with Supabase, decided by the permission gate. */
 let canSave = !hasSupabase;
 
@@ -195,7 +177,7 @@ const autosave = createAutosave({
   isDirty: dirty,
   save: saveMap,
   onStatus: showSaveStatus,
-  isDenied: (err) => (err as { code?: string } | null)?.code === NO_PERMISSION,
+  isDenied: (err) => err instanceof ConflictError || (err as { code?: string } | null)?.code === NO_PERMISSION,
 });
 
 /** Every edit ends here: autosave picks it up (once the page may save). */
@@ -218,15 +200,35 @@ function showSaveStatus(s: SaveStatus, err?: unknown): void {
       statusEl.title = errorMessage(err);
       return;
     case 'denied':
+      if (err instanceof ConflictError) return showConflict();
       return setStatus('Save failed: you no longer have editor permission', true);
     default:
       return setStatus(`Saved · id "${map.id}"`);
   }
 }
 
-statusEl.addEventListener('click', () => {
+/** Autosave stops until the user picks: reload the other editor's version, or overwrite it. */
+function showConflict(): void {
+  statusEl.className = 'status error';
+  statusEl.innerHTML = `This map was changed in another editor —
+    <span class="act" data-act="reload">Reload</span> | <span class="act" data-act="overwrite">Overwrite</span>`;
+}
+
+statusEl.addEventListener('click', (e) => {
+  const act = (e.target as HTMLElement).dataset.act;
+  if (act === 'reload') return void reloadAfterConflict().catch(showError);
+  if (act === 'overwrite') {
+    overwrite = true;
+    return void autosave.flush();
+  }
   if (saveStatus === 'failed') void autosave.flush();
 });
+
+async function reloadAfterConflict(): Promise<void> {
+  if (dirty() && !confirm('Reload this map as the other editor saved it? Your changes here are lost.')) return;
+  await openMap(map.id);
+  void autosave.flush();
+}
 
 // ---------- map list / load / save ----------
 
@@ -244,9 +246,10 @@ async function refreshMaps(selectId: string): Promise<void> {
 }
 
 async function openMap(id: string): Promise<void> {
-  const loaded = await store.loadMap(id);
+  const { map: loaded, seq } = await store.loadMapState(id);
   if (!loaded) return setStatus(`Map "${id}" not found`, true);
   setMap(structuredClone(loaded), true);
+  loadedSeq = seq;
   history.replaceState(null, '', `?map=${encodeURIComponent(id)}`);
 }
 
@@ -254,6 +257,8 @@ function setMap(next: OfficeMap, saved: boolean): void {
   map = next;
   savedJson = saved ? JSON.stringify(map) : '';
   undo.length = 0;
+  loadedSeq = null;
+  overwrite = false;
   nameEl.value = map.name ?? map.id;
   $<HTMLInputElement>('#w').value = String(map.width);
   $<HTMLInputElement>('#h').value = String(map.height);
@@ -298,10 +303,39 @@ nameEl.addEventListener('input', () => {
   refreshStatus();
 });
 
-/** Store the map as it is now; edits made meanwhile stay dirty and get the next save. */
+/**
+ * Fold in live edits made in the room since our last load/save (into undo snapshots too, so undo
+ * never reverts a builder's edit). A 'reset' among them = another editor's save: ConflictError.
+ */
+async function mergeLive(): Promise<void> {
+  const edits = await store.loadEdits(map.id, loadedSeq ?? 0);
+  const r = mergeLiveEdits(map, undo, edits, knownSheet);
+  if (r.lastId) loadedSeq = r.lastId;
+  if (r.merged > 0) {
+    draw();
+    void loadDecorSheets(edits.flatMap((e) => (e.op.kind === 'place' ? [e.op.sheet] : []))).then(draw);
+  }
+  if (r.conflict) throw new ConflictError('This map was changed in another editor');
+}
+
+/**
+ * Merge live edits, then store the map as it is now; edits made meanwhile stay dirty and get the
+ * next save. Live edits landing between the merge and the save make it stale: merge again.
+ */
 async function saveMap(): Promise<void> {
-  const json = JSON.stringify(map);
-  await store.saveMap(JSON.parse(json) as OfficeMap);
+  const force = overwrite || loadedSeq === null;
+  overwrite = false;
+  let json = '';
+  for (let tries = 1; ; tries++) {
+    if (!force) await mergeLive();
+    json = JSON.stringify(map);
+    try {
+      loadedSeq = await store.saveMap(JSON.parse(json) as OfficeMap, force ? null : loadedSeq);
+      break;
+    } catch (err) {
+      if (!(err instanceof StaleSaveError) || tries >= STALE_RETRIES) throw err;
+    }
+  }
   savedJson = json;
   history.replaceState(null, '', `?map=${encodeURIComponent(map.id)}`);
   if (!maps.some((m) => m.id === map.id && m.name === (map.name ?? map.id))) {
@@ -479,174 +513,9 @@ updateSeatHint();
 
 /** Brush rotation/mirror for the next stamps; not a map edit (no undo, not dirty). */
 function setBrushTransform(t: DecorTransform): void {
+  picker.setTransform(t);
   brushT = t;
-  const label = root.querySelector<HTMLSpanElement>('#brush-transform');
-  if (label) label.textContent = describeTransform(brushT);
   draw();
-}
-
-function renderDecorPicker(): void {
-  const body = $<HTMLDivElement>('#decor-body');
-  if (DECOR_SHEETS.length === 0) {
-    body.innerHTML = `<p class="hint">No decoration art yet. Add LPC sheet PNGs to
-      <code>client/src/assets/decor/</code> and redeploy; they show up here automatically.</p>`;
-    return;
-  }
-  body.innerHTML = `
-    <div class="row" style="margin-bottom:6px">
-      <select id="sheet-select" style="flex:1">${DECOR_SHEETS.map((s) => `<option>${s}</option>`).join('')}</select>
-    </div>
-    <div id="sheet-wrap"><canvas id="sheet"></canvas></div>
-    <div class="row" style="margin-top:6px">
-      Block <select id="block-decor" style="flex:1">
-        <option value="base" selected>Base row (desks, shelves)</option>
-        <option value="all">Whole piece</option>
-        <option value="none">Nothing (rugs, beds)</option>
-      </select>
-    </div>
-    <p class="hint">Base row: only the bottom row blocks; people can walk behind it. Use Whole piece for
-      pieces turned sideways.</p>
-    <div class="row" id="brush-tools" style="margin-top:6px">
-      <button id="brush-reset">Reset</button> <span id="brush-transform" class="hint"></span>
-    </div>
-    <p class="hint">Click an object to pick all of it (Alt+click: just that square), or drag to pick
-      any block of squares, then click the map to place it.</p>
-    <p class="hint">Turn or mirror it with R / Shift+R / F / V. Chairs, sofas and thrones already come
-      facing each way in the sheet: pick that variant instead. Turning suits rugs, tables, beds and
-      counters; a horizontal flip is almost always safe.</p>`;
-  const sheetSelect = body.querySelector<HTMLSelectElement>('#sheet-select')!;
-  const sheetCanvas = body.querySelector<HTMLCanvasElement>('#sheet')!;
-  const sctx = sheetCanvas.getContext('2d')!;
-  body.querySelector<HTMLSelectElement>('#block-decor')!.addEventListener('change', (e) => {
-    blockMode = (e.target as HTMLSelectElement).value as BlockMode;
-    draw();
-  });
-  const resetBtn = body.querySelector<HTMLButtonElement>('#brush-reset')!;
-  for (const { label, title, op } of TRANSFORM_BUTTONS) {
-    const b = document.createElement('button');
-    b.textContent = label;
-    b.title = title;
-    b.addEventListener('click', () => {
-      setBrushTransform(op(brushT));
-      setTool('decor');
-    });
-    resetBtn.before(b);
-  }
-  resetBtn.addEventListener('click', () => {
-    setBrushTransform(IDENTITY);
-    setTool('decor');
-  });
-  setBrushTransform(brushT);
-
-  let sheet = DECOR_SHEETS[0]!;
-  let dragFrom: { x: number; y: number } | null = null;
-  let dragged = false;
-  let hoverPick: CellRect | null = null;
-
-  const drawSheet = () => {
-    const img = decorImage(sheet);
-    if (!img) return;
-    if (!img.complete) {
-      img.addEventListener('load', drawSheet, { once: true });
-      return;
-    }
-    sheetCanvas.width = img.naturalWidth;
-    sheetCanvas.height = img.naturalHeight;
-    sctx.fillStyle = '#0d0f12';
-    sctx.fillRect(0, 0, sheetCanvas.width, sheetCanvas.height);
-    sctx.drawImage(img, 0, 0);
-    sctx.strokeStyle = 'rgba(255,255,255,0.08)';
-    for (let x = 0; x <= img.naturalWidth; x += TILE_SIZE) sctx.strokeRect(x, 0, 0, img.naturalHeight);
-    for (let y = 0; y <= img.naturalHeight; y += TILE_SIZE) sctx.strokeRect(0, y, img.naturalWidth, 0);
-    if (selection?.sheet === sheet) {
-      sctx.strokeStyle = '#4fe0a0';
-      sctx.lineWidth = 2;
-      sctx.strokeRect(
-        selection.sx * TILE_SIZE + 1,
-        selection.sy * TILE_SIZE + 1,
-        selection.w * TILE_SIZE - 2,
-        selection.h * TILE_SIZE - 2,
-      );
-      sctx.lineWidth = 1;
-    }
-    if (hoverPick) {
-      sctx.strokeStyle = '#ffffff';
-      sctx.setLineDash([4, 3]);
-      sctx.strokeRect(
-        hoverPick.sx * TILE_SIZE + 0.5,
-        hoverPick.sy * TILE_SIZE + 0.5,
-        hoverPick.w * TILE_SIZE - 1,
-        hoverPick.h * TILE_SIZE - 1,
-      );
-      sctx.setLineDash([]);
-    }
-  };
-
-  const pixelAt = (e: PointerEvent) => {
-    const r = sheetCanvas.getBoundingClientRect();
-    return {
-      x: Math.floor((e.clientX - r.left) * (sheetCanvas.width / r.width)),
-      y: Math.floor((e.clientY - r.top) * (sheetCanvas.height / r.height)),
-    };
-  };
-  const cellAt = (e: PointerEvent) => {
-    const p = pixelAt(e);
-    return { x: Math.floor(p.x / TILE_SIZE), y: Math.floor(p.y / TILE_SIZE) };
-  };
-  /** What a click here picks: the whole object under it, or the one cell on tile sheets / Alt. */
-  const clickPick = (e: PointerEvent): CellRect => {
-    const p = pixelAt(e);
-    const objs = e.altKey || TILE_SHEETS.has(sheet) ? null : decorObjects(sheet);
-    const obj = objs && objectAt(objs, p.x, p.y);
-    return obj ? objectCells(obj) : { sx: Math.floor(p.x / TILE_SIZE), sy: Math.floor(p.y / TILE_SIZE), w: 1, h: 1 };
-  };
-  const rectKey = (r: CellRect | null) => (r ? `${r.sx},${r.sy},${r.w},${r.h}` : '');
-  const setHover = (pick: CellRect | null) => {
-    if (rectKey(pick) === rectKey(hoverPick)) return;
-    hoverPick = pick;
-    drawSheet();
-  };
-  const selectRect = (a: { x: number; y: number }, b: { x: number; y: number }) => {
-    selection = {
-      sheet,
-      sx: Math.min(a.x, b.x),
-      sy: Math.min(a.y, b.y),
-      w: Math.abs(a.x - b.x) + 1,
-      h: Math.abs(a.y - b.y) + 1,
-    };
-    drawSheet();
-  };
-  // A click picks the object under it; once the pointer leaves the pressed cell it is a drag,
-  // which picks exactly the dragged block (the manual override, e.g. for wall/floor sets).
-  sheetCanvas.addEventListener('pointerdown', (e) => {
-    dragFrom = cellAt(e);
-    dragged = false;
-    sheetCanvas.setPointerCapture(e.pointerId);
-    hoverPick = null;
-    selection = { sheet, ...clickPick(e) };
-    drawSheet();
-  });
-  sheetCanvas.addEventListener('pointermove', (e) => {
-    if (!dragFrom) return setHover(clickPick(e));
-    const c = cellAt(e);
-    if (dragged || c.x !== dragFrom.x || c.y !== dragFrom.y) {
-      dragged = true;
-      selectRect(dragFrom, c);
-    }
-  });
-  sheetCanvas.addEventListener('pointerup', () => {
-    dragFrom = null;
-    setTool('decor');
-  });
-  sheetCanvas.addEventListener('pointerleave', () => {
-    if (!dragFrom) setHover(null);
-  });
-  sheetSelect.addEventListener('change', () => {
-    sheet = sheetSelect.value;
-    hoverPick = null;
-    drawSheet();
-  });
-  drawSheet();
 }
 
 // ---------- map canvas ----------
@@ -873,7 +742,13 @@ async function checkPermission(): Promise<boolean> {
 if (hasSupabase) void checkPermission().then((ok) => (canSave = ok));
 
 setTool('paint');
-renderDecorPicker();
+// Picking cells or a transform switches to the Decoration tool; a Block mode change only redraws.
+const picker = mountDecorPicker($<HTMLDivElement>('#decor-body'), (s) => {
+  const modeChanged = s.mode !== blockMode;
+  ({ selection, mode: blockMode, t: brushT } = s);
+  if (modeChanged) draw();
+  else setTool('decor');
+});
 const wanted = new URLSearchParams(location.search).get('map') ?? DEFAULT_MAP.id;
 refreshMaps(wanted)
   .then(() => openMap(maps.some((m) => m.id === wanted) ? wanted : maps[0]!.id))
