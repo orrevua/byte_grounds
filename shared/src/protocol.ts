@@ -9,17 +9,24 @@ export const DEFAULT_ROOM = 'lounge'; // = DEFAULT_MAP.id (shared/src/maps.ts)
 
 export type PeerId = string;
 
-/** What an avatar is doing: walking/standing, sitting on a seat, or lying on a bed. */
-export type Pose = 'stand' | 'sit' | 'lie';
+/** What an avatar is doing: walking/standing, sitting on a seat, lying on a bed, or dancing. */
+export const POSES = ['stand', 'sit', 'lie', 'dance'] as const;
+export type Pose = (typeof POSES)[number];
+
+/** Coerce an incoming pose: unknown/missing values stand (a future pose must not render lying). */
+export function normalizePose(x: unknown): Pose {
+  return POSES.includes(x as Pose) ? (x as Pose) : 'stand';
+}
 export type Facing = 'up' | 'down' | 'left' | 'right';
 
 /** Structured, typed character descriptor (replaces the old `variant` id). */
 export interface Appearance {
-  body: 'male' | 'female'; // sex; light skin only (asset limit)
+  body: 'male' | 'female'; // sex: keys every legs/torso/hair file
   hair: 'brown' | 'black' | 'blonde' | 'none'; // 'none' = omit the hair layer
-  outfit: 'casual' | 'business'; // garment family (casual longsleeve/tunic vs formal)
+  outfit: 'casual' | 'business' | 'none'; // garment family (casual longsleeve/tunic vs formal); 'none' = bare (creatures only)
   torso: 'teal' | 'maroon' | 'brown' | 'white' | 'pink' | 'green'; // top color (clamped to the outfit's palette)
   legs: 'teal' | 'red' | 'white' | 'navy' | 'pink'; // pants color
+  skin: 'light' | 'orc' | 'skeleton'; // body sheet (no female skeleton; clamped per sex)
 }
 
 export interface PeerState {

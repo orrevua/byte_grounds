@@ -87,7 +87,7 @@ vi.mock('@supabase/supabase-js', () => ({
   }),
 }));
 
-const appearance = { body: 'male', hair: 'brown', outfit: 'casual', torso: 'teal', legs: 'teal' } as const;
+const appearance = { body: 'male', hair: 'brown', outfit: 'casual', torso: 'teal', legs: 'teal', skin: 'light' } as const;
 
 async function joinAs(name: string): Promise<{ net: SupabaseNet; inbox: ServerToClient[]; id: string }> {
   const inbox: ServerToClient[] = [];
@@ -134,6 +134,18 @@ describe('SupabaseNet', () => {
     vi.advanceTimersByTime(200);
     expect(b.inbox.filter((m) => m.type === 'peer-moved')).toEqual([
       { type: 'peer-moved', id: a.id, x: 5, y: 6 },
+    ]);
+  });
+
+  it('carries a dance pose and its facing to the other side', async () => {
+    const a = await joinAs('alice');
+    const b = await joinAs('bob');
+    b.inbox.length = 0;
+    a.net.send({ type: 'position', x: 3, y: 4, pose: 'dance', dir: 'down' });
+
+    vi.advanceTimersByTime(200);
+    expect(b.inbox.filter((m) => m.type === 'peer-moved')).toEqual([
+      { type: 'peer-moved', id: a.id, x: 3, y: 4, pose: 'dance', dir: 'down' },
     ]);
   });
 

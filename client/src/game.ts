@@ -1,5 +1,5 @@
 import { decorLayer, seatsNearIn, type DecorCell, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
-import { POSITION_TICK_MS, TILE_SIZE } from '@byte_grounds/shared/protocol';
+import { POSITION_TICK_MS, TILE_SIZE, normalizePose } from '@byte_grounds/shared/protocol';
 import { effectiveSeats } from '@byte_grounds/shared/seats';
 import type { Appearance, PeerId, PeerState, Pose, ServerToClient } from '@byte_grounds/shared/protocol';
 import { drawAvatar, drawDecorCellAt, drawMap, drawNameLabel, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
@@ -64,6 +64,7 @@ export class Game {
   /** The map's usable seats (authored + automatic); recomputed by `refreshSeats`. */
   private seats: Seat[];
   private readonly seatBtn: HTMLButtonElement;
+  private readonly danceBtn: HTMLButtonElement;
   private sentPose: Pose = 'stand';
   private sentDir: Direction = 'down';
   private readonly remotes = new Map<PeerId, RemoteAvatar>();
@@ -109,6 +110,10 @@ export class Game {
     this.seatBtn.className = 'hidden';
     this.seatBtn.addEventListener('click', () => this.toggleSeat());
     document.body.appendChild(this.seatBtn);
+    this.danceBtn = document.createElement('button');
+    this.danceBtn.id = 'dance-btn';
+    this.danceBtn.addEventListener('click', () => this.toggleDance());
+    document.body.appendChild(this.danceBtn);
     addEventListener('keydown', this.onKey);
     addEventListener('resize', this.fitCanvas);
 
@@ -148,6 +153,7 @@ export class Game {
     removeEventListener('keydown', this.onKey);
     removeEventListener('resize', this.fitCanvas);
     this.seatBtn.remove();
+    this.danceBtn.remove();
     this.mesh.closeAll();
   }
 
@@ -177,7 +183,7 @@ export class Game {
       dir: p.dir ?? 'down',
       animMs: 0,
       moving: false,
-      pose: p.pose ?? 'stand',
+      pose: normalizePose(p.pose),
     };
   }
 
@@ -202,7 +208,7 @@ export class Game {
         if (r) {
           r.tx = msg.x;
           r.ty = msg.y;
-          const pose = msg.pose ?? 'stand';
+          const pose = normalizePose(msg.pose);
           if (pose !== r.pose) {
             // Jump onto / off the seat instead of gliding through the furniture.
             r.x = msg.x;
@@ -231,7 +237,9 @@ export class Game {
     this.lastT = t;
 
     const input = this.moveInput();
-    if (this.seat && (input.up || input.down || input.left || input.right)) this.standUp();
+    const moveHeld = input.up || input.down || input.left || input.right;
+    if (moveHeld && this.self.pose === 'dance') this.self.pose = 'stand';
+    if (this.seat && moveHeld) this.standUp();
     if (!this.seat) {
       const prevX = this.self.x;
       const prevY = this.self.y;
@@ -251,7 +259,7 @@ export class Game {
     }
 
     this.updateProximity();
-    this.updateSeatButton();
+    this.updateButtons();
 
     this.sinceSend += dt * 1000;
     if (this.sinceSend >= POSITION_TICK_MS) {
@@ -281,9 +289,12 @@ export class Game {
   };
 
   private readonly onKey = (e: KeyboardEvent): void => {
-    if (e.key.toLowerCase() !== 'e' || e.repeat) return;
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-    this.toggleSeat();
+    if (e.repeat) return;
+    const t = e.target;
+    if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) return;
+    const key = e.key.toLowerCase();
+    if (key === 'e') this.toggleSeat();
+    else if (key === 'q') this.toggleDance();
   };
 
   /** The nearest seat in reach that nobody else is using. */
@@ -291,12 +302,13 @@ export class Game {
     return seatsNearIn(this.seats, this.self.x, this.self.y, SEAT_REACH).find(
       (st) =>
         ![...this.remotes.values()].some(
-          (r) => r.pose !== 'stand' && Math.abs(r.tx - (st.x + 0.5)) < 0.1 && Math.abs(r.ty - (st.y + 0.5)) < 0.1,
+          (r) => (r.pose === 'sit' || r.pose === 'lie') && Math.abs(r.tx - (st.x + 0.5)) < 0.1 && Math.abs(r.ty - (st.y + 0.5)) < 0.1,
         ),
     );
   }
 
   toggleSeat(): void {
+    if (this.self.pose === 'dance') return;
     if (this.seat) return this.standUp();
     const st = this.freeSeatNearby();
     if (!st) return;
@@ -308,6 +320,12 @@ export class Game {
     this.self.moving = false;
   }
 
+  /** Start / stop dancing in place; not while seated. */
+  toggleDance(): void {
+    if (this.seat) return;
+    this.self.pose = this.self.pose === 'dance' ? 'stand' : 'dance';
+  }
+
   private standUp(): void {
     if (!this.seat) return;
     this.self.x = this.seat.standX;
@@ -316,9 +334,17 @@ export class Game {
     this.seat = null;
   }
 
-  /** "Sit (E)" / "Lie down (E)" near a free seat, "Stand up (E)" while seated, else hidden. */
-  private updateSeatButton(): void {
-    const near = this.seat ? null : this.freeSeatNearby();
+  /**
+   * Seat button: "Sit (E)" / "Lie down (E)" near a free seat, "Stand up (E)" while seated, hidden
+   * otherwise and while dancing. Dance button: "Dance (Q)" / "Stop dancing (Q)", hidden while seated.
+   */
+  private updateButtons(): void {
+    const dancing = this.self.pose === 'dance';
+    const danceLabel = this.seat ? '' : dancing ? 'Stop dancing (Q)' : 'Dance (Q)';
+    if (this.danceBtn.textContent !== danceLabel) this.danceBtn.textContent = danceLabel;
+    this.danceBtn.className = danceLabel ? '' : 'hidden';
+
+    const near = this.seat || dancing ? null : this.freeSeatNearby();
     const label = this.seat
       ? 'Stand up (E)'
       : near
@@ -408,7 +434,7 @@ export class Game {
   private drawCharacter(a: Avatar): void {
     const { ctx } = this;
     if (appearanceReady(a.appearance)) {
-      drawPosedSprite(ctx, a.appearance, a.pose, a.dir, walkFrameIndex(a.animMs, a.moving), a.x, a.y);
+      drawPosedSprite(ctx, a.appearance, a.pose, a.dir, walkFrameIndex(a.animMs, a.moving), a.x, a.y, Date.now());
     } else {
       drawAvatar(ctx, a.x, a.y, a.color, a === this.self);
     }

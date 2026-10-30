@@ -1,7 +1,55 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-29 (Auto seats: chairs, sofas, stools and beds usable on placement)
+**Last updated:** 2026-10-29 (Dance (Q) and orc/skeleton characters)
 **Branch:** `claude/nifty-archimedes-e4o1ce`
+
+## Dance & creatures — U1–U9 code DONE, COMMITTED (2026-10-29); U9 manual checks pending
+Spec: `docs/specs/dance-and-creatures.md`.
+- **U1 recon (GitHub API, master):** `body/male/` has `orc.png`, `red_orc.png`, `skeleton.png`;
+  `body/female/` has `orc.png`, `red_orc.png` and **no skeleton**. All 832x1344; the vendored
+  `male_light.png` is byte-identical to upstream. Coverage: every vendored layer + the 3 creature
+  bodies has pixels at every dance step's frame, so **no step uses its fallback**. Registration:
+  feet and width match the human bodies at rows 8-11 col 0 (only the orc head top differs, by head
+  shape). `skinsFor`: male → light/orc/skeleton, female → light/orc (spec default).
+- **U2** `lpc/body/{male_orc,female_orc,male_skeleton}.png` (verbatim) + their sit sheets
+  (regeneration left the other 32 byte-identical); `gen_pose_sheets.py` preview combos
+  `orc_male`, `skeleton`; CREDITS.md "Creature bodies" (Marcel van de Steeg / Stephen Challener
+  for orc, Johannes Sjölund for the skeleton animations).
+- **U3** `shared/src/protocol.ts` `POSES`, `Pose` derived, `normalizePose`.
+- **U4** `sprites.ts` dance model: `DANCE_STEPS` (16 steps x 125 ms = 2 s), `ANIM_ROW`,
+  `ANIM_FRAMES`, `danceStep(ms)`, `drawDanceAppearance`.
+- **U5** `render.ts` dance branch (`nowMs`); `game.ts` passes `Date.now()` (shared beat) and
+  normalizes remote poses.
+- **U6** `game.ts` Q / `#dance-btn` (`Dance (Q)` / `Stop dancing (Q)`), hidden while seated; seat
+  button hidden and E ignored while dancing; movement ends the dance; only sit/lie remotes lock a
+  seat. E and Q are also ignored while a `<select>` has focus.
+- **U7/U8** `Appearance.skin` (light/orc/skeleton) + `outfit: 'none'` (creatures only);
+  `skinsFor`, `outfitsFor`, `fitAppearance` (used by `appearanceToLayers` and the editor);
+  Skin category; presets `orc`, `skel` (10 total); 6-part serialization (`skin` last; 4/5-part
+  legacy strings parse as light); shuffle body → skin → hair → outfit → top → pants.
+- **U9 code** `main.ts` `setAppearance` (fitAppearance after every arrow/shuffle/preset and on
+  load; Skin → skeleton also sets hair/outfit none; Top/Pants rows get `disabled` when bare);
+  `index.html` `.axis.disabled`.
+- Author-time previews (session scratchpad, not committed): `creatures_preview.png`,
+  `dance_preview.png`. They look right: no layer drops out on any dance step.
+- Tests: protocol (+2), room (+1), net-supabase (+1), sprites (+19, literals updated).
+  `npm test` 212 green; client typecheck + build green.
+
+### U9 — Manual checks (browser, two tabs; NOT exercised here)
+1. Editor: Skin row cycles Light → Orc → Skeleton for male, Light → Orc for female; switching a
+   male skeleton to female falls back to Light. Choosing Skeleton makes it bald and bare; Top/Pants
+   dim; Outfit can go back to casual/business (clothes fit the skeleton). Orc and Skeleton presets
+   work. Reload restores the creature.
+2. In world: orc and skeleton walk in 4 directions with clothes/hair aligned; sit on a chair
+   (profile + front), lie on a left/right bed and an up/down bed (tucked).
+3. Press Q: the avatar dances (arm pump, spin, swings, arms up, steps), crisp, small bob/sway,
+   name label steady. Button shows "Stop dancing (Q)". Q again or WASD stops it.
+4. While dancing, no seat button and E does nothing; while seated, no dance button and Q does
+   nothing.
+5. Second tab sees the dance; two dancers in two tabs move on the same beat. Stop → the other tab
+   sees standing/walking again. A dancer on a chair tile does not block sitting there.
+6. Dance in every outfit (casual M/F, business M/F, bare skeleton, clothed orc): no layer pops out.
+7. Phone: dance button sits above the seat button, clear of the touchpad and media controls.
 
 ## Auto seats — U1–U11 DONE, COMMITTED (2026-10-29); U12 manual checks pending
 Spec: `docs/specs/auto-seats.md`. Any stamped chair/armchair/sofa/stool/bench/throne/bed cell is a

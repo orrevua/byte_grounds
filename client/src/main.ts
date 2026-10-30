@@ -5,8 +5,8 @@ import {
   DEFAULT_APPEARANCE,
   PRESETS,
   drawAppearance,
+  fitAppearance,
   optionsFor,
-  outfitTorso,
   parseAppearance,
   preloadAll,
   serializeAppearance,
@@ -113,6 +113,15 @@ function renderJoin(): void {
     drawAppearance(previewCtx, appearance, 'down', 0, 0, 0);
   }
 
+  /** Every change goes through the cross-axis clamp; a bare outfit dims the Top/Pants rows. */
+  function setAppearance(next: Appearance): void {
+    appearance = fitAppearance(next);
+    for (const key of ['torso', 'legs']) {
+      app!.querySelector(`.axis[data-key="${key}"]`)!.classList.toggle('disabled', appearance.outfit === 'none');
+    }
+    redraw();
+  }
+
   // Per-category prev/next cycling (wrap-around).
   for (const axis of app!.querySelectorAll<HTMLDivElement>('.axis')) {
     const cat = CATEGORIES.find((c) => c.key === axis.dataset.key)!;
@@ -122,32 +131,25 @@ function renderJoin(): void {
         const cur = opts.indexOf(appearance[cat.key]);
         const step = Number(arrow.dataset.dir);
         const next = opts[(cur + step + opts.length) % opts.length];
-        appearance = { ...appearance, [cat.key]: next };
-        // Changing outfit may leave torso outside the new palette — clamp it.
-        if (cat.key === 'outfit') {
-          const topPalette = outfitTorso(appearance.outfit);
-          if (!topPalette.includes(appearance.torso)) {
-            appearance = { ...appearance, torso: topPalette[0] as Appearance['torso'] };
-          }
-        }
-        redraw();
+        // Picking the skeleton starts it bald and bare (hair/outfit can be cycled back).
+        const extra: Partial<Appearance> = cat.key === 'skin' && next === 'skeleton' ? { hair: 'none', outfit: 'none' } : {};
+        setAppearance({ ...appearance, [cat.key]: next, ...extra });
       });
     }
   }
 
   app!.querySelector<HTMLButtonElement>('#shuffle')!.addEventListener('click', () => {
-    appearance = shuffleAppearance();
-    redraw();
+    setAppearance(shuffleAppearance());
   });
 
   for (const btn of app!.querySelectorAll<HTMLButtonElement>('.preset')) {
     btn.addEventListener('click', () => {
-      appearance = PRESETS.find((p) => p.id === btn.dataset.id)!.appearance;
-      redraw();
+      setAppearance(PRESETS.find((p) => p.id === btn.dataset.id)!.appearance);
     });
   }
 
-  // Preload the full vendored set once, then draw the initial preview.
+  // Clamp a loaded appearance and dim the rows; preload the full vendored set once, then draw.
+  setAppearance(appearance);
   void preloadAll().then(redraw);
 
   go.addEventListener('click', () => {

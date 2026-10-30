@@ -30,6 +30,7 @@
       .panel button.arrow { margin: 0; padding: 4px 0; background: #14161a;
         border: 1px solid #333a44; border-radius: 6px; color: #e6e8eb; font-weight: 600; }
       .axis-label { text-align: center; font-size: 13px; }
+      .axis.disabled { opacity: .4; }
       .preset-label { font-size: 14px; }
       #presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
       .panel button.preset { margin: 0; padding: 6px 4px; background: #14161a;
@@ -40,11 +41,15 @@
       .net-banner-connecting, .net-banner-reconnecting { background: #b5842a; color: #14161a; }
       .net-banner-closed { background: #a33; color: #fff; }
       .hidden { display: none !important; }
-      #seat-btn { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+      #seat-btn, #dance-btn { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
         z-index: 15; padding: 10px 18px; border: 0; border-radius: 999px; background: #4f8cff;
         color: #fff; font: 600 14px system-ui, sans-serif; cursor: pointer;
         box-shadow: 0 4px 14px rgba(0,0,0,.35); }
-      @media (pointer: coarse) { #seat-btn { bottom: 212px; padding: 14px 22px; font-size: 16px; } }
+      #dance-btn { bottom: 64px; }
+      @media (pointer: coarse) {
+        #seat-btn, #dance-btn { bottom: 212px; padding: 14px 22px; font-size: 16px; }
+        #dance-btn { bottom: 268px; }
+      }
       .panel select { background: #14161a; color: #e6e8eb; border: 1px solid #333a44;
         border-radius: 6px; padding: 6px 8px; max-width: 170px; }
       .join-error { color: #ffb4b4; font-size: 12px; max-width: 260px; }

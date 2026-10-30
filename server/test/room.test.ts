@@ -6,7 +6,7 @@ const peer = (id: string): PeerState => ({
   id,
   name: id,
   color: '#fff',
-  appearance: { body: 'male', hair: 'brown', outfit: 'casual', torso: 'teal', legs: 'teal' },
+  appearance: { body: 'male', hair: 'brown', outfit: 'casual', torso: 'teal', legs: 'teal', skin: 'light' },
   x: 0,
   y: 0,
 });
@@ -32,6 +32,13 @@ describe('Room', () => {
     expect(r.updatePosition('a', 3, 4)).toBe(true);
     expect(r.list()[0]).toMatchObject({ x: 3, y: 4 });
     expect(r.updatePosition('missing', 1, 1)).toBe(false);
+  });
+
+  it('stores and returns a dance pose with its facing', () => {
+    const r = new Room();
+    r.add(peer('a'));
+    expect(r.updatePosition('a', 2, 2, 'dance', 'down')).toBe(true);
+    expect(r.list()[0]).toMatchObject({ pose: 'dance', dir: 'down' });
   });
 
   it('removes peers', () => {

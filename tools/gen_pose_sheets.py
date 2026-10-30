@@ -1,7 +1,7 @@
 """Author-time generator for the seated (sit) LPC avatar sheets.
 
 Reads every vendored layer under client/public/sprites/lpc/ (body, legs, torso, hair -- including
-the formal composites and pink/navy recolors) and writes a 4-frame sit sheet per layer to
+the orc/skeleton creature bodies, the formal composites and pink/navy recolors) and writes a 4-frame sit sheet per layer to
 client/public/sprites/lpc/sit/<same relative path>. Sheet layout: one row of 64x64 frames, cols
 up/left/down/right (matches `sitFrame` in client/src/sprites.ts).
 
@@ -135,6 +135,12 @@ PREVIEW_COMBOS = {
         "torso/pink_formal_female.png",
         "hair/blonde_female.png",
     ],
+    "orc_male": [
+        "body/male_orc.png",
+        "legs/teal_pants_male.png",
+        "torso/teal_longsleeve_male.png",
+    ],
+    "skeleton": ["body/male_skeleton.png"],
 }
 PREVIEW_SCALE = 4
 

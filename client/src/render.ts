@@ -5,6 +5,7 @@ import {
   FRAME_SIZE,
   LIE_SHIFT,
   drawAppearance,
+  drawDanceAppearance,
   drawSitAppearance,
   drawTuckedAppearance,
   lieMode,
@@ -124,6 +125,7 @@ const FEET_VECTOR: Record<Direction, { dx: number; dy: number }> = {
  * like standing (furniture in front hides the legs via depth sort). Lying on a left/right bed: the
  * profile frame rotated onto its side (`lieTransform`), shifted along `dir` so the head rests on
  * the pillow. On an up/down bed: tucked in, head on the pillow and a blanket over the body.
+ * Dancing: the dance step at `nowMs` (a wall clock, so every screen is on the same beat).
  */
 export function drawPosedSprite(
   ctx: CanvasRenderingContext2D,
@@ -133,6 +135,7 @@ export function drawPosedSprite(
   col: number,
   x: number,
   y: number,
+  nowMs = 0,
 ): void {
   if (pose === 'stand') return drawSprite(ctx, a, dir, col, x, y);
   ctx.imageSmoothingEnabled = false;
@@ -140,6 +143,10 @@ export function drawPosedSprite(
   const py = y * TILE_SIZE;
   if (pose === 'sit') {
     drawSitAppearance(ctx, a, dir, px - FRAME_SIZE / 2, py - FRAME_SIZE + FOOT_OFFSET);
+    return;
+  }
+  if (pose === 'dance') {
+    drawDanceAppearance(ctx, a, nowMs, px - FRAME_SIZE / 2, py - FRAME_SIZE + FOOT_OFFSET);
     return;
   }
   if (lieMode(dir) === 'tucked') {
