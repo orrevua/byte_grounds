@@ -1,4 +1,4 @@
-import { tileAt, type DecorCell, type OfficeMap } from '@byte_grounds/shared/map';
+import { decorLayer, tileAt, type DecorCell, type OfficeMap } from '@byte_grounds/shared/map';
 import { brushCells, cellBlocks, eraseDecor, setBlocked, stampDecor } from './editor-model.ts';
 import type { EditOp, MapEdit, PlaceOp } from './edit-ops.ts';
 
@@ -6,6 +6,106 @@ import type { EditOp, MapEdit, PlaceOp } from './edit-ops.ts';
 
 function inBounds(m: OfficeMap, x: number, y: number): boolean {
   return x >= 0 && y >= 0 && x < m.width && y < m.height;
+}
+
+/**
+ * A blocked tile with no furniture on it: a wall. A tile blocked only because a piece of furniture
+ * stands there (an object-layer cell) still takes another piece, so a chair can tuck into a
+ * desk's front row; drawn later in the same row, it shows in front of the desk.
+ */
+export function blockedByWall(m: OfficeMap, x: number, y: number): boolean {
+  if (tileAt(m, x, y) !== 1) return false;
+  return !(m.decor ?? []).some((d) => d.x === x && d.y === y && decorLayer(m, d) === 'object');
+}
+
+/** Largest piece a place op can describe (`parseEditOp`: w, h <= 8). */
+const MAX_PIECE = 8;
+
+/** A 1x1 place op that stamps `d` again where it is (keeps its layer and turn). */
+function cellOp(m: OfficeMap, d: DecorCell): PlaceOp {
+  return {
+    kind: 'place',
+    x: d.x,
+    y: d.y,
+    sheet: d.sheet,
+    sx: d.sx,
+    sy: d.sy,
+    w: 1,
+    h: 1,
+    mode: decorLayer(m, d) === 'floor' ? 'none' : 'base',
+    rot: d.rot ?? 0,
+    flipX: d.flipX === true,
+  };
+}
+
+/**
+ * A baked-in object (part of the stored map, not a live placement) on tile (x, y): the cells to
+ * erase, the place op that stamps it again where it is now, and `extra` 1x1 ops for what stands
+ * on it (a monitor on a desk), which moves along. The object starts from the tile's top cell;
+ * cells belong to it when they are neighbours from the same sheet, unturned, laid out as on the
+ * sheet (same sheet offset) and on the same layer, filling a rectangle of at most 8x8. Anything
+ * else is the single top cell. Null: nothing there.
+ */
+export function bakedObjectAt(
+  m: OfficeMap,
+  x: number,
+  y: number,
+): { cells: DecorCell[]; op: PlaceOp; extra: PlaceOp[] } | null {
+  const decor = m.decor ?? [];
+  let top: DecorCell | undefined;
+  for (let i = decor.length - 1; i >= 0 && !top; i--) if (decor[i]!.x === x && decor[i]!.y === y) top = decor[i];
+  if (!top) return null;
+  const layer = decorLayer(m, top);
+  const turned = (d: DecorCell) => (d.rot ?? 0) !== 0 || d.flipX === true;
+  let group = [top];
+  if (!turned(top)) {
+    const ox = top.sx - top.x;
+    const oy = top.sy - top.y;
+    const fits = (d: DecorCell) =>
+      d.sheet === top.sheet && !turned(d) && d.sx - d.x === ox && d.sy - d.y === oy && decorLayer(m, d) === layer;
+    const seen = new Set<DecorCell>([top]);
+    const queue = [top];
+    while (queue.length > 0 && seen.size <= MAX_PIECE * MAX_PIECE) {
+      const c = queue.shift()!;
+      for (const d of decor) {
+        if (seen.has(d) || Math.abs(d.x - c.x) + Math.abs(d.y - c.y) !== 1 || !fits(d)) continue;
+        seen.add(d);
+        queue.push(d);
+      }
+    }
+    group = [...seen];
+  }
+  const xs = group.map((d) => d.x);
+  const ys = group.map((d) => d.y);
+  const x0 = Math.min(...xs);
+  const y0 = Math.min(...ys);
+  const w = Math.max(...xs) - x0 + 1;
+  const h = Math.max(...ys) - y0 + 1;
+  const single = group.length !== w * h || w > MAX_PIECE || h > MAX_PIECE;
+  if (single) group = [top];
+  // What stands on the object: every cell drawn after one of its cells on the same tile.
+  const inGroup = new Set(group);
+  const stacked: DecorCell[] = [];
+  const covered = new Set<string>();
+  for (const d of decor) {
+    const key = `${d.x},${d.y}`;
+    if (inGroup.has(d)) covered.add(key);
+    else if (covered.has(key)) stacked.push(d);
+  }
+  const cell = single ? top : group.find((d) => d.x === x0 && d.y === y0)!;
+  const gw = single ? 1 : w;
+  const gh = single ? 1 : h;
+  const mode: PlaceOp['mode'] =
+    layer === 'floor'
+      ? 'none'
+      : group.some((d) => (d.baseDy ?? 0) > 0) || gh === 1 || !group.every((d) => tileAt(m, d.x, d.y) === 1)
+        ? 'base'
+        : 'all';
+  return {
+    cells: [...group, ...stacked],
+    op: { ...cellOp(m, cell), w: gw, h: gh, mode },
+    extra: stacked.map((d) => cellOp(m, d)),
+  };
 }
 
 /** The cells a place op stamps (no bounds check), carrying its layer / base row / transform. */
@@ -17,7 +117,7 @@ function applyPlace(m: OfficeMap, op: PlaceOp, knownSheet: (s: string) => boolea
   if (!knownSheet(op.sheet)) return false;
   const cells = placeCells(op).filter((c) => inBounds(m, c.x, c.y));
   if (cells.length === 0) return false;
-  if (cells.some((c) => cellBlocks(c, op.mode) && tileAt(m, c.x, c.y) === 1)) return false;
+  if (cells.some((c) => cellBlocks(c, op.mode) && blockedByWall(m, c.x, c.y))) return false;
   stampDecor(m, op.x, op.y, op, op.mode, { rot: op.rot, flipX: op.flipX });
   return true;
 }

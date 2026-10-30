@@ -4,7 +4,9 @@ import { getSupabase } from './supabase.ts';
 import { SupabaseStore } from './store.ts';
 import { decorImage, loadDecorSheets } from './decor.ts';
 import { toMapEdit, type EditOp, type MapEdit, type PlaceOp } from './edit-ops.ts';
-import { EditLog, placeCells, replaceMapContents } from './live-model.ts';
+import { EditLog, bakedObjectAt, placeCells, replaceMapContents } from './live-model.ts';
+import { cellBlocks } from './editor-model.ts';
+import { decorLayer, tileAt } from '@byte_grounds/shared/map';
 
 /** Auto-bake: quiet time after the last edit (+ up to JITTER_MS), and the unbaked edits needed. */
 const BAKE_IDLE_MS = 5000;
@@ -15,6 +17,14 @@ const UNIQUE_VIOLATION = '23505';
 const NO_PERMISSION = '42501';
 
 const knownSheet = (s: string) => decorImage(s) !== null;
+
+/**
+ * A piece picked up with the Move tool: a live placement (moved by removing it), or (admin only)
+ * an object baked into the stored map (moved by erasing its cells). `op` stamps it where it is now.
+ */
+export type MoveSource =
+  | { kind: 'live'; edit: MapEdit; op: PlaceOp }
+  | { kind: 'baked'; cells: DecorCell[]; op: PlaceOp; extra: PlaceOp[] };
 
 /** Why an edit was refused, in words for the builder. */
 function editError(err: unknown): string {
@@ -96,8 +106,8 @@ export class LiveMap {
     this.errorCbs.push(cb);
   }
 
-  /** Insert an edit; the database decides (RLS). A refusal drops its ghost and reports why. */
-  async send(op: EditOp): Promise<void> {
+  /** Insert an edit; the database decides (RLS). A refusal drops its ghost and reports why; false then. */
+  async send(op: EditOp): Promise<boolean> {
     const key = this.nextKey++;
     if (op.kind === 'place') this.sending.set(key, op);
     try {
@@ -107,10 +117,62 @@ export class LiveMap {
       const id = Number((data as { id: unknown }).id);
       if (this.log?.has(id)) this.sending.delete(key);
       else this.awaiting.set(id, key);
+      return true;
     } catch (err) {
       this.sending.delete(key);
       if ((err as { code?: string })?.code !== UNIQUE_VIOLATION) this.emitError(editError(err));
+      return false;
     }
+  }
+
+  /**
+   * The piece the Move tool picks up at tile (x, y), or why it can't: builders move their own
+   * live placements, the admin any placement and the map's own furniture.
+   */
+  pickUp(x: number, y: number): MoveSource | string {
+    const log = this.log;
+    if (!log) return 'The room is still loading';
+    const e = log.placementAt(x, y);
+    if (e) {
+      if (e.author !== this.uid && !this.opts.isAdmin) return "Only the admin can move other people's pieces";
+      return { kind: 'live', edit: e, op: e.op as PlaceOp };
+    }
+    if (!this.opts.isAdmin) return 'Nothing of yours to move here';
+    const obj = bakedObjectAt(log.map, x, y);
+    return obj ? { kind: 'baked', ...obj } : 'Nothing to move here';
+  }
+
+  /**
+   * Move a picked-up piece so its top-left lands on tile (x, y). Live: place the copy, then
+   * remove the original (a refused place leaves the original alone). Baked: erase its cells,
+   * place the copy, then free the tiles only it was blocking.
+   */
+  async moveTo(src: MoveSource, x: number, y: number): Promise<void> {
+    if (src.op.x === x && src.op.y === y) return;
+    const op: PlaceOp = { ...src.op, x, y };
+    if (src.kind === 'live') {
+      if (await this.send(op)) await this.remove(src.edit);
+      return;
+    }
+    const map = this.log?.map ?? this.target;
+    const moved = new Set(src.cells);
+    const dx = x - src.op.x;
+    const dy = y - src.op.y;
+    const extra = src.extra.map((e) => ({ ...e, x: e.x + dx, y: e.y + dy }));
+    const newBlocking = new Set(
+      [op, ...extra].flatMap((o) => placeCells(o).filter((c) => cellBlocks(c, o.mode))).map((c) => `${c.x},${c.y}`),
+    );
+    const freed = src.cells.filter(
+      (c) =>
+        tileAt(map, c.x, c.y) === 1 &&
+        !newBlocking.has(`${c.x},${c.y}`) &&
+        !(map.decor ?? []).some((d) => !moved.has(d) && d.x === c.x && d.y === c.y && decorLayer(map, d) === 'object'),
+    );
+    // 'erase' drops a tile's top cell; the moved cells are the top ones on their tiles, so one
+    // erase per moved cell takes exactly them.
+    for (const c of src.cells) await this.send({ kind: 'erase', x: c.x, y: c.y });
+    for (const o of [op, ...extra]) await this.send(o);
+    for (const c of freed) await this.send({ kind: 'tile', x: c.x, y: c.y, blocked: false });
   }
 
   /** Undo our latest placement still standing. */
@@ -127,7 +189,7 @@ export class LiveMap {
     else if (this.opts.isAdmin) await this.send({ kind: 'erase', x, y });
   }
 
-  private remove(e: MapEdit): Promise<void> {
+  private remove(e: MapEdit): Promise<boolean> {
     return this.send({ kind: 'remove', target: e.id, place: e.op as PlaceOp });
   }
 

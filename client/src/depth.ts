@@ -11,6 +11,21 @@ export function decorAnchorY(cell: { y: number; baseDy?: number }): number {
   return cell.y + (cell.baseDy ?? 0) + 0.5;
 }
 
+/**
+ * Anchors for object cells in draw order: each is its own `decorAnchorY`, but never earlier than
+ * an object cell below it on the same tile, so a monitor stacked on a desk's top row sorts with
+ * the desk (by its base row) and stays on top of it instead of being drawn under it.
+ */
+export function stackedDecorAnchors(cells: readonly { x: number; y: number; baseDy?: number }[]): number[] {
+  const floorOf = new Map<string, number>();
+  return cells.map((c) => {
+    const key = `${c.x},${c.y}`;
+    const anchor = Math.max(decorAnchorY(c), floorOf.get(key) ?? -Infinity);
+    floorOf.set(key, anchor);
+    return anchor;
+  });
+}
+
 /** An avatar's anchor is its feet point. */
 export function avatarAnchorY(a: { y: number }): number {
   return a.y;

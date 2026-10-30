@@ -1,10 +1,14 @@
 import { mountDecorPicker, transformForKey, type PickerState } from './decor-picker.ts';
 
-/** What a click on the map does while building; everything but `place` is admin-only. */
-export type BuildTool = 'place' | 'erase' | 'block' | 'walk';
+/** What a click on the map does while building; erase / block / walk are admin-only. */
+export type BuildTool = 'place' | 'move' | 'erase' | 'block' | 'walk';
 
-const ADMIN_TOOLS: { id: BuildTool; label: string }[] = [
+const BUILDER_TOOLS: { id: BuildTool; label: string }[] = [
   { id: 'place', label: 'Place' },
+  { id: 'move', label: 'Move' },
+];
+const ADMIN_TOOLS: { id: BuildTool; label: string }[] = [
+  ...BUILDER_TOOLS,
   { id: 'erase', label: 'Erase' },
   { id: 'block', label: 'Block' },
   { id: 'walk', label: 'Walk' },
@@ -18,6 +22,8 @@ const ADMIN_TOOLS: { id: BuildTool; label: string }[] = [
 export class BuildPanel {
   tool: BuildTool = 'place';
   onUndo: (() => void) | null = null;
+  /** Called when the tool changes (the game drops a piece being moved). */
+  onTool: ((t: BuildTool) => void) | null = null;
   private el: HTMLDivElement | null = null;
   private picker: ReturnType<typeof mountDecorPicker> | null = null;
 
@@ -59,17 +65,13 @@ export class BuildPanel {
     el.querySelector('.build-close')!.addEventListener('click', () => this.close());
     el.querySelector('.build-undo')!.addEventListener('click', () => this.onUndo?.());
     const tools = el.querySelector<HTMLDivElement>('.build-tools')!;
-    if (this.isAdmin) {
-      for (const t of ADMIN_TOOLS) {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.textContent = t.label;
-        b.dataset.tool = t.id;
-        b.addEventListener('click', () => this.setTool(t.id));
-        tools.appendChild(b);
-      }
-    } else {
-      tools.remove();
+    for (const t of this.isAdmin ? ADMIN_TOOLS : BUILDER_TOOLS) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = t.label;
+      b.dataset.tool = t.id;
+      b.addEventListener('click', () => this.setTool(t.id));
+      tools.appendChild(b);
     }
     document.body.appendChild(el);
     // Picking a piece (or turning it) goes back to placing; a Block mode change doesn't.
@@ -84,6 +86,7 @@ export class BuildPanel {
   }
 
   private setTool(t: BuildTool): void {
+    if (t !== this.tool) this.onTool?.(t);
     this.tool = t;
     for (const b of this.el?.querySelectorAll<HTMLButtonElement>('.build-tools button') ?? []) {
       b.classList.toggle('active', b.dataset.tool === t);

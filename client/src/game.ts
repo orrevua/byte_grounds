@@ -1,9 +1,9 @@
-import { decorLayer, seatsNearIn, tileAt, type DecorCell, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
+import { decorLayer, seatsNearIn, type DecorCell, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
 import { POSITION_TICK_MS, TILE_SIZE, normalizePose } from '@byte_grounds/shared/protocol';
-import { effectiveSeats } from '@byte_grounds/shared/seats';
+import { effectiveSeats, seatSpot } from '@byte_grounds/shared/seats';
 import type { Appearance, PeerId, PeerState, Pose, ServerToClient } from '@byte_grounds/shared/protocol';
 import { drawAvatar, drawDecorCellAt, drawMap, drawNameLabel, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
-import { avatarAnchorY, decorAnchorY, sortRenderables } from './depth.ts';
+import { avatarAnchorY, sortRenderables, stackedDecorAnchors } from './depth.ts';
 import { cameraOffset, viewportSize } from './camera.ts';
 import { Keyboard, TouchPad, isTouchDevice } from './input.ts';
 import { stepMovement, type MoveInput } from './movement.ts';
@@ -13,10 +13,11 @@ import { WebrtcMesh } from './webrtc.ts';
 import { avatarAt, screenToWorld } from './hit.ts';
 import { AvatarMenu } from './avatar-menu.ts';
 import type { GrantsFeed } from './grants.ts';
-import type { LiveMap } from './live-map.ts';
+import type { LiveMap, MoveSource } from './live-map.ts';
 import { BuildPanel } from './build-panel.ts';
 import { brushCells, cellBlocks } from './editor-model.ts';
 import { placeOp } from './edit-ops.ts';
+import { blockedByWall, placeCells } from './live-model.ts';
 import {
   appearanceReady,
   directionFromDelta,
@@ -83,6 +84,8 @@ export class Game {
   private buildBtn: HTMLButtonElement | null = null;
   /** The tile under the pointer while building (ghost position). */
   private buildHover: { x: number; y: number } | null = null;
+  /** Move tool: the piece picked up, and which of its tiles was grabbed (it follows the pointer). */
+  private moving: { src: MoveSource; dx: number; dy: number } | null = null;
   private toastEl: HTMLDivElement | null = null;
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
   /** The seat we're on, and where we stood before, to step back there when getting up. */
@@ -223,6 +226,7 @@ export class Game {
     this.live = live;
     const panel = (this.panel = new BuildPanel(this.isAdmin));
     panel.onUndo = () => void live.undoOwn();
+    panel.onTool = () => (this.moving = null);
     const btn = (this.buildBtn = document.createElement('button'));
     btn.id = 'build-btn';
     btn.className = 'hidden';
@@ -400,6 +404,10 @@ export class Game {
     const t = e.target;
     if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) return;
     const key = e.key.toLowerCase();
+    if (key === 'escape' && this.moving) {
+      this.moving = null;
+      return;
+    }
     if (key === 'e') this.toggleSeat();
     else if (key === 'q') this.toggleDance();
   };
@@ -432,12 +440,25 @@ export class Game {
     return x >= 0 && y >= 0 && x < this.map.width && y < this.map.height;
   }
 
-  /** The piece a click at (x, y) would place, and its blocking cells on blocked tiles (then a no-op). */
+  /** The piece a click at (x, y) would place (or drop, when moving), and its blocking cells on walls (then a no-op). */
   private ghostAt(x: number, y: number): { cells: DecorCell[]; blocked: DecorCell[] } | null {
-    const s = this.panel?.state();
-    if (this.panel?.tool !== 'place' || !s?.selection) return null;
-    const cells = brushCells(x, y, s.selection, s.t, s.mode);
-    const blocked = cells.filter((c) => cellBlocks(c, s.mode) && this.inMap(c.x, c.y) && tileAt(this.map, c.x, c.y) === 1);
+    let cells: DecorCell[];
+    let mode;
+    if (this.panel?.tool === 'move') {
+      if (!this.moving) return null;
+      const { src, dx, dy } = this.moving;
+      const ox = x - dx - src.op.x;
+      const oy = y - dy - src.op.y;
+      const extra = src.kind === 'baked' ? src.extra : [];
+      cells = [src.op, ...extra].flatMap((o) => placeCells({ ...o, x: o.x + ox, y: o.y + oy }));
+      mode = src.op.mode;
+    } else {
+      const s = this.panel?.state();
+      if (this.panel?.tool !== 'place' || !s?.selection) return null;
+      cells = brushCells(x, y, s.selection, s.t, s.mode);
+      mode = s.mode;
+    }
+    const blocked = cells.filter((c) => cellBlocks(c, mode) && this.inMap(c.x, c.y) && blockedByWall(this.map, c.x, c.y));
     return { cells, blocked };
   }
 
@@ -451,6 +472,19 @@ export class Game {
         if (!s?.selection) return this.toast('Pick a piece in the Build panel first');
         if (this.ghostAt(x, y)?.blocked.length) return;
         void live.send(placeOp(x, y, s.selection, s.mode, s.t));
+        return;
+      }
+      case 'move': {
+        if (!this.moving) {
+          const src = live.pickUp(x, y);
+          if (typeof src === 'string') return this.toast(src);
+          this.moving = { src, dx: x - src.op.x, dy: y - src.op.y };
+          return this.toast('Click where it should go (Esc cancels)');
+        }
+        if (this.ghostAt(x, y)?.blocked.length) return;
+        const { src, dx, dy } = this.moving;
+        this.moving = null;
+        void live.moveTo(src, x - dx, y - dy);
         return;
       }
       case 'erase':
@@ -575,9 +609,9 @@ export class Game {
     type DecorItem = { anchorY: number; isAvatar: false; cell: DecorCell };
     type AvatarItem = { anchorY: number; isAvatar: true; id: PeerId | null; av: Avatar; isSelf: boolean };
     const items: (DecorItem | AvatarItem)[] = [];
-    for (const d of map.decor ?? []) {
-      if (decorLayer(map, d) === 'object') items.push({ anchorY: decorAnchorY(d), isAvatar: false, cell: d });
-    }
+    const objects = (map.decor ?? []).filter((d) => decorLayer(map, d) === 'object');
+    const anchors = stackedDecorAnchors(objects);
+    objects.forEach((d, i) => items.push({ anchorY: anchors[i]!, isAvatar: false, cell: d }));
     for (const [id, r] of this.remotes) {
       items.push({ anchorY: avatarAnchorY(r), isAvatar: true, id, av: r, isSelf: false });
     }
@@ -589,6 +623,7 @@ export class Game {
       } else {
         if (!it.isSelf && it.id !== null && this.prox.get(it.id) === 'near') this.drawRing(it.av.x, it.av.y);
         this.drawCharacter(it.av);
+        if (it.av.pose === 'sit' && it.av.dir === 'up') this.drawChairBackOver(it.av);
       }
     }
 
@@ -605,11 +640,37 @@ export class Game {
     }
   }
 
+  /**
+   * Sitting with the back to the viewer, the chair's backrest is nearer than the body: draw the
+   * chair cells of the seat tile again over the avatar, so only the back of the head shows.
+   * Only seat cells (chairs, sofas…) are redrawn; a desk in the same row stays behind.
+   */
+  private drawChairBackOver(a: Avatar): void {
+    const x = Math.floor(a.x);
+    const y = Math.floor(a.y);
+    for (const d of this.map.decor ?? []) {
+      if (d.x === x && d.y === y && decorLayer(this.map, d) === 'object' && seatSpot(d.sheet, d.sx, d.sy)) {
+        drawDecorCellAt(this.ctx, d);
+      }
+    }
+  }
+
   /** Own edits on their way (ghosts), and while building the piece / tile under the pointer. */
   private drawBuildOverlay(): void {
     const { ctx } = this;
+    if (!this.panel?.isOpen) this.moving = null;
     const pending = this.live?.pending ?? [];
     const hover = this.panel?.isOpen ? this.buildHover : null;
+    if (this.moving) {
+      // Outline where the picked-up piece stands now.
+      ctx.strokeStyle = '#4fe0a0';
+      ctx.lineWidth = 2;
+      const { src } = this.moving;
+      for (const c of [src.op, ...(src.kind === 'baked' ? src.extra : [])].flatMap(placeCells)) {
+        ctx.strokeRect(c.x * TILE_SIZE + 1, c.y * TILE_SIZE + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+      }
+      ctx.lineWidth = 1;
+    }
     const ghost = hover && this.ghostAt(hover.x, hover.y);
     if (pending.length === 0 && !hover) return;
     ctx.save();
