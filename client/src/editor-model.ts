@@ -113,6 +113,7 @@ export function eraseDecor(m: OfficeMap, x: number, y: number): boolean {
  */
 export function toggleSeat(m: OfficeMap, x: number, y: number, kind: Seat['kind'], dir: Facing): Seat | undefined {
   if (!inBounds(m, x, y)) return undefined;
+  removeNoSeat(m, x, y);
   m.seats ??= [];
   const i = m.seats.findIndex((st) => st.x === x && st.y === y);
   if (i >= 0 && m.seats[i]!.kind === kind && m.seats[i]!.dir === dir) {
@@ -123,6 +124,26 @@ export function toggleSeat(m: OfficeMap, x: number, y: number, kind: Seat['kind'
   if (i >= 0) m.seats[i] = seat;
   else m.seats.push(seat);
   return seat;
+}
+
+/** Drop tile (x, y) from `noSeats`, deleting the field once empty; true if it was there. */
+function removeNoSeat(m: OfficeMap, x: number, y: number): boolean {
+  const i = m.noSeats?.findIndex((t) => t.x === x && t.y === y) ?? -1;
+  if (i < 0) return false;
+  m.noSeats!.splice(i, 1);
+  if (m.noSeats!.length === 0) delete m.noSeats;
+  return true;
+}
+
+/**
+ * Turn the automatic seat on tile (x, y) off, or back on if it was off. Turning it off also
+ * removes an authored seat there. Returns true when the tile is now off.
+ */
+export function toggleNoSeat(m: OfficeMap, x: number, y: number): boolean {
+  if (!inBounds(m, x, y) || removeNoSeat(m, x, y)) return false;
+  m.seats = (m.seats ?? []).filter((st) => st.x !== x || st.y !== y);
+  (m.noSeats ??= []).push({ x, y });
+  return true;
 }
 
 /** Spawn at the tile's center; it also becomes walkable so players can't spawn in a wall. */
@@ -147,8 +168,10 @@ export function resizeMap(m: OfficeMap, width: number, height: number): OfficeMa
   }
   const spawn =
     m.spawn.x < w && m.spawn.y < h ? m.spawn : { x: Math.min(1.5, w - 0.5), y: Math.min(1.5, h - 0.5) };
+  const { noSeats, ...rest } = m;
+  const keptNoSeats = (noSeats ?? []).filter((t) => t.x < w && t.y < h);
   return {
-    ...m,
+    ...rest,
     width: w,
     height: h,
     tiles,
@@ -156,6 +179,7 @@ export function resizeMap(m: OfficeMap, width: number, height: number): OfficeMa
     spawn,
     decor: (m.decor ?? []).filter((d) => d.x < w && d.y < h),
     seats: (m.seats ?? []).filter((st) => st.x < w && st.y < h),
+    ...(keptNoSeats.length > 0 ? { noSeats: keptNoSeats } : {}),
   };
 }
 

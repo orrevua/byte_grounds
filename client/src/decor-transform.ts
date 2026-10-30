@@ -1,4 +1,6 @@
-import type { DecorCell, Facing, Rotation } from '@byte_grounds/shared/map';
+import type { DecorCell, Rotation } from '@byte_grounds/shared/map';
+
+export { transformFacing } from '@byte_grounds/shared/map';
 
 /**
  * One of the 8 orientations of a decor piece: mirror horizontally (`flipX`) first, then turn
@@ -57,14 +59,6 @@ export function transformOffset(
     default:
       return { dx: x, dy };
   }
-}
-
-const CLOCKWISE: readonly Facing[] = ['up', 'right', 'down', 'left'];
-
-/** A facing carried through the transform: mirror swaps left/right, then turn clockwise. */
-export function transformFacing(dir: Facing, t: DecorTransform): Facing {
-  const mirrored = t.flipX && dir === 'left' ? 'right' : t.flipX && dir === 'right' ? 'left' : dir;
-  return CLOCKWISE[(CLOCKWISE.indexOf(mirrored) + t.rot / 90) % 4]!;
 }
 
 /** Canonical fields for a DecorCell: {} for identity, else {rot?} / {flipX: true}. */

@@ -1,6 +1,7 @@
 import { TILE_SIZE } from '@byte_grounds/shared/protocol';
 import { createBlankMap, mapIdFromName, tileAt, type Facing, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
 import { DEFAULT_MAP } from '@byte_grounds/shared/maps';
+import { effectiveSeats } from '@byte_grounds/shared/seats';
 import { drawDecorCellAt, drawMap, drawObjectDecorFlat, mapPixelSize } from './render.ts';
 import { DECOR_SHEETS, TILE_SHEETS, decorImage, decorObjects, loadDecorSheets } from './decor.ts';
 import { objectAt, objectCells, type CellRect } from './decor-objects.ts';
@@ -24,6 +25,7 @@ import {
   setBlocked,
   setSpawn,
   stampDecor,
+  toggleNoSeat,
   toggleSeat,
   type BlockMode,
   type DecorSelection,
@@ -86,7 +88,7 @@ let color = SWATCHES[2]!;
 let selection: DecorSelection | null = null;
 let brushT: DecorTransform = IDENTITY;
 let blockMode: BlockMode = 'base';
-let seatKind: Seat['kind'] = 'sit';
+let seatKind: Seat['kind'] | 'none' = 'sit';
 let seatDir: Facing = 'down';
 let showWalls = true;
 let zoom = 1;
@@ -141,7 +143,10 @@ root.innerHTML = `
     <section id="seat-section">
       <h2>Seat / bed</h2>
       <div class="row">
-        <select id="seat-kind"><option value="sit">Sit (chair, sofa)</option><option value="lie">Lie (bed)</option></select>
+        <select id="seat-kind">
+          <option value="sit">Sit (chair, sofa)</option><option value="lie">Lie (bed)</option>
+          <option value="none">No seat (turn off automatic)</option>
+        </select>
         <select id="seat-dir">
           <option value="down">↓ down</option><option value="up">↑ up</option>
           <option value="left">← left</option><option value="right">→ right</option>
@@ -380,14 +385,19 @@ addEventListener('beforeunload', (e) => {
 
 const seatHint = $<HTMLParagraphElement>('#seat-hint');
 function updateSeatHint(): void {
+  const auto = 'Chairs, sofas, stools and beds get automatic seats (outlined badges). ';
   seatHint.textContent =
-    seatKind === 'sit'
-      ? 'Click the chair/sofa tile. The arrow is the way the person faces. Click again to remove.'
-      : 'Click the bed tile with the pillow. The arrow is where the feet point. Click again to remove. ' +
-        'Rotated a bed? Press R here to turn the arrow the same way.';
+    auto +
+    (seatKind === 'sit'
+      ? 'Click a tile to set your own seat (filled badge): the arrow is the way the person faces. ' +
+        'Click again to remove.'
+      : seatKind === 'lie'
+        ? 'Click the bed tile with the pillow to set your own bed spot: the arrow is where the feet point. ' +
+          'Click again to remove. Press R here to turn the arrow.'
+        : 'Click an automatic seat to turn it off (grey ×); click again to turn it back on.');
 }
 $<HTMLSelectElement>('#seat-kind').addEventListener('change', (e) => {
-  seatKind = (e.target as HTMLSelectElement).value as Seat['kind'];
+  seatKind = (e.target as HTMLSelectElement).value as Seat['kind'] | 'none';
   updateSeatHint();
   setTool('seat');
 });
@@ -605,19 +615,40 @@ function draw(): void {
     }
     ctx.restore();
   }
-  // Seat / bed markers: a badge with the facing arrow.
+  // Seat / bed markers: a filled badge (authored) or a ring (automatic) with the facing arrow;
+  // a grey × where an automatic seat is turned off.
   ctx.font = 'bold 12px system-ui';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  for (const st of map.seats ?? []) {
+  const authored = map.seats?.length ?? 0;
+  effectiveSeats(map).forEach((st, i) => {
     const cx = st.x * TILE_SIZE + TILE_SIZE / 2;
     const cy = st.y * TILE_SIZE + TILE_SIZE / 2;
-    ctx.fillStyle = st.kind === 'lie' ? 'rgba(160, 110, 255, 0.85)' : 'rgba(255, 190, 60, 0.9)';
+    const tint = st.kind === 'lie' ? 'rgba(160, 110, 255, 0.85)' : 'rgba(255, 190, 60, 0.9)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 9, 0, Math.PI * 2);
+    if (i < authored) {
+      ctx.fillStyle = tint;
+      ctx.fill();
+      ctx.fillStyle = '#14161a';
+    } else {
+      ctx.strokeStyle = tint;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.fillStyle = tint;
+    }
+    ctx.fillText(ARROW[st.dir], cx, cy + 0.5);
+  });
+  for (const { x, y } of map.noSeats ?? []) {
+    const cx = x * TILE_SIZE + TILE_SIZE / 2;
+    const cy = y * TILE_SIZE + TILE_SIZE / 2;
+    ctx.fillStyle = 'rgba(150, 150, 150, 0.85)';
     ctx.beginPath();
     ctx.arc(cx, cy, 9, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#14161a';
-    ctx.fillText(ARROW[st.dir], cx, cy + 0.5);
+    ctx.fillText('×', cx, cy + 0.5);
   }
   // Spawn marker.
   ctx.fillStyle = '#4fe0a0';
@@ -684,7 +715,9 @@ function apply(x: number, y: number, first: boolean): void {
       if (first) setSpawn(map, x, y);
       break;
     case 'seat':
-      if (first) toggleSeat(map, x, y, seatKind, seatDir);
+      if (!first) break;
+      if (seatKind === 'none') toggleNoSeat(map, x, y);
+      else toggleSeat(map, x, y, seatKind, seatDir);
       break;
   }
   draw();

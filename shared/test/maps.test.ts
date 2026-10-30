@@ -4,6 +4,9 @@ import { resolve } from 'node:path';
 import { isWalkable, parseMap, tileAt, type OfficeMap } from '../src/map.ts';
 import { BUILT_IN_MAPS, DEFAULT_MAP, builtInMap, builtInRev } from '../src/maps.ts';
 import { DEFAULT_ROOM } from '../src/protocol.ts';
+import { effectiveSeats } from '../src/seats.ts';
+
+const SEAT_COUNTS: Record<string, number> = { office: 76, lounge: 78, home: 32 };
 
 const DECOR_DIR = resolve(import.meta.dirname, '../../client/src/assets/decor');
 
@@ -62,11 +65,16 @@ describe('built-in maps', () => {
 
       it('lets every seat be reached from spawn', () => {
         const seen = reachable(m);
-        const unreachable = (m.seats ?? []).filter(
+        const seats = effectiveSeats(m);
+        const unreachable = seats.filter(
           ({ x, y }) => ![[x, y], [x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]].some((p) => seen.has(p.join())),
         );
-        expect(m.seats!.length).toBeGreaterThan(0);
+        expect(seats.length).toBeGreaterThan(0);
         expect(unreachable).toEqual([]);
+      });
+
+      it('offers exactly the expected seats (automatic ones add no extras)', () => {
+        expect(effectiveSeats(m).length).toBe(SEAT_COUNTS[m.id]);
       });
 
       it('only references existing decor sheets and cells', () => {

@@ -163,6 +163,39 @@ describe('seats', () => {
     expect(resizeMap(m, 4, 4).seats).toEqual([{ x: 1, y: 1, kind: 'sit', dir: 'left' }]);
   });
 
+  it('turns an automatic seat off and back on, deleting the field when empty', async () => {
+    const { toggleNoSeat } = await import('../src/editor-model.ts');
+    const m = createBlankMap('a', 6, 6);
+    expect(toggleNoSeat(m, 2, 3)).toBe(true);
+    expect(m.noSeats).toEqual([{ x: 2, y: 3 }]);
+    expect(toggleNoSeat(m, 2, 3)).toBe(false);
+    expect('noSeats' in m).toBe(false);
+    expect(toggleNoSeat(m, 9, 9)).toBe(false);
+  });
+
+  it('No seat removes an authored seat; placing a seat clears No seat', async () => {
+    const { toggleNoSeat, toggleSeat } = await import('../src/editor-model.ts');
+    const m = createBlankMap('a', 6, 6);
+    toggleSeat(m, 1, 1, 'sit', 'up');
+    toggleSeat(m, 2, 2, 'sit', 'up');
+    toggleNoSeat(m, 1, 1);
+    expect(m.seats).toEqual([{ x: 2, y: 2, kind: 'sit', dir: 'up' }]);
+    toggleSeat(m, 1, 1, 'lie', 'down');
+    expect('noSeats' in m).toBe(false);
+    expect(m.seats).toHaveLength(2);
+  });
+
+  it('noSeats survive save/load and are dropped when resized away', async () => {
+    const { toggleNoSeat } = await import('../src/editor-model.ts');
+    const m = createBlankMap('a', 6, 6);
+    toggleNoSeat(m, 1, 1);
+    toggleNoSeat(m, 5, 5);
+    expect(parseMap(JSON.parse(JSON.stringify(m)))!.noSeats).toEqual(m.noSeats);
+    expect(resizeMap(m, 4, 4).noSeats).toEqual([{ x: 1, y: 1 }]);
+    toggleNoSeat(m, 1, 1);
+    expect('noSeats' in resizeMap(m, 4, 4)).toBe(false);
+  });
+
   it('parseMap drops malformed seats', () => {
     const m = { ...createBlankMap('a', 4, 4), seats: [{ x: 1, y: 1, kind: 'fly', dir: 'down' }, null] };
     expect(parseMap(m)!.seats).toEqual([]);
