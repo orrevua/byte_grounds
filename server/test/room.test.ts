@@ -6,7 +6,7 @@ const peer = (id: string): PeerState => ({
   id,
   name: id,
   color: '#fff',
-  appearance: { body: 'male', hair: 'brown', outfit: 'casual', torso: 'teal', legs: 'teal' },
+  appearance: { body: 'male', hair: 'brown', outfit: 'casual', torso: 'teal', legs: 'teal', skin: 'light' },
   x: 0,
   y: 0,
 });

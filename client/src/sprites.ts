@@ -42,8 +42,9 @@ const LPC = '/sprites/lpc';
 
 /** Per-axis option tables (the literal unions in `Appearance`). */
 export const BODY = ['male', 'female'] as const;
+export const SKIN = ['light', 'orc', 'skeleton'] as const;
 export const HAIR = ['brown', 'black', 'blonde', 'none'] as const;
-export const OUTFIT = ['casual', 'business'] as const;
+export const OUTFIT = ['casual', 'business', 'none'] as const;
 /** Top colors available per outfit (a torso color only exists for one family). */
 export const CASUAL_TORSO = ['teal', 'maroon', 'brown', 'white', 'pink'] as const;
 export const BUSINESS_TORSO = ['green', 'pink'] as const; // green = the base LPC formal color; pink = recolor
@@ -51,9 +52,28 @@ export const BUSINESS_TORSO = ['green', 'pink'] as const; // green = the base LP
 export const TORSO = ['teal', 'maroon', 'brown', 'white', 'pink', 'green'] as const;
 export const LEGS = ['teal', 'red', 'white', 'navy', 'pink'] as const;
 
-/** Top colors offered for a given outfit (casual vs business palette). */
+/** Top colors offered for a given outfit (business palette; casual otherwise, also for bare). */
 export function outfitTorso(outfit: Appearance['outfit']): readonly string[] {
   return outfit === 'business' ? BUSINESS_TORSO : CASUAL_TORSO;
+}
+
+/** Body sheets that exist for a sex (LPC ships no female skeleton). */
+export function skinsFor(body: Appearance['body']): readonly Appearance['skin'][] {
+  return body === 'male' ? SKIN : ['light', 'orc'];
+}
+
+/** Outfits offered for a skin: only creatures may go bare. */
+export function outfitsFor(skin: Appearance['skin']): readonly Appearance['outfit'][] {
+  return skin === 'light' ? ['casual', 'business'] : OUTFIT;
+}
+
+/** Clamp the cross-axis combos: skin per sex, outfit per skin, top color per outfit. */
+export function fitAppearance(a: Appearance): Appearance {
+  const skin = skinsFor(a.body).includes(a.skin) ? a.skin : 'light';
+  const outfit = outfitsFor(skin).includes(a.outfit) ? a.outfit : 'casual';
+  const palette = outfitTorso(outfit);
+  const torso = outfit === 'none' || palette.includes(a.torso) ? a.torso : (palette[0] as Appearance['torso']);
+  return { ...a, skin, outfit, torso };
 }
 
 /** Drives the editor's per-category controls generically. */
@@ -63,8 +83,9 @@ export const CATEGORIES: {
   options: readonly string[] | ((a: Appearance) => readonly string[]);
 }[] = [
   { key: 'body', label: 'Body', options: BODY },
+  { key: 'skin', label: 'Skin', options: (a) => skinsFor(a.body) },
   { key: 'hair', label: 'Hair', options: HAIR },
-  { key: 'outfit', label: 'Outfit', options: OUTFIT },
+  { key: 'outfit', label: 'Outfit', options: (a) => outfitsFor(a.skin) },
   { key: 'torso', label: 'Top', options: (a) => outfitTorso(a.outfit) },
   { key: 'legs', label: 'Pants', options: LEGS },
 ];
@@ -75,20 +96,19 @@ export function optionsFor(c: (typeof CATEGORIES)[number], a: Appearance): reado
 }
 
 /**
- * Ordered bottom→top layer URLs (body, legs, torso, hair) for an appearance. `sit` resolves the
- * same files under the generated `sit/` subtree; `stand`/`lie`/`dance` use the walk sheets.
+ * Ordered bottom→top layer URLs (body, legs, torso, hair) for an appearance, after
+ * `fitAppearance`; a bare outfit draws no legs or torso. `sit` resolves the same files under the
+ * generated `sit/` subtree; `stand`/`lie`/`dance` use the walk sheets.
  */
 export function appearanceToLayers(a: Appearance, pose: Pose = 'stand'): string[] {
+  const f = fitAppearance(a);
   const root = pose === 'sit' ? `${LPC}/sit` : LPC;
-  const style = a.outfit === 'business' ? 'formal' : a.body === 'male' ? 'longsleeve' : 'tunic';
-  const palette = outfitTorso(a.outfit);
-  const topColor = palette.includes(a.torso) ? a.torso : palette[0];
-  const layers = [
-    `${root}/body/${a.body}_light.png`,
-    `${root}/legs/${a.legs}_pants_${a.body}.png`,
-    `${root}/torso/${topColor}_${style}_${a.body}.png`,
-  ];
-  if (a.hair !== 'none') layers.push(`${root}/hair/${a.hair}_${a.body}.png`);
+  const layers = [`${root}/body/${f.body}_${f.skin}.png`];
+  if (f.outfit !== 'none') {
+    const style = f.outfit === 'business' ? 'formal' : f.body === 'male' ? 'longsleeve' : 'tunic';
+    layers.push(`${root}/legs/${f.legs}_pants_${f.body}.png`, `${root}/torso/${f.torso}_${style}_${f.body}.png`);
+  }
+  if (f.hair !== 'none') layers.push(`${root}/hair/${f.hair}_${f.body}.png`);
   return layers;
 }
 
@@ -168,16 +188,18 @@ export function danceStep(ms: number): DanceStep & { row: number } {
   return { ...s, row: ANIM_ROW[s.anim][s.dir] };
 }
 
-/** The old 6 variants re-expressed as appearances, offered as quick-start presets. */
+/** The old 6 variants re-expressed as appearances plus a few extras, offered as quick-start presets. */
 export const PRESETS: { id: string; label: string; appearance: Appearance }[] = [
-  { id: 'm1', label: 'Teal (M)', appearance: { body: 'male', hair: 'brown', outfit: 'casual', torso: 'teal', legs: 'teal' } },
-  { id: 'm2', label: 'Maroon (M)', appearance: { body: 'male', hair: 'black', outfit: 'casual', torso: 'maroon', legs: 'red' } },
-  { id: 'm3', label: 'Brown (M)', appearance: { body: 'male', hair: 'blonde', outfit: 'casual', torso: 'brown', legs: 'white' } },
-  { id: 'f1', label: 'Teal (F)', appearance: { body: 'female', hair: 'brown', outfit: 'casual', torso: 'teal', legs: 'teal' } },
-  { id: 'f2', label: 'Maroon (F)', appearance: { body: 'female', hair: 'black', outfit: 'casual', torso: 'maroon', legs: 'red' } },
-  { id: 'f3', label: 'Brown (F)', appearance: { body: 'female', hair: 'blonde', outfit: 'casual', torso: 'brown', legs: 'white' } },
-  { id: 'biz', label: 'Business (M)', appearance: { body: 'male', hair: 'black', outfit: 'business', torso: 'green', legs: 'navy' } },
-  { id: 'pink', label: 'Casual Pink (F)', appearance: { body: 'female', hair: 'blonde', outfit: 'casual', torso: 'pink', legs: 'pink' } },
+  { id: 'm1', label: 'Teal (M)', appearance: { body: 'male', hair: 'brown', outfit: 'casual', torso: 'teal', legs: 'teal', skin: 'light' } },
+  { id: 'm2', label: 'Maroon (M)', appearance: { body: 'male', hair: 'black', outfit: 'casual', torso: 'maroon', legs: 'red', skin: 'light' } },
+  { id: 'm3', label: 'Brown (M)', appearance: { body: 'male', hair: 'blonde', outfit: 'casual', torso: 'brown', legs: 'white', skin: 'light' } },
+  { id: 'f1', label: 'Teal (F)', appearance: { body: 'female', hair: 'brown', outfit: 'casual', torso: 'teal', legs: 'teal', skin: 'light' } },
+  { id: 'f2', label: 'Maroon (F)', appearance: { body: 'female', hair: 'black', outfit: 'casual', torso: 'maroon', legs: 'red', skin: 'light' } },
+  { id: 'f3', label: 'Brown (F)', appearance: { body: 'female', hair: 'blonde', outfit: 'casual', torso: 'brown', legs: 'white', skin: 'light' } },
+  { id: 'biz', label: 'Business (M)', appearance: { body: 'male', hair: 'black', outfit: 'business', torso: 'green', legs: 'navy', skin: 'light' } },
+  { id: 'pink', label: 'Casual Pink (F)', appearance: { body: 'female', hair: 'blonde', outfit: 'casual', torso: 'pink', legs: 'pink', skin: 'light' } },
+  { id: 'orc', label: 'Orc', appearance: { body: 'male', hair: 'none', outfit: 'casual', torso: 'brown', legs: 'teal', skin: 'orc' } },
+  { id: 'skel', label: 'Skeleton', appearance: { body: 'male', hair: 'none', outfit: 'none', torso: 'teal', legs: 'teal', skin: 'skeleton' } },
 ];
 
 export const DEFAULT_APPEARANCE: Appearance = PRESETS[0].appearance;
@@ -186,13 +208,15 @@ export const DEFAULT_APPEARANCE: Appearance = PRESETS[0].appearance;
 export const ALL_LAYER_URLS: string[] = [
   ...new Set(
     BODY.flatMap((body) =>
-      HAIR.flatMap((hair) =>
-        LEGS.flatMap((legs) =>
-          OUTFIT.flatMap((outfit) =>
-            outfitTorso(outfit).flatMap((torso) => {
-              const a: Appearance = { body, hair, outfit, torso: torso as Appearance['torso'], legs };
-              return [...appearanceToLayers(a), ...appearanceToLayers(a, 'sit')];
-            }),
+      skinsFor(body).flatMap((skin) =>
+        HAIR.flatMap((hair) =>
+          LEGS.flatMap((legs) =>
+            outfitsFor(skin).flatMap((outfit) =>
+              outfitTorso(outfit).flatMap((torso) => {
+                const a: Appearance = { body, hair, outfit, torso: torso as Appearance['torso'], legs, skin };
+                return [...appearanceToLayers(a), ...appearanceToLayers(a, 'sit')];
+              }),
+            ),
           ),
         ),
       ),
@@ -215,40 +239,44 @@ export function normalizeAppearance(x: unknown): Appearance {
     outfit: coerce(o.outfit, OUTFIT, DEFAULT_APPEARANCE.outfit),
     torso: coerce(o.torso, TORSO, DEFAULT_APPEARANCE.torso),
     legs: coerce(o.legs, LEGS, DEFAULT_APPEARANCE.legs),
+    skin: coerce(o.skin, SKIN, DEFAULT_APPEARANCE.skin),
   };
 }
 
-/** Compact form for localStorage / preset keys: "body.hair.outfit.torso.legs". */
+/** Compact form for localStorage / preset keys: "body.hair.outfit.torso.legs.skin". */
 export function serializeAppearance(a: Appearance): string {
-  return `${a.body}.${a.hair}.${a.outfit}.${a.torso}.${a.legs}`;
+  return `${a.body}.${a.hair}.${a.outfit}.${a.torso}.${a.legs}.${a.skin}`;
 }
 
 /**
- * Parse a serialized form back into a validated Appearance. Backward tolerant:
- * a legacy 4-part string (no `outfit`) still parses — `outfit` normalizes to the default.
+ * Parse a serialized form back into a validated Appearance. Backward tolerant: a legacy 4-part
+ * string (no `outfit`) or 5-part string (no `skin`) still parses — the missing field normalizes to
+ * the default.
  */
 export function parseAppearance(s: string): Appearance {
   const parts = s.split('.');
   const [body, hair] = parts;
-  const [outfit, torso, legs] =
+  const [outfit, torso, legs, skin] =
     parts.length >= 5 ? parts.slice(2) : [undefined, parts[2], parts[3]];
-  return normalizeAppearance({ body, hair, outfit, torso, legs });
+  return normalizeAppearance({ body, hair, outfit, torso, legs, skin });
 }
 
 function pick<T>(options: readonly T[], rand: () => number): T {
   return options[Math.floor(rand() * options.length)];
 }
 
-/** Pick a random option per category. Deterministic for a seeded `rand`. */
+/**
+ * Pick a random option per category, each from the options the earlier picks allow (body → skin →
+ * hair → outfit → top → pants), so the result is already `fitAppearance`-stable. Deterministic for
+ * a seeded `rand`.
+ */
 export function shuffleAppearance(rand: () => number = Math.random): Appearance {
-  const outfit = pick(OUTFIT, rand);
-  return {
-    body: pick(BODY, rand),
-    hair: pick(HAIR, rand),
-    outfit,
-    torso: pick(outfitTorso(outfit), rand) as Appearance['torso'],
-    legs: pick(LEGS, rand),
-  };
+  const body = pick(BODY, rand);
+  const skin = pick(skinsFor(body), rand);
+  const hair = pick(HAIR, rand);
+  const outfit = pick(outfitsFor(skin), rand);
+  const torso = pick(outfitTorso(outfit), rand) as Appearance['torso'];
+  return { body, hair, outfit, torso, legs: pick(LEGS, rand), skin };
 }
 
 // --- Image loading / drawing (non-pure, E4) ---
