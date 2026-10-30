@@ -72,6 +72,16 @@
       #avatar-menu button:disabled { opacity: .6; cursor: default; }
       #avatar-menu .menu-note { color: #9aa3ad; max-width: 240px; line-height: 1.35; }
       #avatar-menu .menu-error { color: #ffb4b4; }
+      #minimap { position: fixed; right: 12px; bottom: 12px; z-index: 12; display: flex;
+        flex-direction: column; align-items: flex-end; gap: 6px; }
+      #minimap canvas { display: block; border: 2px solid #333a44; border-radius: 6px;
+        background: #14161a; cursor: crosshair; touch-action: none;
+        box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+      #minimap button { padding: 4px 10px; border: 0; border-radius: 999px; background: #4f8cff;
+        color: #fff; font: 600 12px system-ui, sans-serif; cursor: pointer; }
+      #minimap.touch { bottom: 210px; right: 16px; }
+      /* Too narrow to sit beside the centred Sit / Dance buttons: top-right, below Build. */
+      @media (max-width: 359px) { #minimap.touch { top: 56px; bottom: auto; } }
       #build-btn { position: fixed; top: 12px; right: 12px; z-index: 15; padding: 8px 16px; border: 0;
         border-radius: 999px; background: #2d6e4e; color: #fff; font: 600 14px system-ui, sans-serif;
         cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.35); }

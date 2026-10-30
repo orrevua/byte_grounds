@@ -5,6 +5,7 @@ import type { Appearance, PeerId, PeerState, Pose, ServerToClient } from '@byte_
 import { drawAvatar, drawDecorCellAt, drawMap, drawNameLabel, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
 import { avatarAnchorY, sortRenderables, stackedDecorAnchors } from './depth.ts';
 import { cameraOffset, viewportSize } from './camera.ts';
+import { Minimap, type MinimapDot } from './minimap.ts';
 import { Keyboard, TouchPad, isTouchDevice } from './input.ts';
 import { stepMovement, type MoveInput } from './movement.ts';
 import { distanceTiles, nextProxState, type ProxState } from './proximity.ts';
@@ -109,6 +110,9 @@ export class Game {
   /** The last frame's view: camera offset (world px) and CSS scale, for mapping clicks. */
   private camX = 0;
   private camY = 0;
+  /** Where the minimap told the camera to look (world px); null = follow our avatar. */
+  private lookAt: { px: number; py: number } | null = null;
+  private minimap: Minimap | null = null;
   private scale = 1;
   /** Called when a remote avatar is clicked (client coords of the click). */
   onAvatarClick: ((id: PeerId, clientX: number, clientY: number) => void) | null = null;
@@ -153,6 +157,14 @@ export class Game {
     document.body.appendChild(this.danceBtn);
     addEventListener('keydown', this.onKey);
     addEventListener('resize', this.fitCanvas);
+    this.minimap = new Minimap(
+      this.map,
+      (px, py) => {
+        this.lookAt = { px, py };
+        this.minimap?.setFollowing(false);
+      },
+      () => this.followSelf(),
+    );
     canvas.addEventListener('pointerdown', this.onPointerDown);
     canvas.addEventListener('pointermove', this.onPointerMove);
     canvas.addEventListener('pointerleave', this.onPointerLeave);
@@ -192,6 +204,7 @@ export class Game {
     this.touchpad?.dispose();
     removeEventListener('keydown', this.onKey);
     removeEventListener('resize', this.fitCanvas);
+    this.minimap?.dispose();
     this.ctx.canvas.removeEventListener('pointerdown', this.onPointerDown);
     this.ctx.canvas.removeEventListener('pointermove', this.onPointerMove);
     this.ctx.canvas.removeEventListener('pointerleave', this.onPointerLeave);
@@ -240,6 +253,7 @@ export class Game {
     document.body.appendChild(btn);
     live.onChange((resized) => {
       this.refreshSeats();
+      this.minimap?.invalidate();
       if (resized) this.fitCanvas();
     });
     live.onError((msg) => this.toast(msg));
@@ -349,6 +363,7 @@ export class Game {
 
     const input = this.moveInput();
     const moveHeld = input.up || input.down || input.left || input.right;
+    if (moveHeld && this.lookAt) this.followSelf();
     if (moveHeld && this.self.pose === 'dance') this.self.pose = 'stand';
     if (this.seat && moveHeld) this.standUp();
     if (!this.seat) {
@@ -593,12 +608,13 @@ export class Game {
     const scale = ctx.canvas.clientWidth / ctx.canvas.width || 1;
     // A map bigger than the canvas scrolls to keep our avatar centred (clamped at the edges).
     const world = mapPixelSize(map);
-    const focus = tileToScreen(this.self.x, this.self.y);
+    const focus = this.lookAt ?? tileToScreen(this.self.x, this.self.y);
     const camX = cameraOffset(focus.px, ctx.canvas.width, world.w);
     const camY = cameraOffset(focus.py, ctx.canvas.height, world.h);
     this.camX = camX;
     this.camY = camY;
     this.scale = scale;
+    this.drawMinimap();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     ctx.setTransform(1, 0, 0, 1, -camX, -camY);
@@ -653,6 +669,21 @@ export class Game {
         drawDecorCellAt(this.ctx, d);
       }
     }
+  }
+
+  /** The camera follows our avatar again (after looking around with the minimap). */
+  private followSelf(): void {
+    this.lookAt = null;
+    this.minimap?.setFollowing(true);
+  }
+
+  private drawMinimap(): void {
+    if (!this.minimap) return;
+    const dots: MinimapDot[] = [];
+    for (const [id, r] of this.remotes) dots.push({ x: r.x, y: r.y, kind: this.prox.get(id) === 'near' ? 'near' : 'other' });
+    dots.push({ x: this.self.x, y: this.self.y, kind: 'self' });
+    const { width, height } = this.ctx.canvas;
+    this.minimap.draw({ x: this.camX, y: this.camY, w: width, h: height }, dots);
   }
 
   /** Own edits on their way (ghosts), and while building the piece / tile under the pointer. */
