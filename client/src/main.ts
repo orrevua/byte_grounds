@@ -83,7 +83,10 @@ function renderJoin(): void {
   app!.innerHTML = `
     <div id="join">
       <div class="panel">
-        <h1>ByteGrounds</h1>
+        <div class="brand">
+          <img src="/logo.svg" alt="" width="48" height="48" />
+          <div><h1>ByteGrounds</h1><p class="tagline">A tiny virtual office for friends</p></div>
+        </div>
         <label>Name <input id="name" maxlength="16" placeholder="Your name" /></label>
         <label>Map <select id="map"><option value="${DEFAULT_MAP.id}">${DEFAULT_MAP.name}</option></select></label>
         <div class="editor">
