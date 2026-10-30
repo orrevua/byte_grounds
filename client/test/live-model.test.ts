@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createBlankMap, isWalkable, type OfficeMap } from '@byte_grounds/shared/map';
 import { setBlocked, stampDecor } from '../src/editor-model.ts';
 import { placeOp, type EditOp, type MapEdit, type PlaceOp } from '../src/edit-ops.ts';
-import { EditLog, applyEdit, mergeLiveEdits, replaceMapContents } from '../src/live-model.ts';
+import { EditLog, applyEdit, blockedByWall, mergeLiveEdits, replaceMapContents } from '../src/live-model.ts';
 
 const known = () => true;
 const DESK = { sheet: 'office_grid', sx: 2, sy: 1, w: 2, h: 2 };
@@ -35,6 +35,21 @@ describe('applyEdit: place / erase / tile', () => {
     // The top row doesn't block in 'base' mode, so a blocked tile under it is fine.
     expect(applyEdit(m, desk(3, 3), known)).toBe(true);
     expect(applyEdit(m, desk(4, 2, 'none'), known)).toBe(true);
+  });
+
+  it('a chair can tuck into a tile blocked by furniture (a desk front row), not into a wall', () => {
+    const m = room();
+    expect(applyEdit(m, desk(3, 2), known)).toBe(true); // 2x2 desk; its base row (y 3) blocks
+    expect(blockedByWall(m, 4, 3)).toBe(false);
+    const chair = placeOp(4, 3, { sheet: 'office_grid', sx: 0, sy: 0, w: 1, h: 1 }, 'base', NONE);
+    expect(applyEdit(m, chair, known)).toBe(true);
+    // Stamped after the desk on the same tile, so it draws in front of it.
+    const onTile = m.decor!.filter((d) => d.x === 4 && d.y === 3);
+    expect(onTile.at(-1)).toMatchObject({ sheet: 'office_grid', sx: 0, sy: 0 });
+    // A plain wall still refuses it.
+    setBlocked(m, 8, 6, true);
+    expect(blockedByWall(m, 8, 6)).toBe(true);
+    expect(applyEdit(m, placeOp(8, 6, { sheet: 'office_grid', sx: 0, sy: 0, w: 1, h: 1 }, 'base', NONE), known)).toBe(false);
   });
 
   it('an unknown sheet or a piece fully outside the map is a no-op', () => {

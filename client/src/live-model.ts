@@ -1,4 +1,4 @@
-import { tileAt, type DecorCell, type OfficeMap } from '@byte_grounds/shared/map';
+import { decorLayer, tileAt, type DecorCell, type OfficeMap } from '@byte_grounds/shared/map';
 import { brushCells, cellBlocks, eraseDecor, setBlocked, stampDecor } from './editor-model.ts';
 import type { EditOp, MapEdit, PlaceOp } from './edit-ops.ts';
 
@@ -6,6 +6,16 @@ import type { EditOp, MapEdit, PlaceOp } from './edit-ops.ts';
 
 function inBounds(m: OfficeMap, x: number, y: number): boolean {
   return x >= 0 && y >= 0 && x < m.width && y < m.height;
+}
+
+/**
+ * A blocked tile with no furniture on it: a wall. A tile blocked only because a piece of furniture
+ * stands there (an object-layer cell) still takes another piece, so a chair can tuck into a
+ * desk's front row; drawn later in the same row, it shows in front of the desk.
+ */
+export function blockedByWall(m: OfficeMap, x: number, y: number): boolean {
+  if (tileAt(m, x, y) !== 1) return false;
+  return !(m.decor ?? []).some((d) => d.x === x && d.y === y && decorLayer(m, d) === 'object');
 }
 
 /** The cells a place op stamps (no bounds check), carrying its layer / base row / transform. */
@@ -17,7 +27,7 @@ function applyPlace(m: OfficeMap, op: PlaceOp, knownSheet: (s: string) => boolea
   if (!knownSheet(op.sheet)) return false;
   const cells = placeCells(op).filter((c) => inBounds(m, c.x, c.y));
   if (cells.length === 0) return false;
-  if (cells.some((c) => cellBlocks(c, op.mode) && tileAt(m, c.x, c.y) === 1)) return false;
+  if (cells.some((c) => cellBlocks(c, op.mode) && blockedByWall(m, c.x, c.y))) return false;
   stampDecor(m, op.x, op.y, op, op.mode, { rot: op.rot, flipX: op.flipX });
   return true;
 }

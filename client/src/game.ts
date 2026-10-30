@@ -1,4 +1,4 @@
-import { decorLayer, seatsNearIn, tileAt, type DecorCell, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
+import { decorLayer, seatsNearIn, type DecorCell, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
 import { POSITION_TICK_MS, TILE_SIZE, normalizePose } from '@byte_grounds/shared/protocol';
 import { effectiveSeats } from '@byte_grounds/shared/seats';
 import type { Appearance, PeerId, PeerState, Pose, ServerToClient } from '@byte_grounds/shared/protocol';
@@ -17,6 +17,7 @@ import type { LiveMap } from './live-map.ts';
 import { BuildPanel } from './build-panel.ts';
 import { brushCells, cellBlocks } from './editor-model.ts';
 import { placeOp } from './edit-ops.ts';
+import { blockedByWall } from './live-model.ts';
 import {
   appearanceReady,
   directionFromDelta,
@@ -432,12 +433,12 @@ export class Game {
     return x >= 0 && y >= 0 && x < this.map.width && y < this.map.height;
   }
 
-  /** The piece a click at (x, y) would place, and its blocking cells on blocked tiles (then a no-op). */
+  /** The piece a click at (x, y) would place, and its blocking cells on walls (then a no-op). */
   private ghostAt(x: number, y: number): { cells: DecorCell[]; blocked: DecorCell[] } | null {
     const s = this.panel?.state();
     if (this.panel?.tool !== 'place' || !s?.selection) return null;
     const cells = brushCells(x, y, s.selection, s.t, s.mode);
-    const blocked = cells.filter((c) => cellBlocks(c, s.mode) && this.inMap(c.x, c.y) && tileAt(this.map, c.x, c.y) === 1);
+    const blocked = cells.filter((c) => cellBlocks(c, s.mode) && this.inMap(c.x, c.y) && blockedByWall(this.map, c.x, c.y));
     return { cells, blocked };
   }
 
