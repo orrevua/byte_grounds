@@ -1,5 +1,5 @@
 import { createNet, type Net, type NetStatus } from './net.ts';
-import { Game } from './game.ts';
+import { Game, type SelfInfo } from './game.ts';
 import {
   CATEGORIES,
   DEFAULT_APPEARANCE,
@@ -17,6 +17,9 @@ import { startPosition, type OfficeMap } from '@byte_grounds/shared/map';
 import { DEFAULT_MAP } from '@byte_grounds/shared/maps';
 import { createStore, type MapSummary } from './store.ts';
 import { loadDecorSheets } from './decor.ts';
+import { hasSupabase } from './supabase.ts';
+import { adminEmail, checkIsAdmin, ensureSession, signInAdmin, signOutAdmin } from './auth.ts';
+import { GrantsFeed } from './grants.ts';
 
 /** Color is vestigial now (the sprite appearance drives the look); keep a stable default. */
 const DEFAULT_COLOR = '#4f8cff';
@@ -91,6 +94,7 @@ function renderJoin(): void {
         <div id="presets">${presetBtns}</div>
         <button id="go">Join</button>
         <div id="join-error" class="join-error"></div>
+        <div id="admin-box" class="admin-box"></div>
         <a class="editor-link" href="editor.html">Map editor →</a>
       </div>
     </div>`;
@@ -100,6 +104,8 @@ function renderJoin(): void {
   const mapEl = app!.querySelector<HTMLSelectElement>('#map')!;
   const errorEl = app!.querySelector<HTMLDivElement>('#join-error')!;
   const go = app!.querySelector<HTMLButtonElement>('#go')!;
+  const adminBox = app!.querySelector<HTMLDivElement>('#admin-box')!;
+  if (hasSupabase) renderAdminBox(adminBox);
   void store
     .listMaps()
     .then((maps) => fillMapSelect(mapEl, maps, localStorage.getItem(MAP_KEY)))
@@ -174,9 +180,60 @@ function fillMapSelect(select: HTMLSelectElement, maps: MapSummary[], selected: 
   );
 }
 
+/** Admin sign-in state under Join: signed in as the admin, or a link that opens the login form. */
+function renderAdminBox(box: HTMLDivElement): void {
+  void adminEmail().then((email) => (email ? showAdmin(box, email) : showAdminLink(box)));
+}
+
+function showAdmin(box: HTMLDivElement, email: string): void {
+  box.innerHTML = `<div><span class="admin-email"></span> · <button type="button" class="link">Sign out</button></div>
+    <div class="join-error"></div>`;
+  box.querySelector('.admin-email')!.textContent = `Admin: ${email}`;
+  const errorEl = box.querySelector<HTMLDivElement>('.join-error')!;
+  box.querySelector('button')!.addEventListener('click', () => {
+    signOutAdmin()
+      .then(() => renderAdminBox(box))
+      .catch((err) => (errorEl.textContent = errorMessage(err)));
+  });
+}
+
+function showAdminLink(box: HTMLDivElement): void {
+  box.innerHTML = '<button type="button" class="link">Admin login</button>';
+  box.querySelector('button')!.addEventListener('click', () => showAdminForm(box));
+}
+
+function showAdminForm(box: HTMLDivElement): void {
+  box.innerHTML = `<form class="admin-form">
+      <input name="email" type="email" placeholder="Admin email" autocomplete="username" required />
+      <input name="password" type="password" placeholder="Password" autocomplete="current-password" required />
+      <button type="submit">Sign in</button>
+      <div class="join-error"></div>
+    </form>`;
+  const form = box.querySelector('form')!;
+  const submit = form.querySelector<HTMLButtonElement>('button')!;
+  const errorEl = form.querySelector<HTMLDivElement>('.join-error')!;
+  form.querySelector('input')!.focus();
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const data = new FormData(form);
+    submit.disabled = true;
+    errorEl.textContent = '';
+    signInAdmin(String(data.get('email')).trim(), String(data.get('password')))
+      .then(() => renderAdminBox(box))
+      .catch((err) => {
+        submit.disabled = false;
+        errorEl.textContent = errorMessage(err);
+      });
+  });
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err);
+}
+
 /** A friendly message for storage failures (most likely: the SQL setup hasn't been run). */
 function storeError(err: unknown): string {
-  const msg = err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err);
+  const msg = errorMessage(err);
   return /relation|schema cache|does not exist|42P01|PGRST/i.test(msg)
     ? 'Maps aren\'t set up in Supabase yet: run supabase/schema.sql (see README).'
     : `Couldn't load maps: ${msg}`;
@@ -186,39 +243,41 @@ async function join(name: string, appearance: Appearance, mapId: string): Promis
   localStorage.setItem(STORAGE_KEY, serializeAppearance(appearance));
   localStorage.setItem(NAME_KEY, name);
   localStorage.setItem(MAP_KEY, mapId);
-  const [map, saved] = await Promise.all([
+  const [map, saved, uid] = await Promise.all([
     store.loadMap(mapId).then((m) => m ?? DEFAULT_MAP),
     store.loadPosition(mapId, name).catch(() => null),
+    ensureSession(),
   ]);
+  const isAdmin = uid ? await checkIsAdmin() : false;
   await loadDecorSheets((map.decor ?? []).map((d) => d.sheet));
   const start = startPosition(map, saved);
+  const self: SelfInfo = { name, color: DEFAULT_COLOR, appearance, isAdmin, ...(uid ? { uid } : {}) };
   net = createNet();
   net.connect(
-    { name, color: DEFAULT_COLOR, appearance, room: map.id, ...start },
+    { name, color: DEFAULT_COLOR, appearance, room: map.id, ...start, ...(uid ? { uid } : {}) },
     {
       onStatus: setStatus,
       onMessage: (msg) => {
         if (msg.type === 'welcome') {
           if (game) game.onReconnect(msg.selfId);
-          else startGame(name, appearance, msg.selfId, map, start);
+          else startGame(self, msg.selfId, map, start);
         } else game?.handleMessage(msg);
       },
     },
   );
 }
 
-function startGame(
-  name: string,
-  appearance: Appearance,
-  selfId: PeerId,
-  map: OfficeMap,
-  start: { x: number; y: number },
-): void {
+function startGame(self: SelfInfo, selfId: PeerId, map: OfficeMap, start: { x: number; y: number }): void {
   app!.innerHTML = '<canvas id="stage"></canvas>';
   const canvas = app!.querySelector<HTMLCanvasElement>('#stage')!;
-  game = new Game(canvas, { name, color: DEFAULT_COLOR, appearance }, net!, selfId, map, start);
+  game = new Game(canvas, self, net!, selfId, map, start);
   game.start();
-  savePositionPeriodically(map.id, name);
+  if (self.uid) {
+    const feed = new GrantsFeed();
+    void feed.start().catch((err) => console.warn('[grants] feed failed:', err));
+    game.attachGrants(feed);
+  }
+  savePositionPeriodically(map.id, self.name);
 }
 
 /** Remember where we are on this map, so we come back to the same spot next time. */
