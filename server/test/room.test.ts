@@ -34,6 +34,13 @@ describe('Room', () => {
     expect(r.updatePosition('missing', 1, 1)).toBe(false);
   });
 
+  it('stores and returns a dance pose with its facing', () => {
+    const r = new Room();
+    r.add(peer('a'));
+    expect(r.updatePosition('a', 2, 2, 'dance', 'down')).toBe(true);
+    expect(r.list()[0]).toMatchObject({ pose: 'dance', dir: 'down' });
+  });
+
   it('removes peers', () => {
     const r = new Room();
     r.add(peer('a'));

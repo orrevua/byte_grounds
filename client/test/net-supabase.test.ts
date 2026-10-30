@@ -137,6 +137,18 @@ describe('SupabaseNet', () => {
     ]);
   });
 
+  it('carries a dance pose and its facing to the other side', async () => {
+    const a = await joinAs('alice');
+    const b = await joinAs('bob');
+    b.inbox.length = 0;
+    a.net.send({ type: 'position', x: 3, y: 4, pose: 'dance', dir: 'down' });
+
+    vi.advanceTimersByTime(200);
+    expect(b.inbox.filter((m) => m.type === 'peer-moved')).toEqual([
+      { type: 'peer-moved', id: a.id, x: 3, y: 4, pose: 'dance', dir: 'down' },
+    ]);
+  });
+
   it('ignores a late presence update that is older than the latest move', async () => {
     const a = await joinAs('alice');
     const b = await joinAs('bob');
