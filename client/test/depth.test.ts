@@ -70,3 +70,15 @@ describe('sortRenderables', () => {
     expect(out.map((r) => r.id)).toEqual(['remote', 'self']);
   });
 });
+
+describe('stackedDecorAnchors', () => {
+  it('an item stacked on furniture sorts no earlier than the furniture under it', async () => {
+    const { stackedDecorAnchors } = await import('../src/depth.ts');
+    const deskTop = { x: 4, y: 5, baseDy: 1 }; // sorts by the desk's base row (6.5)
+    const monitor = { x: 4, y: 5 }; // re-placed 1x1: on its own it would sort at 5.5
+    const elsewhere = { x: 1, y: 1 };
+    expect(stackedDecorAnchors([deskTop, monitor, elsewhere])).toEqual([6.5, 6.5, 1.5]);
+    // Order matters: something drawn before the desk isn't lifted.
+    expect(stackedDecorAnchors([monitor, deskTop])).toEqual([5.5, 6.5]);
+  });
+});

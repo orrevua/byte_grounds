@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createBlankMap, isWalkable, type OfficeMap } from '@byte_grounds/shared/map';
 import { setBlocked, stampDecor } from '../src/editor-model.ts';
 import { placeOp, type EditOp, type MapEdit, type PlaceOp } from '../src/edit-ops.ts';
-import { EditLog, applyEdit, blockedByWall, mergeLiveEdits, replaceMapContents } from '../src/live-model.ts';
+import { EditLog, applyEdit, bakedObjectAt, blockedByWall, mergeLiveEdits, placeCells, replaceMapContents } from '../src/live-model.ts';
 
 const known = () => true;
 const DESK = { sheet: 'office_grid', sx: 2, sy: 1, w: 2, h: 2 };
@@ -219,5 +219,42 @@ describe('mergeLiveEdits', () => {
     const snaps = [JSON.stringify(m)];
     expect(mergeLiveEdits(m, snaps, [], known)).toEqual({ merged: 0, lastId: 0, conflict: false });
     expect(m).toEqual(room());
+  });
+});
+
+describe('bakedObjectAt (Move tool on the map\'s own furniture)', () => {
+  it('groups a stamped object and describes a place op that stamps it again in place', () => {
+    const m = room();
+    stampDecor(m, 3, 2, DESK, 'base', NONE);
+    const obj = bakedObjectAt(m, 4, 3)!;
+    expect(obj.cells).toHaveLength(4);
+    expect(obj.op).toMatchObject({ x: 3, y: 2, sheet: 'office_grid', sx: 2, sy: 1, w: 2, h: 2, mode: 'base' });
+    expect(placeCells(obj.op).map(({ x, y, sx, sy }) => [x, y, sx, sy]).sort()).toEqual(
+      obj.cells.map(({ x, y, sx, sy }) => [x, y, sx, sy]).sort(),
+    );
+  });
+
+  it('keeps two side-by-side copies of the same piece apart', () => {
+    const m = room();
+    stampDecor(m, 1, 2, DESK, 'base', NONE);
+    stampDecor(m, 3, 2, DESK, 'base', NONE);
+    expect(bakedObjectAt(m, 1, 2)!.op.x).toBe(1);
+    expect(bakedObjectAt(m, 3, 2)!.cells.every((c) => c.x >= 3)).toBe(true);
+  });
+
+  it("the lamp's tile picks the lamp; the desk's other tiles pick the desk with the lamp on it", () => {
+    const m = room();
+    stampDecor(m, 3, 2, DESK, 'base', NONE);
+    stampDecor(m, 4, 2, { sheet: 'lamps', sx: 0, sy: 0, w: 1, h: 1 }, 'base', NONE);
+    const lamp = bakedObjectAt(m, 4, 2)!;
+    expect(lamp.cells).toHaveLength(1);
+    expect(lamp.op).toMatchObject({ sheet: 'lamps', w: 1, h: 1 });
+    expect(lamp.extra).toEqual([]);
+
+    const desk = bakedObjectAt(m, 3, 3)!;
+    expect(desk.op).toMatchObject({ sheet: 'office_grid', w: 2, h: 2 });
+    expect(desk.cells).toHaveLength(5);
+    expect(desk.extra).toEqual([expect.objectContaining({ sheet: 'lamps', x: 4, y: 2, w: 1, h: 1 })]);
+    expect(bakedObjectAt(m, 8, 6)).toBeNull();
   });
 });
