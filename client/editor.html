@@ -34,7 +34,14 @@
       .hint { color: #9aa3ad; font-size: 12px; line-height: 1.4; }
       .status { font-size: 12px; color: #9aa3ad; min-height: 1em; }
       .status.error { color: #ffb4b4; }
+      .status.retry { cursor: pointer; text-decoration: underline; }
       label.check { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+      #gate { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center;
+        justify-content: center; padding: 16px; background: rgba(20, 22, 26, .97); }
+      .gate-box { max-width: 420px; padding: 20px 24px; border-radius: 10px; background: #1e2228;
+        line-height: 1.5; }
+      .gate-box h2 { font-size: 16px; text-transform: none; letter-spacing: 0; color: #e6e8eb; }
+      .gate-box a { color: #8fb4ff; }
       @media (max-width: 720px) {
         #editor { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
         aside { max-height: 50vh; }

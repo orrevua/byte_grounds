@@ -39,6 +39,8 @@ export interface PeerState {
   /** Absent = standing; facing then comes from movement. */
   pose?: Pose;
   dir?: Facing;
+  /** Supabase auth uid: a claim, not proof (RLS checks the real session). Absent in ws dev mode. */
+  uid?: string;
 }
 
 export interface Position {
@@ -56,6 +58,8 @@ export interface JoinMsg {
   /** Start position (e.g. the player's saved spot); the map spawn when absent. */
   x?: number;
   y?: number;
+  /** Supabase auth uid (see `PeerState.uid`); absent in ws dev mode. */
+  uid?: string;
 }
 export interface PositionMsg {
   type: 'position';

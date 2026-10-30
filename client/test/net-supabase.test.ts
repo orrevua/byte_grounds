@@ -89,10 +89,10 @@ vi.mock('@supabase/supabase-js', () => ({
 
 const appearance = { body: 'male', hair: 'brown', outfit: 'casual', torso: 'teal', legs: 'teal', skin: 'light' } as const;
 
-async function joinAs(name: string): Promise<{ net: SupabaseNet; inbox: ServerToClient[]; id: string }> {
+async function joinAs(name: string, uid?: string): Promise<{ net: SupabaseNet; inbox: ServerToClient[]; id: string }> {
   const inbox: ServerToClient[] = [];
   const net = new SupabaseNet('https://x.supabase.co', 'anon');
-  net.connect({ name, color: '#fff', appearance }, { onMessage: (m) => inbox.push(m) });
+  net.connect({ name, color: '#fff', appearance, ...(uid ? { uid } : {}) }, { onMessage: (m) => inbox.push(m) });
   await vi.dynamicImportSettled();
   await Promise.resolve();
   const welcome = inbox.find((m) => m.type === 'welcome');
@@ -121,6 +121,18 @@ describe('SupabaseNet', () => {
     );
     expect(alice).toEqual([expect.objectContaining({ id: a.id, name: 'alice' })]);
     expect(alice[0]).not.toHaveProperty('presence_ref');
+  });
+
+  it('passes the auth uid through presence, and leaves it out when there is none', async () => {
+    const a = await joinAs('alice', 'uid-alice');
+    const b = await joinAs('bob');
+    const c = await joinAs('carol');
+
+    const peersSeenBy = (inbox: ServerToClient[]) =>
+      inbox.flatMap((m) => (m.type === 'peer-joined' ? [m.peer] : m.type === 'presence-snapshot' ? m.peers : []));
+    expect(peersSeenBy(a.inbox).find((p) => p.id === b.id)).not.toHaveProperty('uid');
+    expect(peersSeenBy(b.inbox).find((p) => p.id === a.id)).toMatchObject({ uid: 'uid-alice' });
+    expect(peersSeenBy(c.inbox).find((p) => p.id === a.id)).toMatchObject({ uid: 'uid-alice' });
   });
 
   it('throttles positions into peer-moved for the other side', async () => {

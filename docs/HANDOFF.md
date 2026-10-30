@@ -1,7 +1,94 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-29 (Dance (Q) and orc/skeleton characters)
+**Last updated:** 2026-10-29 (Admin + live building, Phase 1)
 **Branch:** `claude/nifty-archimedes-e4o1ce`
+
+## Admin + live building — Phase 1 (P1-U1..U10) code DONE, COMMITTED (2026-10-29); P1-U11 manual checks pending
+Spec: `docs/specs/admin-live-building.md` (rev 2). Phase 2 (live build mode, `map_edits`, merge-on-save,
+baking) not started.
+- **P1-U1** `supabase/admin.sql` (new, idempotent): `admins`, `grants(user_id, perm in build|editor)`,
+  `is_admin()` / `can_build()` / `can_edit_maps()` (stable security definer), RLS (grants: read all,
+  insert/delete admin only; maps: read all, insert/update/delete `can_edit_maps()`; drops
+  "maps open to anon"), `grants` added to `supabase_realtime` (guarded). `schema.sql` header and README
+  deploy step 4 point to it. **`schema.sql` re-creates the open maps policy: re-run `admin.sql` after it.**
+- **P1-U2** `client/src/auth.ts`: `shortId`, `ensureSession` (getSession, else silent
+  `signInAnonymously`; null + warn on error), `signInAdmin`, `signOutAdmin`, `checkIsAdmin`,
+  `checkCanEditMaps` (rpc, false on error), `adminEmail` (non-anonymous session only). Optional client
+  param for tests (`adminEmail` too).
+- **P1-U3** `uid?` on `JoinMsg` / `PeerState`; `SupabaseNet` puts it in presence, `toPeer` keeps it
+  (only when a string); ws server copies it.
+- **P1-U4** Join screen (Supabase only): "Admin login" link → email + password form + error line;
+  signed in: "Admin: <email> · Sign out". `join()` runs `ensureSession()` with the map load, then
+  `checkIsAdmin()`; `SelfInfo` gains `uid?`, `isAdmin`; uid goes into `net.connect`.
+- **P1-U5** `client/src/grants.ts`: `GrantsFeed` on channel `byte_grounds-grants` (INSERT/DELETE on
+  `public.grants`, unfiltered), full re-read on every SUBSCRIBED; `grant` ignores `23505`; both apply the
+  change locally on success. Pure `applyGrantChange`, `toGrantChange`.
+- **P1-U6** `client/src/hit.ts` (`screenToWorld`, `avatarAt`); `Game` keeps `camX/camY/scale` from
+  `render()`, canvas `pointerdown` → `onAvatarClick(id, clientX, clientY)` (remotes only).
+- **P1-U7** `client/src/avatar-menu.ts`: admin popup `<name> #a1b2` + "Allow building: on/off" and
+  "Allow map editor: on/off"; no uid → "Can't grant: they need to reload"; inline errors; closes on
+  outside click / Esc. `Game.attachGrants(feed)` (menu only for the admin); `main.ts` starts the feed
+  when the player has a uid. `RemoteAvatar.uid`.
+- **P1-U8** Editor gate (Supabase only): overlay "Checking permission…" → `ensureSession()` →
+  `checkCanEditMaps()` → editor, or "No permission" with the short id + "← Back to Play". Module flag
+  `canSave` (true in local dev).
+- **P1-U9** `client/src/autosave.ts`: pure scheduler (debounce, one save in flight and re-save of
+  changes made during it, retry timer, denial stops automatic retries, `flush()` → true when clean).
+- **P1-U10** Editor autosave (1.5 s / retry 15 s): `refreshStatus()` → `autosave.changed()` when
+  `canSave`; status "Unsaved changes" → "Saving…" → "Saved · id"; "Save failed — Retry" (click =
+  flush, error in the tooltip); `42501` → "Save failed: you no longer have editor permission". Save
+  button = flush; flush on `visibilitychange: hidden` / `pagehide`; `beforeunload` warns while dirty or
+  saving; map select / New flush first and only ask to discard if that failed; Delete flushes first so a
+  pending save can't recreate the map. The save snapshots the JSON before the request, so edits made
+  during it stay dirty. Map list is refreshed only when the id/name is new.
+- Read-only check of production (public endpoints, anon key): `/auth/v1/settings` shows
+  `anonymous_users: false` (step 1 below is required) and `grants` does not exist yet (step 3).
+- Tests: auth (+7), grants (+4), hit (+4), autosave (+7), net-supabase (+1). `npm test` 235 green;
+  client typecheck + `npm run build` green.
+
+### Manual user steps (Supabase dashboard of the production project, in this order, BEFORE the Phase 1 deploy goes live)
+1. **Enable anonymous sign-ins:** Authentication → Sign In / Providers (older dashboards:
+   Authentication → Providers / Settings) → turn on **Allow anonymous sign-ins** → Save. Optional:
+   Authentication → Rate Limits → keep "anonymous sign-ins" low (default 30/h per IP).
+2. **Create the admin user:** Authentication → Users → **Add user → Create new user** → your email and a
+   strong password → tick **Auto Confirm User** → Create.
+3. **Run the SQL:** SQL Editor → New query → paste all of `supabase/admin.sql` → Run (schema.sql has
+   already been run in production).
+4. **Make yourself admin:** SQL Editor →
+   ```sql
+   insert into public.admins (user_id)
+   select id from auth.users where email = '<your-admin-email>'
+   on conflict do nothing;
+   select * from public.admins;  -- expect one row
+   ```
+5. **Check Realtime:** Database → Publications → `supabase_realtime` lists `grants`. If not:
+   `alter publication supabase_realtime add table public.grants;`
+6. **Deploy:** merge/push so Vercel redeploys (no new env vars).
+7. Optional SQL: `select user_id, perm, granted_at from public.grants order by granted_at;` (who has
+   what), `delete from public.grants where user_id = '<uid>';` (revoke one person).
+- Note: production has email sign-ups open (`disable_signup: false`). Someone could create an email
+  account via the API; it gets no powers (RLS), but the join screen would label it "Admin: <email>".
+  Turning off sign-ups would also block anonymous sign-ins, so leave it unless that matters.
+
+### P1-U11 — Manual checklist (normal + private window + a third browser/profile; NOT exercised here)
+1. Guest window: join by name as before; no login asked. Reload: same.
+2. Admin window: Admin login with a wrong password → error; right password → "Admin: <email>". Join.
+3. Admin clicks the guest's avatar → menu shows name + `#xxxx`, "Allow building: off" and "Allow map
+   editor: off". Turn the editor one on; reopen → on. `select * from public.grants;` shows
+   `(uid, editor)`. Turn "Allow building" on and off → the row appears and disappears.
+4. Guest-token direct insert into `grants` fails with `42501` (console snippet in the spec, checklist
+   P1 item 4), or skip.
+5. Editor-granted guest opens `/editor` in the same browser: the editor works. The third (ungranted)
+   browser opens `/editor`: "No permission" with its `#id`.
+6. Autosave (granted guest or admin): change something → "Unsaved changes" → "Saving…" → "Saved"
+   within ~2 s; reload → the change is there. Change and close the tab within a second → the browser
+   warns, or the change is saved on reopening. Manual Save still works.
+7. Admin turns "Allow map editor" off while the guest's editor is open: the guest's next change shows
+   "Save failed: you no longer have editor permission"; reload → "No permission".
+8. Admin signs out → becomes a guest; avatar clicks no longer open the menu (after re-joining);
+   `/editor` shows "No permission".
+9. Local dev without Supabase (`npm run dev`, no `client/.env.local`): no Admin login link, editor opens
+   without the gate and autosaves to localStorage.
 
 ## Dance & creatures — U1–U9 code DONE, COMMITTED (2026-10-29); U9 manual checks pending
 Spec: `docs/specs/dance-and-creatures.md`.

@@ -73,6 +73,7 @@ wss.on('connection', (ws) => {
           appearance: msg.appearance,
           x: Number.isFinite(msg.x) ? msg.x! : DEFAULT_MAP.spawn.x,
           y: Number.isFinite(msg.y) ? msg.y! : DEFAULT_MAP.spawn.y,
+          ...(typeof msg.uid === 'string' ? { uid: msg.uid } : {}),
         };
         room.add(peer);
         send(ws, { type: 'welcome', selfId, room: roomId });

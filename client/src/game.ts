@@ -10,6 +10,9 @@ import { stepMovement, type MoveInput } from './movement.ts';
 import { distanceTiles, nextProxState, type ProxState } from './proximity.ts';
 import { MediaManager, VideoBubbles, volumeForDistance } from './media.ts';
 import { WebrtcMesh } from './webrtc.ts';
+import { avatarAt, screenToWorld } from './hit.ts';
+import { AvatarMenu } from './avatar-menu.ts';
+import type { GrantsFeed } from './grants.ts';
 import {
   appearanceReady,
   directionFromDelta,
@@ -24,6 +27,9 @@ export interface SelfInfo {
   name: string;
   color: string;
   appearance: Appearance;
+  /** Supabase auth uid; absent in ws dev mode or when signing in failed. */
+  uid?: string;
+  isAdmin: boolean;
 }
 
 /** The fields every drawable avatar (self or remote) shares. */
@@ -42,6 +48,7 @@ interface Avatar {
 interface RemoteAvatar extends Avatar {
   tx: number; // latest target from the server
   ty: number;
+  uid?: string;
 }
 
 /** How close (tiles, to the seat's center) you must be to sit/lie on it. */
@@ -59,6 +66,8 @@ export class Game {
   private readonly keyboard = new Keyboard();
   private readonly touchpad = isTouchDevice() ? new TouchPad() : null;
   private readonly self: Avatar;
+  private readonly isAdmin: boolean;
+  private menu: AvatarMenu | null = null;
   /** The seat we're on, and where we stood before, to step back there when getting up. */
   private seat: { seat: Seat; standX: number; standY: number } | null = null;
   /** The map's usable seats (authored + automatic); recomputed by `refreshSeats`. */
@@ -77,6 +86,12 @@ export class Game {
   private sinceSend = 0;
   private sentX = NaN;
   private sentY = NaN;
+  /** The last frame's view: camera offset (world px) and CSS scale, for mapping clicks. */
+  private camX = 0;
+  private camY = 0;
+  private scale = 1;
+  /** Called when a remote avatar is clicked (client coords of the click). */
+  onAvatarClick: ((id: PeerId, clientX: number, clientY: number) => void) | null = null;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -93,6 +108,7 @@ export class Game {
 
     this.fitCanvas();
 
+    this.isAdmin = self.isAdmin;
     this.self = {
       name: self.name,
       color: self.color,
@@ -116,6 +132,7 @@ export class Game {
     document.body.appendChild(this.danceBtn);
     addEventListener('keydown', this.onKey);
     addEventListener('resize', this.fitCanvas);
+    canvas.addEventListener('pointerdown', this.onPointerDown);
 
     this.bubbles = new VideoBubbles(canvas.parentElement ?? document.body);
     this.mesh = new WebrtcMesh(
@@ -152,9 +169,21 @@ export class Game {
     this.touchpad?.dispose();
     removeEventListener('keydown', this.onKey);
     removeEventListener('resize', this.fitCanvas);
+    this.ctx.canvas.removeEventListener('pointerdown', this.onPointerDown);
+    this.menu?.close();
     this.seatBtn.remove();
     this.danceBtn.remove();
     this.mesh.closeAll();
+  }
+
+  /** Live grants: the admin gets a permissions menu when clicking an avatar. */
+  attachGrants(feed: GrantsFeed): void {
+    if (!this.isAdmin) return;
+    const menu = (this.menu = new AvatarMenu(feed));
+    this.onAvatarClick = (id, clientX, clientY) => {
+      const r = this.remotes.get(id);
+      if (r) menu.open({ name: r.name, uid: r.uid }, clientX, clientY);
+    };
   }
 
   /**
@@ -184,6 +213,7 @@ export class Game {
       animMs: 0,
       moving: false,
       pose: normalizePose(p.pose),
+      ...(typeof p.uid === 'string' ? { uid: p.uid } : {}),
     };
   }
 
@@ -297,6 +327,14 @@ export class Game {
     else if (key === 'q') this.toggleDance();
   };
 
+  private readonly onPointerDown = (e: PointerEvent): void => {
+    if (!this.onAvatarClick) return;
+    const r = this.ctx.canvas.getBoundingClientRect();
+    const { px, py } = screenToWorld(e.clientX - r.left, e.clientY - r.top, this.scale, this.camX, this.camY);
+    const id = avatarAt(this.remotes, px, py);
+    if (id) this.onAvatarClick(id, e.clientX, e.clientY);
+  };
+
   /** The nearest seat in reach that nobody else is using. */
   private freeSeatNearby(): Seat | undefined {
     return seatsNearIn(this.seats, this.self.x, this.self.y, SEAT_REACH).find(
@@ -392,6 +430,9 @@ export class Game {
     const focus = tileToScreen(this.self.x, this.self.y);
     const camX = cameraOffset(focus.px, ctx.canvas.width, world.w);
     const camY = cameraOffset(focus.py, ctx.canvas.height, world.h);
+    this.camX = camX;
+    this.camY = camY;
+    this.scale = scale;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     ctx.setTransform(1, 0, 0, 1, -camX, -camY);

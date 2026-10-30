@@ -1,6 +1,7 @@
 -- ByteGrounds tables. Run once: Supabase dashboard → SQL Editor → New query → paste → Run.
--- Safe to re-run. No login: anyone with the site (anon key) can read and write, which is
--- the intended trust model for a group of friends.
+-- Safe to re-run. On its own this leaves maps writable by anyone with the site (anon key).
+-- Then run supabase/admin.sql: it locks map writes to the admin and editor-granted people
+-- (re-run admin.sql whenever you re-run this file).
 
 create table if not exists public.maps (
   id text primary key,

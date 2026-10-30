@@ -31,6 +31,9 @@ import {
   type DecorSelection,
 } from './editor-model.ts';
 import { createStore, type MapSummary } from './store.ts';
+import { hasSupabase } from './supabase.ts';
+import { checkCanEditMaps, ensureSession, shortId } from './auth.ts';
+import { createAutosave, type SaveStatus } from './autosave.ts';
 
 type Tool = 'paint' | 'block' | 'walk' | 'decor' | 'erase' | 'spawn' | 'seat';
 
@@ -76,6 +79,11 @@ const SWATCHES = [
 ];
 
 const UNDO_LIMIT = 100;
+/** Autosave: quiet time after the last change, and the wait before retrying a failed save. */
+const AUTOSAVE_DELAY_MS = 1500;
+const AUTOSAVE_RETRY_MS = 15000;
+/** Postgres "insufficient privilege": RLS refused the write (no editor permission). */
+const NO_PERMISSION = '42501';
 
 const store = createStore();
 const root = document.querySelector<HTMLDivElement>('#editor')!;
@@ -94,6 +102,8 @@ let showWalls = true;
 let zoom = 1;
 let hover: { x: number; y: number } | null = null;
 const undo: string[] = [];
+/** May this page save maps: always in local dev; with Supabase, decided by the permission gate. */
+let canSave = !hasSupabase;
 
 root.innerHTML = `
   <aside>
@@ -178,9 +188,45 @@ function setStatus(text: string, error = false): void {
 
 const dirty = () => JSON.stringify(map) !== savedJson;
 
+let saveStatus: SaveStatus = 'idle';
+const autosave = createAutosave({
+  delayMs: AUTOSAVE_DELAY_MS,
+  retryMs: AUTOSAVE_RETRY_MS,
+  isDirty: dirty,
+  save: saveMap,
+  onStatus: showSaveStatus,
+  isDenied: (err) => (err as { code?: string } | null)?.code === NO_PERMISSION,
+});
+
+/** Every edit ends here: autosave picks it up (once the page may save). */
 function refreshStatus(): void {
-  setStatus(dirty() ? 'Unsaved changes' : `Saved · id "${map.id}"`);
+  if (canSave) autosave.changed();
+  else setStatus(dirty() ? 'Unsaved changes' : `Saved · id "${map.id}"`);
 }
+
+function showSaveStatus(s: SaveStatus, err?: unknown): void {
+  saveStatus = s;
+  statusEl.title = '';
+  switch (s) {
+    case 'pending':
+      return setStatus('Unsaved changes');
+    case 'saving':
+      return setStatus('Saving…');
+    case 'failed':
+      setStatus('Save failed — Retry', true);
+      statusEl.classList.add('retry');
+      statusEl.title = errorMessage(err);
+      return;
+    case 'denied':
+      return setStatus('Save failed: you no longer have editor permission', true);
+    default:
+      return setStatus(`Saved · id "${map.id}"`);
+  }
+}
+
+statusEl.addEventListener('click', () => {
+  if (saveStatus === 'failed') void autosave.flush();
+});
 
 // ---------- map list / load / save ----------
 
@@ -221,16 +267,22 @@ function confirmDiscard(): boolean {
   return !dirty() || confirm('Discard unsaved changes to this map?');
 }
 
-mapSelect.addEventListener('change', () => {
-  if (!confirmDiscard()) {
+/** Before leaving this map: save it now; only if that fails, ask whether to drop the changes. */
+async function saveOrDiscard(): Promise<boolean> {
+  return (canSave && (await autosave.flush())) || confirmDiscard();
+}
+
+mapSelect.addEventListener('change', async () => {
+  const next = mapSelect.value;
+  if (!(await saveOrDiscard())) {
     mapSelect.value = map.id;
     return;
   }
-  void openMap(mapSelect.value).catch(showError);
+  void openMap(next).catch(showError);
 });
 
-$('#new').addEventListener('click', () => {
-  if (!confirmDiscard()) return;
+$('#new').addEventListener('click', async () => {
+  if (!(await saveOrDiscard())) return;
   const name = prompt('Name for the new map?', 'New room')?.trim();
   if (!name) return;
   let id = mapIdFromName(name);
@@ -246,22 +298,34 @@ nameEl.addEventListener('input', () => {
   refreshStatus();
 });
 
-$('#save').addEventListener('click', async () => {
-  setStatus('Saving…');
-  try {
-    await store.saveMap(map);
-    savedJson = JSON.stringify(map);
-    await refreshMaps(map.id);
-    history.replaceState(null, '', `?map=${encodeURIComponent(map.id)}`);
-    refreshStatus();
-  } catch (err) {
-    showError(err);
+/** Store the map as it is now; edits made meanwhile stay dirty and get the next save. */
+async function saveMap(): Promise<void> {
+  const json = JSON.stringify(map);
+  await store.saveMap(JSON.parse(json) as OfficeMap);
+  savedJson = json;
+  history.replaceState(null, '', `?map=${encodeURIComponent(map.id)}`);
+  if (!maps.some((m) => m.id === map.id && m.name === (map.name ?? map.id))) {
+    await refreshMaps(map.id).catch((err) => console.warn('[editor] map list refresh failed:', err));
   }
+}
+
+// Manual Save stays as a fallback: save now instead of after the quiet time.
+$('#save').addEventListener('click', () => void autosave.flush());
+
+// Closing or hiding the tab saves at once (best effort: a killed tab may not finish the request).
+const flushIfDirty = () => {
+  if (canSave && dirty() && saveStatus !== 'denied') void autosave.flush();
+};
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushIfDirty();
 });
+addEventListener('pagehide', flushIfDirty);
 
 $('#delete').addEventListener('click', async () => {
   if (!confirm(`Delete map "${map.name ?? map.id}" for everyone? Saved player spots on it go too.`)) return;
   try {
+    // Let a pending or running autosave land first, so it can't recreate the map afterwards.
+    await autosave.flush();
     await store.deleteMap(map.id);
     await refreshMaps('');
     await openMap(maps[0]!.id);
@@ -271,8 +335,12 @@ $('#delete').addEventListener('click', async () => {
   }
 });
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err);
+}
+
 function showError(err: unknown): void {
-  const msg = err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err);
+  const msg = errorMessage(err);
   setStatus(
     /relation|schema cache|does not exist|42P01|PGRST/i.test(msg)
       ? "Maps aren't set up in Supabase yet: run supabase/schema.sql (see README)."
@@ -380,7 +448,7 @@ addEventListener('keydown', (e) => {
   }
 });
 addEventListener('beforeunload', (e) => {
-  if (dirty()) e.preventDefault();
+  if (dirty() || saveStatus === 'saving') e.preventDefault();
 });
 
 const seatHint = $<HTMLParagraphElement>('#seat-hint');
@@ -775,7 +843,34 @@ canvas.addEventListener('contextmenu', (e) => {
   }
 });
 
+// ---------- permission gate ----------
+
+/**
+ * With Supabase, only the admin and editor-granted people may save (RLS in supabase/admin.sql).
+ * Cover the editor until we know, and tell everyone else why they can't use it.
+ */
+async function checkPermission(): Promise<boolean> {
+  const overlay = document.createElement('div');
+  overlay.id = 'gate';
+  overlay.innerHTML = '<div class="gate-box"><p>Checking permission…</p></div>';
+  document.body.appendChild(overlay);
+  const uid = await ensureSession();
+  if (uid && (await checkCanEditMaps())) {
+    overlay.remove();
+    return true;
+  }
+  const id = uid ? shortId(uid) : 'unknown: signing in failed, reload to retry';
+  overlay.querySelector('.gate-box')!.innerHTML = `
+    <h2>No permission</h2>
+    <p>You can't edit maps. Ask the admin to allow the map editor for you (your id: <b>${id}</b>), then
+      reload. The admin signs in on the Play page.</p>
+    <a href="index.html">← Back to Play</a>`;
+  return false;
+}
+
 // ---------- boot ----------
+
+if (hasSupabase) void checkPermission().then((ok) => (canSave = ok));
 
 setTool('paint');
 renderDecorPicker();
