@@ -82,6 +82,43 @@ describe('seat catalog beds (tier B)', () => {
   });
 });
 
+describe('seat catalog chairs, sofas and benches (tier B)', () => {
+  const sit = (dir: string) => ({ kind: 'sit', dir });
+
+  it('thrones: the lower cell of each throne', () => {
+    expect(seatSpot('thrones', 4, 1)).toEqual(sit('down'));
+    expect(seatSpot('thrones', 9, 4)).toEqual(sit('left'));
+    expect(seatSpot('thrones', 4, 0)).toBeUndefined();
+  });
+
+  it('sofas_formal: fronts, backs and sides', () => {
+    expect(seatSpot('sofas_formal', 15, 1)).toEqual(sit('down'));
+    expect(seatSpot('sofas_formal', 3, 12)).toEqual(sit('up'));
+    expect(seatSpot('sofas_formal', 6, 11)).toEqual(sit('right'));
+    expect(seatSpot('sofas_formal', 0, 0)).toBeUndefined();
+  });
+
+  it('upholstery seating', () => {
+    expect(seatSpot('upholstery', 0, 4)).toEqual(sit('up'));
+    expect(seatSpot('upholstery', 0, 6)).toEqual(sit('down'));
+    expect(seatSpot('upholstery', 7, 13)).toEqual(sit('right'));
+    expect(seatSpot('upholstery', 5, 9)).toBeUndefined();
+  });
+
+  it('wooden_furniture chairs and house_inside chairs', () => {
+    expect(seatSpot('wooden_furniture', 14, 21)).toEqual(sit('down'));
+    expect(seatSpot('wooden_furniture', 13, 22)).toEqual(sit('left'));
+    expect(seatSpot('house_inside', 9, 5)).toEqual(sit('right'));
+    expect(seatSpot('house_inside', 7, 3)).toBeUndefined();
+  });
+
+  it('tavern_furniture_grid chairs and stools, not tables', () => {
+    expect(seatSpot('tavern_furniture_grid', 4, 33)).toEqual(sit('down'));
+    expect(seatSpot('tavern_furniture_grid', 3, 41)).toEqual(sit('up'));
+    expect(seatSpot('tavern_furniture_grid', 9, 26)).toBeUndefined();
+  });
+});
+
 describe('buildIndex', () => {
   it('expands strides, lets later rules override, and skips malformed rules', () => {
     const index = buildIndex([
