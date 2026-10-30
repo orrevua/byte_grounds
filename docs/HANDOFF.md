@@ -1,7 +1,54 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-29 (Lounge & Café is the default map; built-in revisions beat stale saved copies)
+**Last updated:** 2026-10-29 (Auto seats: chairs, sofas, stools and beds usable on placement)
 **Branch:** `claude/nifty-archimedes-e4o1ce`
+
+## Auto seats — U1–U11 DONE, COMMITTED (2026-10-29); U12 manual checks pending
+Spec: `docs/specs/auto-seats.md`. Any stamped chair/armchair/sofa/stool/bench/throne/bed cell is a
+seat at once (Sit / Lie down with E); authored seats are overrides; "No seat" turns one off.
+- **U1** `shared/src/map.ts`: `transformFacing` moved here (client `decor-transform.ts` re-exports
+  it); `OfficeMap.noSeats?` (parseMap keeps integer tiles, omits the field when empty);
+  `seatsNearIn(seats, …)`, `seatsNear` delegates.
+- **U2/U3** `shared/src/seats.ts` (`@byte_grounds/shared/seats`) + `shared/src/seat-catalog.json`
+  (hand-edited rules: rect + stride, later rules win, `none` removes): `seatSpot`, `buildIndex`,
+  `derivedSeats` (one per tile, last seat cell wins, dir turned by the cell transform),
+  `effectiveSeats` (authored first, then derived on other tiles not in `noSeats`).
+- **U4** `maps.test.ts`: reachability + exact counts over `effectiveSeats` (76/78/32).
+- **U8** `game.ts`: `seats` cache, `refreshSeats()` (stands up if our seat vanished; **the
+  realtime-building work must call it after applying decor/seats/noSeats edits**), `position`
+  returns the stand spot while seated.
+- **U9/U10** `editor-model.ts` `toggleNoSeat`, `toggleSeat` clears `noSeats`, `resizeMap` filters
+  it; `editor.ts` draws authored = filled badge, automatic = outlined ring, off = grey ×; Seat
+  kind select gains "No seat (turn off automatic)".
+- **U11** `tools/build_maps.py` derives seats from the catalog and writes only overrides (office 0,
+  lounge 1, home 1; empty array written as `[]`). Decor/tiles/revs unchanged.
+- **U5** `tools/preview_seats.py --out DIR [sheets] [--scale N]`: sheet + labelled grid + arrows
+  (orange sit, purple lie). Use it before committing catalog edits.
+- **Catalog coverage:** tier A chairs, armchairs, sofas, bar_stools (up), ottomans (down);
+  tier B beds: beds_grid + beds_single_grid pillow pieces (side told apart by the frame strip;
+  every pillow-piece cell, so single beds get 2 spots half a tile off-centre), upholstery whole
+  beds + bunk, house_inside 3 beds, wooden_furniture 3 beds + modular pillows + bunk; tier B
+  seating: thrones (lower cell), sofas_formal, upholstery chairs/armchairs/sofas/poufs/high chair,
+  wooden_furniture chair block (12-15 x 15-22), house_inside chairs, tavern_furniture_grid chairs
+  and stools (angled chairs mapped to left/right; tables, crates, railings, angled benches left
+  out). Not covered (spec): pre-repack originals (`beds`, `beds_single`, `tavern_furniture`).
+- Tests: map (+3), seats (+21), maps (+3), editor-model (+3). `npm test` 189 green; client
+  typecheck + build green.
+
+### U12 — Manual checks (browser, NOT exercised here)
+1. Editor: stamp a chair: an outlined badge appears at once; press R before stamping: the outlined
+   arrow is turned. Stamp a sofa: two outlined badges.
+2. Seat tool "No seat" on an automatic seat: grey ×; the game no longer offers it. Seat tool
+   Sit/Lie click on it: filled badge with the chosen facing (× gone).
+3. Save, join: "Sit (E)" near the stamped chair; a rotated chair faces the turned way; lie on both
+   halves of a double bed (house_inside, beds_grid pieces), and on a single bed.
+4. Reload while seated: you come back next to the seat, not at spawn.
+5. Built-in maps: every chair, stool, sofa, armchair, piano ottoman and bed still works as before
+   (piano ottomans face up).
+6. Two tabs: the other tab sees you seated on an automatic seat; a seat in use is not offered.
+7. An old saved map gains automatic seats on its chairs/beds and keeps its authored ones.
+8. Spot-check new sheets in game: a throne, a formal sofa side view, a tavern chair, a bunk bed.
+
 
 ## Default map = Lounge & Café; built-in revisions vs saved copies — DONE, COMMITTED (2026-10-29)
 User report: "the office was not redone, didn't change". **Cause (verified):** production Supabase
