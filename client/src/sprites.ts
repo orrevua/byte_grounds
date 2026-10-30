@@ -76,7 +76,7 @@ export function optionsFor(c: (typeof CATEGORIES)[number], a: Appearance): reado
 
 /**
  * Ordered bottom→top layer URLs (body, legs, torso, hair) for an appearance. `sit` resolves the
- * same files under the generated `sit/` subtree; `stand`/`lie` use the walk sheets.
+ * same files under the generated `sit/` subtree; `stand`/`lie`/`dance` use the walk sheets.
  */
 export function appearanceToLayers(a: Appearance, pose: Pose = 'stand'): string[] {
   const root = pose === 'sit' ? `${LPC}/sit` : LPC;
@@ -98,6 +98,74 @@ const SIT_COL: Record<Direction, number> = { up: 0, left: 1, down: 2, right: 3 }
 /** Frame of the seated pose for a facing within a sit sheet. */
 export function sitFrame(dir: Direction): { row: number; col: number } {
   return { row: 0, col: SIT_COL[dir] };
+}
+
+// --- Dance (a looping sequence choreographed from the cast / walk / slash rows) ---
+
+export type DanceAnim = 'cast' | 'walk' | 'slash';
+
+/** One dance frame: which animation frame to draw and a whole-pixel sway (dx) / bob (dy, - = up). */
+export interface DanceStep {
+  anim: DanceAnim;
+  dir: Direction;
+  col: number;
+  dx: number;
+  dy: number;
+}
+
+/** 8 fps; every dancer derives the step from a shared wall clock, so they stay on the beat. */
+export const DANCE_FRAME_MS = 125;
+
+/** LPC universal sheet rows per animation and facing. */
+export const ANIM_ROW: Record<DanceAnim, Record<Direction, number>> = {
+  cast: { up: 0, left: 1, down: 2, right: 3 },
+  walk: WALK_ROW,
+  slash: { up: 12, left: 13, down: 14, right: 15 },
+};
+
+/** Frames per row of each animation (column bound). */
+export const ANIM_FRAMES: Record<DanceAnim, number> = { cast: 7, walk: 9, slash: 6 };
+
+const step = (anim: DanceAnim, dir: Direction, col: number, dx: number, dy: number): DanceStep => ({
+  anim,
+  dir,
+  col,
+  dx,
+  dy,
+});
+
+/**
+ * Arm pump, a spin on standing frames, left/right arm swings, arms high, two bouncy steps.
+ * Every frame used is drawn in every vendored layer and creature body (checked at author time),
+ * so no step needs a walk-frame fallback.
+ */
+export const DANCE_STEPS: readonly DanceStep[] = [
+  step('walk', 'down', 0, 0, 0),
+  step('cast', 'down', 2, -1, -1),
+  step('cast', 'down', 3, 0, -2),
+  step('cast', 'down', 2, 1, -1),
+  step('walk', 'right', 0, 1, 0),
+  step('walk', 'up', 0, 0, -1),
+  step('walk', 'left', 0, -1, 0),
+  step('walk', 'down', 0, 0, -1),
+  step('slash', 'left', 1, -2, 0),
+  step('slash', 'left', 3, -2, -1),
+  step('slash', 'right', 1, 2, 0),
+  step('slash', 'right', 3, 2, -1),
+  step('cast', 'down', 4, 0, -2),
+  step('cast', 'down', 5, 0, -1),
+  step('walk', 'down', 3, -1, 0),
+  step('walk', 'down', 7, 1, -1),
+];
+
+export const DANCE_LOOP_MS = DANCE_STEPS.length * DANCE_FRAME_MS;
+
+/** The dance step at a millisecond clock (wraps, negative-safe; non-finite → the first step). */
+export function danceStep(ms: number): DanceStep & { row: number } {
+  const n = DANCE_STEPS.length;
+  const i = Number.isFinite(ms) ? ((Math.floor(ms / DANCE_FRAME_MS) % n) + n) % n : 0;
+  const s = DANCE_STEPS[i];
+  return { ...s, row: ANIM_ROW[s.anim][s.dir] };
 }
 
 /** The old 6 variants re-expressed as appearances, offered as quick-start presets. */
@@ -334,6 +402,18 @@ export function drawSitAppearance(
 ): void {
   const { row, col } = sitFrame(dir);
   blitLayers(ctx, appearanceToLayers(a, 'sit'), col * FRAME_SIZE, row * FRAME_SIZE, destX, destY);
+}
+
+/** Blit the dance step at `ms` of each loaded stand layer to (destX, destY), shifted by its sway/bob. */
+export function drawDanceAppearance(
+  ctx: CanvasRenderingContext2D,
+  a: Appearance,
+  ms: number,
+  destX: number,
+  destY: number,
+): void {
+  const { row, col, dx, dy } = danceStep(ms);
+  blitLayers(ctx, appearanceToLayers(a), col * FRAME_SIZE, row * FRAME_SIZE, destX + dx, destY + dy);
 }
 
 /** Tucked-in lie at local origin (see `tuckLayout`): head + shoulders, then the blanket over the body. */

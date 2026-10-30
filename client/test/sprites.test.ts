@@ -30,6 +30,10 @@ import {
   tuckLayout,
   BLANKET_URL,
   sitFrame,
+  danceStep,
+  DANCE_STEPS,
+  DANCE_LOOP_MS,
+  ANIM_FRAMES,
 } from '../src/sprites.ts';
 import type { Direction } from '../src/sprites.ts';
 import type { Appearance } from '@byte_grounds/shared/protocol';
@@ -368,5 +372,44 @@ describe('ALL_LAYER_URLS', () => {
     for (const bad of ['teal_formal', 'maroon_formal', 'white_formal', 'green_longsleeve', 'green_tunic']) {
       expect(joined.includes(bad)).toBe(false);
     }
+  });
+});
+
+describe('danceStep', () => {
+  it('starts on the standing frame and holds it for one frame duration', () => {
+    expect(danceStep(0)).toMatchObject({ anim: 'walk', dir: 'down', row: 10, col: 0, dx: 0, dy: 0 });
+    expect(danceStep(124)).toMatchObject({ row: 10, col: 0 });
+  });
+
+  it('advances every 125 ms', () => {
+    expect(danceStep(125)).toMatchObject({ anim: 'cast', row: 2, col: 2, dx: -1, dy: -1 });
+  });
+
+  it('loops every 2 s and wraps negative clocks backwards', () => {
+    expect(DANCE_LOOP_MS).toBe(2000);
+    expect(danceStep(2000)).toEqual(danceStep(0));
+    expect(danceStep(-125)).toEqual(danceStep(15 * 125));
+  });
+
+  it('falls back to the first step for a non-finite clock', () => {
+    expect(danceStep(NaN)).toEqual(danceStep(0));
+    expect(danceStep(Infinity)).toEqual(danceStep(0));
+  });
+
+  it('keeps every step inside its animation row and the small sway/bob range', () => {
+    expect(DANCE_STEPS).toHaveLength(16);
+    DANCE_STEPS.forEach((_, i) => {
+      const s = danceStep(i * 125);
+      expect(s.col).toBeLessThan(ANIM_FRAMES[s.anim]);
+      expect(s.row).toBeLessThan(21);
+      expect(Math.abs(s.dx)).toBeLessThanOrEqual(2);
+      expect(s.dy).toBeLessThanOrEqual(0);
+      expect(s.dy).toBeGreaterThanOrEqual(-2);
+    });
+  });
+
+  it('draws the stand layers', () => {
+    const a = casual({ outfit: 'business', torso: 'pink' });
+    expect(appearanceToLayers(a, 'dance')).toEqual(appearanceToLayers(a));
   });
 });
