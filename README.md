@@ -50,6 +50,14 @@ the room, broadcast carries positions and WebRTC signaling (`client/src/net-supa
    safe to run again. Without it the game still runs on the built-in maps, but the map
    editor can't save and players don't come back to their last spot.
 
+4. **Admin and permissions:** in Supabase turn on **Authentication → Sign In / Providers → Allow
+   anonymous sign-ins** (guests get a silent session), create your admin user under
+   **Authentication → Users → Add user** (tick Auto Confirm), then run
+   [`supabase/admin.sql`](supabase/admin.sql) in the SQL Editor and make yourself admin:
+   `insert into public.admins (user_id) select id from auth.users where email = '<your-email>';`
+   From then on only the admin and people the admin allows (click an avatar in the game) can
+   save maps. Re-run `admin.sql` whenever you re-run `schema.sql`.
+
 When both variables are set the client uses Supabase; otherwise it falls back to the ws server at
 `VITE_WS_URL`. To try Supabase locally, put the two variables in `client/.env.local`
 (see `client/.env.example`) and run `npm run dev:client`.
