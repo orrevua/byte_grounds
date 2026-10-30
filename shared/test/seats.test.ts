@@ -47,8 +47,38 @@ describe('seat catalog', () => {
 
   it('has no spot for bed feet or unknown sheets', () => {
     expect(seatSpot('house_inside', 0, 6)).toBeUndefined();
-    expect(seatSpot('wooden_furniture', 14, 13)).toBeUndefined();
+    expect(seatSpot('wooden_furniture', 13, 14)).toBeUndefined();
     expect(seatSpot('nope', 0, 0)).toBeUndefined();
+  });
+});
+
+describe('seat catalog beds (tier B)', () => {
+  const lie = (dir: string) => ({ kind: 'lie', dir });
+
+  it('beds_grid: pillow pieces face away from the pillows; blankets are no seat', () => {
+    expect(seatSpot('beds_grid', 11, 0)).toEqual(lie('down'));
+    expect(seatSpot('beds_grid', 9, 31)).toEqual(lie('up'));
+    expect(seatSpot('beds_grid', 6, 43)).toEqual(lie('right'));
+    expect(seatSpot('beds_grid', 11, 49)).toEqual(lie('left'));
+    expect(seatSpot('beds_grid', 3, 2)).toBeUndefined();
+  });
+
+  it('beds_single_grid: both cells of each pillow piece', () => {
+    expect(seatSpot('beds_single_grid', 1, 1)).toEqual(lie('down'));
+    expect(seatSpot('beds_single_grid', 11, 5)).toEqual(lie('up'));
+    expect(seatSpot('beds_single_grid', 11, 10)).toEqual(lie('right'));
+    expect(seatSpot('beds_single_grid', 2, 16)).toEqual(lie('left'));
+    expect(seatSpot('beds_single_grid', 9, 3)).toBeUndefined();
+  });
+
+  it('upholstery, house_inside and wooden_furniture whole beds', () => {
+    expect(seatSpot('upholstery', 5, 15)).toEqual(lie('down'));
+    expect(seatSpot('upholstery', 7, 17)).toEqual(lie('right'));
+    expect(seatSpot('upholstery', 5, 21)).toEqual(lie('left'));
+    expect(seatSpot('upholstery', 1, 18)).toBeUndefined();
+    expect(seatSpot('house_inside', 15, 6)).toEqual(lie('down'));
+    expect(seatSpot('house_inside', 15, 7)).toBeUndefined();
+    expect(seatSpot('wooden_furniture', 14, 13)).toEqual(lie('down'));
   });
 });
 
