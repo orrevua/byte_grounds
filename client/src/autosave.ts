@@ -42,6 +42,8 @@ export function createAutosave(o: AutosaveOpts): Autosave {
   async function run(): Promise<boolean> {
     for (;;) {
       if (!o.isDirty()) {
+        // Nothing left to save (e.g. the map was reloaded): a denial no longer blocks autosave.
+        denied = false;
         o.onStatus('saved');
         return true;
       }

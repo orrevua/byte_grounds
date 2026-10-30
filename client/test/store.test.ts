@@ -74,6 +74,15 @@ describe('LocalStore', () => {
     expect(await store.loadMap('cafe')).toBeNull();
   });
 
+  it('loads map state with seq 0: saved, built-in and missing', async () => {
+    const store = new LocalStore(memoryStorage());
+    const m = createBlankMap('Café', 5, 4);
+    expect(await store.saveMap(m)).toBe(0);
+    expect(await store.loadMapState('cafe')).toEqual({ map: m, seq: 0 });
+    expect(await store.loadMapState('office')).toEqual({ map: OFFICE, seq: 0 });
+    expect(await store.loadMapState('nope')).toEqual({ map: null, seq: 0 });
+  });
+
   it('remembers positions per map and per player name, ignoring case/spaces', async () => {
     const store = new LocalStore(memoryStorage());
     await store.savePosition('office', 'Felipe ', 4.5, 6.5);

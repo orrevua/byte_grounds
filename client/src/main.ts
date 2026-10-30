@@ -182,13 +182,16 @@ function fillMapSelect(select: HTMLSelectElement, maps: MapSummary[], selected: 
 
 /** Admin sign-in state under Join: signed in as the admin, or a link that opens the login form. */
 function renderAdminBox(box: HTMLDivElement): void {
-  void adminEmail().then((email) => (email ? showAdmin(box, email) : showAdminLink(box)));
+  void adminEmail().then(async (email) =>
+    email ? showSignedIn(box, email, await checkIsAdmin()) : showAdminLink(box),
+  );
 }
 
-function showAdmin(box: HTMLDivElement, email: string): void {
+/** Email sign-ups are open, so a signed-in account is only labelled admin when `is_admin()` says so. */
+function showSignedIn(box: HTMLDivElement, email: string, isAdmin: boolean): void {
   box.innerHTML = `<div><span class="admin-email"></span> · <button type="button" class="link">Sign out</button></div>
     <div class="join-error"></div>`;
-  box.querySelector('.admin-email')!.textContent = `Admin: ${email}`;
+  box.querySelector('.admin-email')!.textContent = isAdmin ? `Admin: ${email}` : `Signed in: ${email} (not admin)`;
   const errorEl = box.querySelector<HTMLDivElement>('.join-error')!;
   box.querySelector('button')!.addEventListener('click', () => {
     signOutAdmin()

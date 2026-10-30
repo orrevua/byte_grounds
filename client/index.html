@@ -72,6 +72,29 @@
       #avatar-menu button:disabled { opacity: .6; cursor: default; }
       #avatar-menu .menu-note { color: #9aa3ad; }
       #avatar-menu .menu-error { color: #ffb4b4; }
+      #build-btn { position: fixed; top: 12px; right: 12px; z-index: 15; padding: 8px 16px; border: 0;
+        border-radius: 999px; background: #2d6e4e; color: #fff; font: 600 14px system-ui, sans-serif;
+        cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+      #build-btn.on { background: #4f8cff; }
+      #build-panel { position: fixed; top: 0; right: 0; bottom: 0; width: 300px; z-index: 25;
+        display: flex; flex-direction: column; gap: 8px; padding: 12px; overflow-y: auto;
+        background: #1e2228; font-size: 13px; box-shadow: -6px 0 18px rgba(0,0,0,.45); }
+      #build-panel .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+      #build-panel .build-head { justify-content: space-between; font-size: 15px; }
+      #build-panel select, #build-panel button { font: inherit; color: #e6e8eb; background: #2a2f37;
+        border: 1px solid #333a44; border-radius: 6px; padding: 5px 8px; cursor: pointer; }
+      #build-panel select { background: #14161a; }
+      #build-panel .tools { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+      #build-panel .tools button.active { background: #4f8cff; border-color: #4f8cff; color: #fff; }
+      #build-panel .hint { color: #9aa3ad; font-size: 12px; line-height: 1.4; margin: 4px 0; }
+      #build-panel #sheet-wrap { max-height: 320px; overflow: auto; background: #0d0f12; border-radius: 6px; }
+      #build-panel #sheet { max-width: none; cursor: crosshair; }
+      @media (max-width: 720px) {
+        #build-panel { top: auto; left: 0; width: auto; height: 45vh; box-shadow: 0 -6px 18px rgba(0,0,0,.45); }
+      }
+      #toast { position: fixed; top: 56px; left: 50%; transform: translateX(-50%); z-index: 40;
+        max-width: 90vw; padding: 8px 14px; border-radius: 8px; background: #5a2a2a; color: #fff;
+        font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
     </style>
   </head>
   <body>
