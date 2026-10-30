@@ -199,6 +199,7 @@ export class Game {
     clearTimeout(this.toastTimer);
     this.seatBtn.remove();
     this.danceBtn.remove();
+    this.live?.stop();
     this.mesh.closeAll();
   }
 

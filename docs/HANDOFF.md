@@ -1,11 +1,43 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-29 (Admin + live building, Phase 1)
+**Last updated:** 2026-10-30 (Admin + live building, Phase 2 wired)
 **Branch:** `claude/nifty-archimedes-e4o1ce`
 
-## Admin + live building — Phase 1 (P1-U1..U10) code DONE, COMMITTED (2026-10-29); P1-U11 manual checks pending
-Spec: `docs/specs/admin-live-building.md` (rev 2). Phase 2 (live build mode, `map_edits`, merge-on-save,
-baking) not started.
+## Admin + live building — Phase 2 (P2-U1..U16) code DONE and WIRED (2026-10-30); P2-U17 manual checks pending
+Spec: `docs/specs/admin-live-building.md` (rev 2), Phase 2.
+- Commit `3373787` ("early phase2") had U1–U16 written (`supabase/live-edits.sql`, `edit-ops.ts`,
+  `live-model.ts`, `Store.loadMapState` / `loadEdits` / `bakeMap` / `StaleSaveError`, `live-map.ts` with
+  auto-bake, `decor-picker.ts`, movement escape, `build-panel.ts`, `Game.attachLive` + build mode,
+  store save/delete through `bake_map` / `delete_map`, `mergeLiveEdits`, editor merge-before-save +
+  conflict UI) but **nothing created the `LiveMap`**: no Build button, no live edits.
+- **Fixed (2026-10-30):** `main.ts` `startGame()` now, when the player has a uid, creates
+  `new LiveMap(map, map.id, uid, { isAdmin, canBake: () => isAdmin || feed.has(uid, 'editor') })`
+  on the same `map` object the game draws, `game.attachLive(live)` **before** `live.start()`.
+  `Game.stop()` stops it. Without a uid (local ws dev, or anonymous sign-in failing) there is no live
+  map and no Build button.
+- Avatar menu: a remote without a uid now says "Can't grant: this player isn't signed in. Check that
+  anonymous sign-ins are on in Supabase (Authentication → Sign In / Providers), then have them
+  reload." (was "they need to reload", which hid the usual cause: anonymous sign-ins off.)
+- Tests: `client/test/live-map.test.ts` (+2, fake Supabase: load stored map + later edits into the
+  game's map object, live INSERT applied, `send` inserts a `map_edits` row). `npm test` 270 green;
+  client typecheck + build green; local ws play smoke-tested (no errors, no Build button).
+
+### Manual user steps for Phase 2 (production Supabase, after the Phase 1 steps below)
+1. Phase 1 steps 1–5 below must be done, **especially step 1 (anonymous sign-ins)**: without it no
+   guest gets a uid, so nobody can be granted anything and only the admin can build.
+2. SQL Editor → New query → paste all of `supabase/live-edits.sql` → Run (idempotent).
+3. Database → Publications → `supabase_realtime` lists `map_edits`. If not:
+   `alter publication supabase_realtime add table public.map_edits;`
+4. Deploy (merge/push so Vercel redeploys; no new env vars). Everyone reloads once.
+
+### P2-U17 — Manual checklist (not exercised here; needs the real Supabase)
+The 14 items under "Manual checklists → P2" in the spec. Shortest useful pass: admin + one guest
+window. (1) admin grants the guest "Allow building" → guest sees **Build**; (2) guest places a
+desk → both windows show it, it blocks walking; (4) guest Undo → gone everywhere; (7) refresh → still
+there; (11) editor tab open on the room + a live placement + an editor change → both survive.
+
+ (P1-U1..U10) code DONE, COMMITTED (2026-10-29); P1-U11 manual checks pending
+Spec: `docs/specs/admin-live-building.md` (rev 2). Phase 2: see the section above.
 - **P1-U1** `supabase/admin.sql` (new, idempotent): `admins`, `grants(user_id, perm in build|editor)`,
   `is_admin()` / `can_build()` / `can_edit_maps()` (stable security definer), RLS (grants: read all,
   insert/delete admin only; maps: read all, insert/update/delete `can_edit_maps()`; drops
@@ -26,7 +58,7 @@ baking) not started.
 - **P1-U6** `client/src/hit.ts` (`screenToWorld`, `avatarAt`); `Game` keeps `camX/camY/scale` from
   `render()`, canvas `pointerdown` → `onAvatarClick(id, clientX, clientY)` (remotes only).
 - **P1-U7** `client/src/avatar-menu.ts`: admin popup `<name> #a1b2` + "Allow building: on/off" and
-  "Allow map editor: on/off"; no uid → "Can't grant: they need to reload"; inline errors; closes on
+  "Allow map editor: on/off"; no uid → "Can't grant: this player isn't signed in…" (anonymous sign-ins off, or an old tab); inline errors; closes on
   outside click / Esc. `Game.attachGrants(feed)` (menu only for the admin); `main.ts` starts the feed
   when the player has a uid. `RemoteAvatar.uid`.
 - **P1-U8** Editor gate (Supabase only): overlay "Checking permission…" → `ensureSession()` →

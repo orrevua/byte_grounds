@@ -68,7 +68,15 @@ export class AvatarMenu {
     el.replaceChildren(who);
     const { uid } = target;
     if (!uid) {
-      el.append(note('menu-note', "Can't grant: they need to reload"));
+      // No uid: their silent anonymous sign-in failed (usually anonymous sign-ins are off in
+      // the Supabase project), or their tab predates uids.
+      el.append(
+        note(
+          'menu-note',
+          "Can't grant: this player isn't signed in. Check that anonymous sign-ins are on in " +
+            'Supabase (Authentication → Sign In / Providers), then have them reload.',
+        ),
+      );
       return;
     }
     const sid = document.createElement('span');
