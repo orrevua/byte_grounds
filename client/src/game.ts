@@ -1,15 +1,16 @@
 import { decorLayer, seatsNearIn, stepOutOf, zoneAt, zoneKey, type DecorCell, type OfficeMap, type Seat, type Zone } from '@byte_grounds/shared/map';
 import { POSITION_TICK_MS, TILE_SIZE, normalizeChat, normalizePose, normalizeStatus } from '@byte_grounds/shared/protocol';
 import { effectiveSeats, seatSpot } from '@byte_grounds/shared/seats';
-import type { Appearance, PeerId, PeerState, Pose, ServerToClient, StatusFields } from '@byte_grounds/shared/protocol';
-import { balloonHeight, drawAvatar, drawAvatarTags, drawChatBalloon, drawDecorCellAt, drawZones, tagsTop, drawMap, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
+import type { Appearance, HeldItem, PeerId, PeerState, Pose, ServerToClient, StatusFields } from '@byte_grounds/shared/protocol';
+import { balloonHeight, drawAvatar, drawAvatarTags, drawChatBalloon, drawDecorCellAt, drawHeldItem, drawZones, tagsTop, drawMap, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
 import { avatarAnchorY, sortRenderables, stackedDecorAnchors } from './depth.ts';
-import { cameraOffset, viewportSize } from './camera.ts';
+import { ZOOM_STEPS, cameraOffset, clampZoom, stepZoom, viewportSize } from './camera.ts';
 import { Minimap, type MinimapDot } from './minimap.ts';
 import { Keyboard, TouchPad, isTouchDevice } from './input.ts';
 import { stepMovement, type MoveInput } from './movement.ts';
 import { distanceTiles, nextLinkState, type ProxState } from './proximity.ts';
 import { MeetingView, type Participant } from './meeting.ts';
+import { drinkDuration, formatDuration, machineNear, machinesIn, type Machine } from './dispensers.ts';
 import { MediaManager, ScreenStage, VideoBubbles, hasLiveVideo, volumeForDistance } from './media.ts';
 import { WebrtcMesh } from './webrtc.ts';
 import { avatarAt, screenToWorld } from './hit.ts';
@@ -55,6 +56,10 @@ interface Avatar {
   status: string;
   busy: boolean;
   sharing: boolean;
+  /** A drink in hand ('' = none). */
+  item: HeldItem;
+  /** Signed in as the admin: an [ADM] tag before the name. */
+  admin: boolean;
 }
 
 /** A chat line floating over the room, Habbo style (world px; rises as newer ones arrive). */
@@ -86,6 +91,17 @@ const FEET: Record<Direction, { dx: number; dy: number }> = {
   left: { dx: -1, dy: 0 },
   right: { dx: 1, dy: 0 },
 };
+
+const ZOOM_KEY = 'byte_grounds.zoom';
+
+/** The remembered map zoom (1 when unset, unreadable or out of range). */
+function loadZoom(): number {
+  try {
+    return clampZoom(Number(localStorage.getItem(ZOOM_KEY) ?? 1));
+  } catch {
+    return 1;
+  }
+}
 
 /** How close (tiles, to the seat's center) you must be to sit/lie on it. */
 const SEAT_REACH = 1.6;
@@ -132,6 +148,10 @@ export class Game {
   private seats: Seat[];
   private readonly seatBtn: HTMLButtonElement;
   private readonly danceBtn: HTMLButtonElement;
+  /** Drink machines on the map, the button that uses one, and when our drink runs out. */
+  private machines: Machine[];
+  private readonly drinkBtn: HTMLButtonElement;
+  private itemUntil = 0;
   private sentPose: Pose = 'stand';
   private sentDir: Direction = 'down';
   private readonly remotes = new Map<PeerId, RemoteAvatar>();
@@ -157,6 +177,11 @@ export class Game {
   private lookAt: { px: number; py: number } | null = null;
   private minimap: Minimap | null = null;
   private scale = 1;
+  /** Map zoom (the world is drawn this many times bigger); the HUD is DOM and never scales. */
+  private zoom = loadZoom();
+  private readonly zoomCtl: HTMLDivElement;
+  /** Two-finger pinch: the finger distance and zoom when it started. */
+  private pinch: { dist: number; zoom: number } | null = null;
   /** Called when a remote avatar is clicked (client coords of the click). */
   onAvatarClick: ((id: PeerId, clientX: number, clientY: number) => void) | null = null;
   /** A chat line arrived (or we sent one: `self` true). */
@@ -178,6 +203,7 @@ export class Game {
     if (!ctx) throw new Error('2D canvas context unavailable');
     this.ctx = ctx;
     this.seats = effectiveSeats(map);
+    this.machines = machinesIn(map);
 
     this.fitCanvas();
 
@@ -196,6 +222,8 @@ export class Game {
       status: normalizeStatus(self.status),
       busy: false,
       sharing: false,
+      item: '',
+      admin: self.isAdmin,
     };
 
     this.seatBtn = document.createElement('button');
@@ -207,6 +235,11 @@ export class Game {
     this.danceBtn.id = 'dance-btn';
     this.danceBtn.addEventListener('click', () => this.toggleDance());
     document.body.appendChild(this.danceBtn);
+    this.drinkBtn = document.createElement('button');
+    this.drinkBtn.id = 'drink-btn';
+    this.drinkBtn.className = 'hidden';
+    this.drinkBtn.addEventListener('click', () => this.getDrink());
+    document.body.appendChild(this.drinkBtn);
     addEventListener('keydown', this.onKey);
     addEventListener('resize', this.fitCanvas);
     this.minimap = new Minimap(
@@ -217,6 +250,23 @@ export class Game {
       },
       () => this.followSelf(),
     );
+    this.zoomCtl = document.createElement('div');
+    this.zoomCtl.id = 'zoom-ctl';
+    this.zoomCtl.innerHTML =
+      '<button type="button" data-z="1" title="Zoom in (+ or mouse wheel)">+</button>' +
+      '<span></span>' +
+      '<button type="button" data-z="-1" title="Zoom out (-)">−</button>';
+    this.zoomCtl.addEventListener('click', (e) => {
+      const dir = Number((e.target as HTMLElement).closest<HTMLButtonElement>('[data-z]')?.dataset.z);
+      if (dir === 1 || dir === -1) this.setZoom(stepZoom(this.zoom, dir));
+    });
+    document.body.appendChild(this.zoomCtl);
+    this.updateZoomCtl();
+    canvas.addEventListener('wheel', this.onWheel, { passive: false });
+    addEventListener('wheel', this.onCtrlWheel, { passive: false });
+    canvas.addEventListener('touchstart', this.onTouch, { passive: false });
+    canvas.addEventListener('touchmove', this.onTouch, { passive: false });
+    canvas.addEventListener('touchend', this.onTouchEnd);
     canvas.addEventListener('pointerdown', this.onPointerDown);
     canvas.addEventListener('pointermove', this.onPointerMove);
     canvas.addEventListener('pointerleave', this.onPointerLeave);
@@ -265,6 +315,7 @@ export class Game {
   /** Recompute the usable seats after the map's decor/seats/noSeats change; stand up if ours is gone. */
   refreshSeats(): void {
     this.seats = effectiveSeats(this.map);
+    this.machines = machinesIn(this.map);
     const mine = this.seat?.seat;
     if (mine && !this.seats.some((st) => st.x === mine.x && st.y === mine.y && st.kind === mine.kind)) this.standUp();
   }
@@ -281,6 +332,12 @@ export class Game {
     this.touchpad?.dispose();
     removeEventListener('keydown', this.onKey);
     removeEventListener('resize', this.fitCanvas);
+    removeEventListener('wheel', this.onCtrlWheel);
+    this.ctx.canvas.removeEventListener('wheel', this.onWheel);
+    this.ctx.canvas.removeEventListener('touchstart', this.onTouch);
+    this.ctx.canvas.removeEventListener('touchmove', this.onTouch);
+    this.ctx.canvas.removeEventListener('touchend', this.onTouchEnd);
+    this.zoomCtl.remove();
     this.minimap?.dispose();
     this.ctx.canvas.removeEventListener('pointerdown', this.onPointerDown);
     this.ctx.canvas.removeEventListener('pointermove', this.onPointerMove);
@@ -292,6 +349,7 @@ export class Game {
     clearTimeout(this.toastTimer);
     this.seatBtn.remove();
     this.danceBtn.remove();
+    this.drinkBtn.remove();
     this.live?.stop();
     this.mesh.closeAll();
     this.stage.dispose();
@@ -352,11 +410,11 @@ export class Game {
     if (!ok) this.panel?.close();
   }
 
-  private toast(msg: string): void {
+  private toast(msg: string, kind: 'error' | 'info' = 'error'): void {
     const el = (this.toastEl ??= document.body.appendChild(document.createElement('div')));
     el.id = 'toast';
     el.textContent = msg;
-    el.classList.remove('hidden');
+    el.className = kind;
     clearTimeout(this.toastTimer);
     this.toastTimer = setTimeout(() => el.classList.add('hidden'), TOAST_MS);
   }
@@ -380,7 +438,7 @@ export class Game {
 
   /** Our status fields as sent to others. */
   get statusFields(): StatusFields {
-    return { status: this.self.status, busy: this.self.busy, sharing: this.self.sharing };
+    return { status: this.self.status, busy: this.self.busy, sharing: this.self.sharing, item: this.self.item };
   }
 
   private sendStatus(): void {
@@ -406,6 +464,31 @@ export class Game {
   setSharing(on: boolean): void {
     if (this.self.sharing === on) return;
     this.self.sharing = on;
+    this.sendStatus();
+  }
+
+  /** The drink machine within reach (not while seated or lying). */
+  private machineNearby(): Machine | undefined {
+    return this.seat ? undefined : machineNear(this.machines, this.self.x, this.self.y);
+  }
+
+  /** Take a coffee / water from the machine in reach: held for 30 s, 1 min or 5 min (random). */
+  getDrink(): void {
+    const k = this.machineNearby();
+    if (!k) return;
+    const ms = drinkDuration(Math.random());
+    this.self.item = k.item;
+    this.itemUntil = Date.now() + ms;
+    if (this.self.pose === 'dance') this.self.pose = 'stand';
+    this.sendStatus();
+    this.toast(`${k.item === 'coffee' ? 'Coffee' : 'Water'} in hand for ${formatDuration(ms)}`, 'info');
+  }
+
+  /** The drink is finished. */
+  private dropDrink(): void {
+    if (!this.self.item) return;
+    this.self.item = '';
+    this.itemUntil = 0;
     this.sendStatus();
   }
 
@@ -482,6 +565,8 @@ export class Game {
       status: normalizeStatus(p.status),
       busy: p.busy === true,
       sharing: p.sharing === true,
+      item: p.item === 'coffee' || p.item === 'water' ? p.item : '',
+      admin: p.admin === true,
       ...(typeof p.uid === 'string' ? { uid: p.uid } : {}),
     };
   }
@@ -524,6 +609,7 @@ export class Game {
           r.status = normalizeStatus(msg.status);
           r.busy = msg.busy === true;
           r.sharing = msg.sharing === true;
+          r.item = msg.item === 'coffee' || msg.item === 'water' ? msg.item : '';
           this.onPeersChanged?.();
         }
         break;
@@ -559,6 +645,7 @@ export class Game {
     if (moveHeld && this.lookAt) this.followSelf();
     if (moveHeld && this.self.pose === 'dance') this.self.pose = 'stand';
     if (moveHeld && this.self.busy && !this.seat) this.toggleBusy();
+    if (this.self.item && Date.now() >= this.itemUntil) this.dropDrink();
     this.updateZone();
     if (this.seat && moveHeld) this.standUp();
     if (!this.seat) {
@@ -602,31 +689,90 @@ export class Game {
     this.raf = requestAnimationFrame(this.frame);
   };
 
-  /** The canvas shows the whole map when it fits the window, else a window-sized view of it. */
+  /** The canvas shows the whole (zoomed) map when it fits the window, else a window-sized view of it. */
   private readonly fitCanvas = (): void => {
     const canvas = this.ctx.canvas;
-    const { w, h } = viewportSize(mapPixelSize(this.map), { w: innerWidth, h: innerHeight });
+    const world = mapPixelSize(this.map);
+    const { w, h } = viewportSize({ w: Math.ceil(world.w * this.zoom), h: Math.ceil(world.h * this.zoom) }, { w: innerWidth, h: innerHeight });
     if (canvas.width !== w) canvas.width = w;
     if (canvas.height !== h) canvas.height = h;
   };
 
+  /** Zoom the map (snapped to a step unless pinching), remembered for next time. */
+  private setZoom(z: number): void {
+    const next = clampZoom(z);
+    if (next === this.zoom) return;
+    this.zoom = next;
+    try {
+      localStorage.setItem(ZOOM_KEY, String(next));
+    } catch {
+      // private mode: just don't remember it
+    }
+    this.fitCanvas();
+    this.updateZoomCtl();
+  }
+
+  private updateZoomCtl(): void {
+    this.zoomCtl.querySelector('span')!.textContent = `${Math.round(this.zoom * 100)}%`;
+    const [min, max] = [ZOOM_STEPS[0], ZOOM_STEPS[ZOOM_STEPS.length - 1]];
+    this.zoomCtl.querySelector<HTMLButtonElement>('[data-z="1"]')!.disabled = this.zoom >= max;
+    this.zoomCtl.querySelector<HTMLButtonElement>('[data-z="-1"]')!.disabled = this.zoom <= min;
+  }
+
+  /** Mouse wheel over the map zooms it (one step per notch). */
+  private readonly onWheel = (e: WheelEvent): void => {
+    e.preventDefault();
+    if (e.deltaY !== 0) this.setZoom(stepZoom(this.zoom, e.deltaY < 0 ? 1 : -1));
+  };
+
+  /** Ctrl+wheel anywhere would zoom the whole page (and scale the HUD away): zoom the map instead. */
+  private readonly onCtrlWheel = (e: WheelEvent): void => {
+    if (!e.ctrlKey || e.target === this.ctx.canvas || this.meeting.isOpen) return;
+    e.preventDefault();
+    if (e.deltaY !== 0) this.setZoom(stepZoom(this.zoom, e.deltaY < 0 ? 1 : -1));
+  };
+
+  private readonly onTouch = (e: TouchEvent): void => {
+    if (e.touches.length !== 2) return;
+    e.preventDefault();
+    const [a, b] = [e.touches[0]!, e.touches[1]!];
+    const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    if (!this.pinch || e.type === 'touchstart') this.pinch = { dist, zoom: this.zoom };
+    else if (this.pinch.dist > 0) this.setZoom(this.pinch.zoom * (dist / this.pinch.dist));
+  };
+
+  /** End of a pinch: settle on the nearest zoom step (crisp pixels). */
+  private readonly onTouchEnd = (e: TouchEvent): void => {
+    if (!this.pinch || e.touches.length >= 2) return;
+    this.pinch = null;
+    const nearest = ZOOM_STEPS.reduce((best, z) => (Math.abs(z - this.zoom) < Math.abs(best - this.zoom) ? z : best));
+    this.setZoom(nearest);
+  };
+
   private readonly onKey = (e: KeyboardEvent): void => {
-    if (e.repeat) return;
     const t = e.target;
     if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) return;
-    const key = e.key.toLowerCase();
     if (this.meeting.isOpen) return;
+    // Zoom keys, also with Ctrl so the browser doesn't scale the page and the HUD with it.
+    if ((e.key === '+' || e.key === '=' || e.key === '-' || e.key === '_' || (e.ctrlKey && e.key === '0')) && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      if (e.key === '0') return this.setZoom(1);
+      return this.setZoom(stepZoom(this.zoom, e.key === '-' || e.key === '_' ? -1 : 1));
+    }
+    if (e.repeat) return;
+    const key = e.key.toLowerCase();
     if (key === 'escape' && this.moving) {
       this.moving = null;
       return;
     }
     if (key === 'e') this.toggleSeat();
     else if (key === 'q') this.toggleDance();
+    else if (key === 'f') this.getDrink();
   };
 
   private worldPoint(e: PointerEvent): { px: number; py: number } {
     const r = this.ctx.canvas.getBoundingClientRect();
-    return screenToWorld(e.clientX - r.left, e.clientY - r.top, this.scale, this.camX, this.camY);
+    return screenToWorld(e.clientX - r.left, e.clientY - r.top, this.scale * this.zoom, this.camX, this.camY);
   }
 
   /** While building, a click edits the tile; otherwise it may open the avatar menu. */
@@ -770,6 +916,11 @@ export class Game {
         : '';
     if (this.seatBtn.textContent !== label) this.seatBtn.textContent = label;
     this.seatBtn.className = label ? '' : 'hidden';
+
+    const k = this.machineNearby();
+    const drinkLabel = k ? (k.item === 'coffee' ? 'Get coffee (F)' : 'Get water (F)') : '';
+    if (this.drinkBtn.textContent !== drinkLabel) this.drinkBtn.textContent = drinkLabel;
+    this.drinkBtn.className = drinkLabel ? '' : 'hidden';
   }
 
   /**
@@ -887,15 +1038,19 @@ export class Game {
     // A map bigger than the canvas scrolls to keep our avatar centred (clamped at the edges).
     const world = mapPixelSize(map);
     const focus = this.lookAt ?? tileToScreen(this.self.x, this.self.y);
-    const camX = cameraOffset(focus.px, ctx.canvas.width, world.w);
-    const camY = cameraOffset(focus.py, ctx.canvas.height, world.h);
+    // Zoomed, the canvas shows a smaller piece of the world, drawn bigger.
+    const z = this.zoom;
+    const camX = cameraOffset(focus.px, ctx.canvas.width / z, world.w);
+    const camY = cameraOffset(focus.py, ctx.canvas.height / z, world.h);
     this.camX = camX;
     this.camY = camY;
     this.scale = scale;
     this.drawMinimap();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-    ctx.setTransform(1, 0, 0, 1, -camX, -camY);
+    ctx.imageSmoothingEnabled = false;
+    // Whole device pixels for the scroll, so tile edges stay crisp at fractional zooms.
+    ctx.setTransform(z, 0, 0, z, -Math.round(camX * z), -Math.round(camY * z));
     drawMap(ctx, map);
     drawZones(ctx, map, this.zone, 'area');
 
@@ -918,6 +1073,7 @@ export class Game {
       } else {
         if (!it.isSelf && it.id !== null && this.prox.get(it.id) === 'near') this.drawRing(it.av.x, it.av.y);
         this.drawCharacter(it.av);
+        if (it.av.item) drawHeldItem(ctx, it.av.item, it.av.pose, it.av.dir, it.av.x, it.av.y, Date.now(), it.av.name.length * 977);
         if (it.av.pose === 'sit' && it.av.dir === 'up') this.drawChairBackOver(it.av);
         if (it.av.pose === 'lie' && appearanceReady(it.av.appearance)) this.drawBedOver(it.av);
       }
@@ -938,7 +1094,7 @@ export class Game {
         this.bubbles.setVolume(id, this.sameRoom(r) ? 1 : volumeForDistance(distanceTiles(this.self, r)));
       }
       const { px, py } = tileToScreen(r.x, r.y);
-      this.bubbles.place(id, (px - camX) * scale, (py - camY) * scale);
+      this.bubbles.place(id, (px - camX) * scale * z, (py - camY) * scale * z);
     }
   }
 
@@ -986,7 +1142,7 @@ export class Game {
     for (const [id, r] of this.remotes) dots.push({ x: r.x, y: r.y, kind: this.prox.get(id) === 'near' ? 'near' : 'other' });
     dots.push({ x: this.self.x, y: this.self.y, kind: 'self' });
     const { width, height } = this.ctx.canvas;
-    this.minimap.draw({ x: this.camX, y: this.camY, w: width, h: height }, dots);
+    this.minimap.draw({ x: this.camX, y: this.camY, w: width / this.zoom, h: height / this.zoom }, dots);
   }
 
   /** Own edits on their way (ghosts), and while building the piece / tile under the pointer. */
@@ -1034,7 +1190,7 @@ export class Game {
 
   /** Name, status, zzZ and chat bubble above an avatar, drawn in the top pass so furniture can't cover them. */
   private drawTags(a: Avatar, now: number): void {
-    drawAvatarTags(this.ctx, a.x, a.y, a.pose, { name: a.name, status: a.status, busy: a.busy }, now);
+    drawAvatarTags(this.ctx, a.x, a.y, a.pose, { name: a.name, status: a.status, busy: a.busy, admin: a.admin }, now);
   }
 
   private drawRing(x: number, y: number): void {

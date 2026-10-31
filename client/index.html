@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="description" content="A tiny virtual office for friends: walk up to someone and just talk." />
     <meta name="theme-color" content="#14161a" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
@@ -66,14 +66,16 @@
       .net-banner-connecting, .net-banner-reconnecting { background: #b5842a; color: #14161a; }
       .net-banner-closed { background: #a33; color: #fff; }
       .hidden { display: none !important; }
-      #seat-btn, #dance-btn { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+      #seat-btn, #dance-btn, #drink-btn { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
         z-index: 15; padding: 10px 18px; border: 0; border-radius: 999px; background: #4f8cff;
         color: #fff; font: 600 14px system-ui, sans-serif; cursor: pointer;
         box-shadow: 0 4px 14px rgba(0,0,0,.35); }
       #dance-btn { bottom: 64px; }
+      #drink-btn { bottom: 112px; background: #8a5a2b; }
       @media (pointer: coarse) {
-        #seat-btn, #dance-btn { bottom: 212px; padding: 14px 22px; font-size: 16px; }
+        #seat-btn, #dance-btn, #drink-btn { bottom: 212px; padding: 14px 22px; font-size: 16px; }
         #dance-btn { bottom: 268px; }
+        #drink-btn { bottom: 324px; }
       }
       .panel select { background: #14161a; color: #e6e8eb; border: 1px solid #333a44;
         border-radius: 6px; padding: 6px 8px; max-width: 170px; }
@@ -167,13 +169,13 @@
       @media (max-width: 900px) {
         #screen-stage { top: auto; bottom: 120px; width: calc(100vw - 24px); min-width: 0; }
       }
-      #meet-pill { position: fixed; left: 50%; bottom: 112px; transform: translateX(-50%); z-index: 15;
+      #meet-pill { position: fixed; left: 50%; bottom: 160px; transform: translateX(-50%); z-index: 15;
         padding: 10px 18px; border: 0; border-radius: 999px; background: #1a73e8; color: #fff;
         font: 600 14px system-ui, sans-serif; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.4);
         white-space: nowrap; animation: pill-in .25s ease-out; }
       #meet-pill:hover { background: #1b66c9; }
       @keyframes pill-in { from { opacity: 0; transform: translate(-50%, 8px); } }
-      @media (pointer: coarse) { #meet-pill { bottom: 324px; } }
+      @media (pointer: coarse) { #meet-pill { bottom: 380px; } }
       #meeting { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column;
         background: #202124; color: #e8eaed; font-family: 'Google Sans', Roboto, system-ui, sans-serif; }
       .meet-main { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 16px 16px 0; }
@@ -216,9 +218,19 @@
         .meet-bar { grid-template-columns: 1fr; height: auto; padding: 10px; justify-items: center; }
         .meet-info, .meet-back span { display: none; }
       }
+      #stage { touch-action: none; }
+      #zoom-ctl { position: fixed; right: 12px; top: 56px; z-index: 15; display: flex; flex-direction: column;
+        align-items: center; gap: 2px; padding: 4px; border-radius: 999px; background: rgba(30, 34, 40, .9);
+        box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+      #zoom-ctl button { width: 30px; height: 30px; border: 0; border-radius: 50%; background: #2a2f37;
+        color: #e6e8eb; font: 700 17px system-ui, sans-serif; cursor: pointer; line-height: 1; }
+      #zoom-ctl button:hover:not(:disabled) { background: #3a414c; }
+      #zoom-ctl button:disabled { opacity: .35; cursor: default; }
+      #zoom-ctl span { font: 600 10px system-ui, sans-serif; color: #9aa3ad; padding: 2px 0; }
       #toast { position: fixed; top: 56px; left: 50%; transform: translateX(-50%); z-index: 40;
         max-width: 90vw; padding: 8px 14px; border-radius: 8px; background: #5a2a2a; color: #fff;
         font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+      #toast.info { background: #2d4f6e; }
     </style>
   </head>
   <body>
