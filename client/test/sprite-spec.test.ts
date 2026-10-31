@@ -108,3 +108,15 @@ describe('bufferToSpec', () => {
     expect(sheetSlug('!!!')).toBe('sheet');
   });
 });
+
+describe('seats in a spec', () => {
+  it('keeps valid seat cells and rejects ones outside the sheet or malformed', () => {
+    const ok = parseSpec({ cols: 2, rows: 1, seats: [{ x: 1, y: 0, kind: 'sit', dir: 'down', extra: 1 }] });
+    expect(ok.spec!.seats).toEqual([{ x: 1, y: 0, kind: 'sit', dir: 'down' }]);
+    const bad = parseSpec({ cols: 2, rows: 1, seats: [{ x: 2, y: 0, kind: 'sit', dir: 'down' }, { x: 0, y: 0, kind: 'stand', dir: 'north' }] });
+    expect(bad.spec).toBeNull();
+    expect(bad.errors.join('\n')).toMatch(/inside the sheet/);
+    expect(bad.errors.join('\n')).toMatch(/kind must be/);
+    expect(bad.errors.join('\n')).toMatch(/dir must be/);
+  });
+});

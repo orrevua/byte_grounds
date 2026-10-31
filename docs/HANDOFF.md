@@ -16,7 +16,10 @@ Spec: `docs/specs/sheet-studio.md`; guide for humans + agents: `docs/sheet-studi
 - Storage: `supabase/sheets.sql` → `decor_sheets` (read all, write `is_admin()`), ids
   `custom_<slug>`; `Store.listSheets/saveSheet/deleteSheet`; local dev = localStorage.
   `decor.ts` `registerSheet` / `loadCustomSheets`: game (before the map) and editor (then
-  `picker.refreshSheets()`). Custom sheets have no seat rules.
+  `picker.refreshSheets()`). **Seats:** the page's Seats section (or `sheetStudio.seats()`, or
+  `seats` in a spec) marks sittable cells; stored in `decor_sheets.seats`, registered with
+  `registerSeatMarks`. Verified end to end locally: `docs/sprite-specs/office_chairs.json` drawn in
+  the studio, seat marked with the UI, saved, placed in the editor, "Sit (E)" → seated in the game.
 - Starter art made by an agent with the spec: `docs/sprite-specs/modern_office.json` →
   `client/src/assets/decor/modern_office.png` (CC0, Gather-style: desk + monitor, chairs, bean bags,
   plant, whiteboard, sofa, tree, lamp, bookshelf, floors); seat rules for chairs, bean bags, sofa.

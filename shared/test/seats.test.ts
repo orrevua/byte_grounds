@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import catalog from '../src/seat-catalog.json' with { type: 'json' };
 import { createBlankMap, type DecorCell, type OfficeMap, type Rotation } from '../src/map.ts';
-import { buildIndex, derivedSeats, effectiveSeats, isSeatRule, ruleCells, seatSpot } from '../src/seats.ts';
+import { buildIndex, derivedSeats, effectiveSeats, isSeatRule, normalizeSeatMarks, registerSeatMarks, ruleCells, seatSpot } from '../src/seats.ts';
 
 const DECOR_DIR = resolve(import.meta.dirname, '../../client/src/assets/decor');
 
@@ -253,5 +253,22 @@ describe('bed blankets', () => {
 
   it('a pillow elsewhere does not hide the blanket spot', () => {
     expect(derivedSeats(room([blanketHead(4, 4), pillow(4, 3)]))).toHaveLength(2);
+  });
+});
+
+describe('runtime seat marks (Sheet Studio sheets)', () => {
+  it('registers, replaces and validates seats of a custom sheet', () => {
+    registerSeatMarks('custom_test', [
+      { x: 0, y: 0, kind: 'sit', dir: 'down' },
+      { x: 1, y: 0, kind: 'lie', dir: 'up' },
+    ]);
+    expect(seatSpot('custom_test', 0, 0)).toEqual({ kind: 'sit', dir: 'down' });
+    const m: OfficeMap = { ...createBlankMap('c', 6, 6), decor: [{ x: 2, y: 2, sheet: 'custom_test', sx: 0, sy: 0 }] };
+    expect(derivedSeats(m)).toEqual([{ x: 2, y: 2, kind: 'sit', dir: 'down' }]);
+    registerSeatMarks('custom_test', [{ x: 1, y: 0, kind: 'sit', dir: 'left' }]);
+    expect(seatSpot('custom_test', 0, 0)).toBeUndefined();
+    expect(seatSpot('custom_test', 1, 0)).toEqual({ kind: 'sit', dir: 'left' });
+    expect(normalizeSeatMarks([{ x: -1, y: 0, kind: 'sit', dir: 'down' }, { x: 0, y: 0, kind: 'fly', dir: 'down' }, null])).toEqual([]);
+    registerSeatMarks('custom_test', []);
   });
 });

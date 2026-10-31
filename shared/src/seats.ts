@@ -72,6 +72,35 @@ export function buildIndex(rules: readonly unknown[]): Map<string, SeatSpot> {
 
 const INDEX = buildIndex(catalog.rules);
 
+/** A seat marked on one cell of a runtime sheet (Sheet Studio): which way the person faces. */
+export interface SeatMark {
+  x: number;
+  y: number;
+  kind: Seat['kind'];
+  dir: Facing;
+}
+
+/** Coerce untrusted seat marks (bad entries dropped). */
+export function normalizeSeatMarks(x: unknown): SeatMark[] {
+  if (!Array.isArray(x)) return [];
+  return x.flatMap((m) => {
+    const o = (m ?? {}) as Partial<Record<keyof SeatMark, unknown>>;
+    if (!Number.isInteger(o.x) || !Number.isInteger(o.y) || (o.x as number) < 0 || (o.y as number) < 0) return [];
+    if ((o.kind !== 'sit' && o.kind !== 'lie') || !FACINGS.includes(o.dir)) return [];
+    return [{ x: o.x as number, y: o.y as number, kind: o.kind, dir: o.dir as Facing }];
+  });
+}
+
+/**
+ * Seat cells of a sheet added at runtime (a Sheet Studio sheet): replaces any earlier marks of
+ * that sheet, so a re-saved sheet's seats are exactly its current ones.
+ */
+export function registerSeatMarks(sheet: string, marks: readonly SeatMark[]): void {
+  const prefix = `${sheet}:`;
+  for (const key of [...INDEX.keys()]) if (key.startsWith(prefix)) INDEX.delete(key);
+  for (const m of normalizeSeatMarks(marks)) INDEX.set(cellKey(sheet, m.x, m.y), { kind: m.kind, dir: m.dir });
+}
+
 /** The seat a stamped `(sheet, sx, sy)` cell offers, if any. */
 export function seatSpot(sheet: string, sx: number, sy: number): SeatSpot | undefined {
   return INDEX.get(cellKey(sheet, sx, sy));

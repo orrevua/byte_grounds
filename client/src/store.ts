@@ -2,6 +2,7 @@ import { parseMap, type OfficeMap } from '@byte_grounds/shared/map';
 import { BUILT_IN_MAPS, builtInMap, builtInRev } from '@byte_grounds/shared/maps';
 import { getSupabase, hasSupabase } from './supabase.ts';
 import { toMapEdit, type MapEdit } from './edit-ops.ts';
+import type { SeatMark } from '@byte_grounds/shared/seats';
 
 export interface MapSummary {
   id: string;
@@ -38,6 +39,8 @@ export interface CustomSheet {
   png: string;
   cols: number;
   rows: number;
+  /** Sittable cells (see `SeatMark` in shared/seats.ts). */
+  seats?: SeatMark[];
 }
 
 /** The id a sheet named `slug` is stored under (kept apart from the built-in art's names). */
@@ -192,7 +195,7 @@ export class SupabaseStore implements Store {
 
   async listSheets(): Promise<CustomSheet[]> {
     const db = await getSupabase();
-    const { data, error } = await db.from('decor_sheets').select('id, name, png, cols, rows').order('name');
+    const { data, error } = await db.from('decor_sheets').select('id, name, png, cols, rows, seats').order('name');
     if (error) throw error;
     return (data ?? []) as CustomSheet[];
   }

@@ -10,9 +10,13 @@ create table if not exists public.decor_sheets (
   png text not null check (png like 'data:image/png;base64,%' and length(png) < 3000000),
   cols int not null check (cols between 1 and 32),
   rows int not null check (rows between 1 and 32),
+  seats jsonb not null default '[]',  -- sittable cells: [{ "x", "y", "kind": "sit"|"lie", "dir" }]
   updated_at timestamptz not null default now(),
   updated_by uuid default auth.uid()
 );
+
+-- Tables made before seats existed.
+alter table public.decor_sheets add column if not exists seats jsonb not null default '[]';
 
 alter table public.decor_sheets enable row level security;
 

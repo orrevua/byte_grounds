@@ -38,7 +38,8 @@ All three speak **SheetSpec v1**, a JSON text format.
     { "op": "ellipse", "x": 4, "y": 54, "w": 56, "h": 8, "color": "s" },
     { "op": "rect", "x": 2, "y": 14, "w": 60, "h": 26, "color": "w", "outline": "k" }
   ],
-  "pieces": [ { "name": "desk", "x": 0, "y": 0, "w": 2, "h": 2 } ]
+  "pieces": [ { "name": "desk", "x": 0, "y": 0, "w": 2, "h": 2 } ],
+  "seats": [ { "x": 2, "y": 0, "kind": "sit", "dir": "down" } ]
 }
 ```
 - `cols` / `rows`: sheet size in cells, 1..32.
@@ -61,6 +62,12 @@ All three speak **SheetSpec v1**, a JSON text format.
 
 `pieces` is optional documentation (cell rects + names); the picker finds pieces on its own.
 
+`seats` makes cells sittable once placed: **cell** coordinates, `kind` `sit` or `lie`, `dir` = the way
+the person faces (a bed: where the feet point). Mark the seat cell, usually the cushion, not the
+backrest. In the page: Select cells → Seats → Sit / facing → **Mark selected cells** (badges show
+on the canvas). Example: `docs/sprite-specs/office_chairs.json` (the screenshot's charcoal swivel
+chairs and blue meeting chairs, both facings).
+
 ## In the browser: `window.sheetStudio`
 ```js
 sheetStudio.new('cafe_props', 4, 2)
@@ -70,6 +77,7 @@ sheetStudio.load(spec)          // replace the sheet with a SheetSpec → proble
 sheetStudio.spec()              // the current sheet as a SheetSpec (to read or edit it as text)
 sheetStudio.png()               // data URL
 await sheetStudio.save()        // → 'custom_cafe_props' (admins only)
+sheetStudio.seats([{ x: 0, y: 0, kind: 'sit', dir: 'down' }])   // → problems[]; seats() reads them
 await sheetStudio.list(); await sheetStudio.open('custom_cafe_props'); sheetStudio.rename('x')
 ```
 `spec()` turns any sheet into text: an automatic palette and one `pixels` op per used cell, so an
@@ -86,7 +94,7 @@ A PNG in `client/src/assets/decor/` is listed in the picker after the next build
 rules for the sheet to `shared/src/seat-catalog.json` (see the `modern_office` rules).
 
 ## Notes
-- Custom (Supabase) sheets have no seat rules yet: their chairs aren't sittable. Repo sheets can
-  have them (catalog).
+- Seats of a saved sheet apply everywhere at once (game, editor badges). Repo sheets
+  (`tools/sheet_spec.mts render`) still take their seats from `shared/src/seat-catalog.json`.
 - Deleting a saved sheet makes pieces already placed with it stop drawing.
 - Setup: run `supabase/sheets.sql` once in the Supabase SQL editor (after `admin.sql`).

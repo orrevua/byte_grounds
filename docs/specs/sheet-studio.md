@@ -57,7 +57,9 @@ Saved sheets get the id `custom_<name>`.
 `decor.ts` `registerSheet(id, url)` (adds to the picker list; replaces the image on update) and
 `loadCustomSheets(store)`. The game registers custom sheets before loading the map; the editor
 before opening a map, then refreshes its picker (`mountDecorPicker(...).refreshSheets()`).
-Custom sheets have no seat rules (documented).
+Seats: `SheetSpec.seats` / `decor_sheets.seats` (cells, `sit`|`lie`, facing) are registered with
+`registerSeatMarks` (shared/seats.ts) when a sheet loads or is saved; the Seats section of the page
+marks them.
 
 ## Agents offline
 `tools/sheet_spec.mts` (Node, no deps): `render spec.json out.png` and `dump in.png > spec.json`

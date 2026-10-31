@@ -33,6 +33,14 @@ export interface Piece {
   h: number;
 }
 
+/** A sittable cell: the person faces `dir` (a bed: where the feet point). Cell coordinates. */
+export interface SeatCell {
+  x: number;
+  y: number;
+  kind: 'sit' | 'lie';
+  dir: 'up' | 'down' | 'left' | 'right';
+}
+
 export interface SheetSpec {
   version: 1;
   name: string;
@@ -41,6 +49,25 @@ export interface SheetSpec {
   palette: Record<string, string>;
   ops: Op[];
   pieces?: Piece[];
+  /** Cells people can sit / lie on once the piece is placed. */
+  seats?: SeatCell[];
+}
+
+const DIRS = ['up', 'down', 'left', 'right'];
+
+/** Validate seat cells against the sheet size; returns readable problems. */
+function seatErrors(x: unknown, cols: number, rows: number): string[] {
+  if (x === undefined) return [];
+  if (!Array.isArray(x)) return ['"seats" must be an array of { x, y, kind, dir }'];
+  return x.flatMap((s, i) => {
+    const o = (s ?? {}) as Record<string, unknown>;
+    const errs: string[] = [];
+    if (!Number.isInteger(o.x) || !Number.isInteger(o.y) || (o.x as number) < 0 || (o.y as number) < 0 || (o.x as number) >= cols || (o.y as number) >= rows)
+      errs.push(`seats[${i}]: x, y must be a cell inside the sheet (0..${cols - 1}, 0..${rows - 1})`);
+    if (o.kind !== 'sit' && o.kind !== 'lie') errs.push(`seats[${i}]: kind must be "sit" or "lie"`);
+    if (!DIRS.includes(o.dir as string)) errs.push(`seats[${i}]: dir must be up, down, left or right`);
+    return errs;
+  });
 }
 
 type RGBA = [number, number, number, number];
@@ -139,7 +166,9 @@ export function parseSpec(x: unknown): { spec: SheetSpec | null; errors: string[
   const ops = Array.isArray(o.ops) ? o.ops : o.ops === undefined ? [] : null;
   if (!ops) errors.push('"ops" must be an array');
   else ops.forEach((op, i) => errors.push(...opErrors(op, i, palette)));
+  if (!errors.length) errors.push(...seatErrors(o.seats, cols as number, rows as number));
   if (errors.length) return { spec: null, errors };
+  const seats = Array.isArray(o.seats) ? (o.seats as SeatCell[]).map(({ x, y, kind, dir }) => ({ x, y, kind, dir })) : [];
   const pieces = Array.isArray(o.pieces)
     ? (o.pieces as Piece[]).filter((p) => p && typeof p.name === 'string' && [p.x, p.y, p.w, p.h].every(Number.isInteger))
     : undefined;
@@ -152,6 +181,7 @@ export function parseSpec(x: unknown): { spec: SheetSpec | null; errors: string[
       palette,
       ops: (ops ?? []) as Op[],
       ...(pieces?.length ? { pieces } : {}),
+      ...(seats.length ? { seats } : {}),
     },
     errors: [],
   };

@@ -1,6 +1,7 @@
 import { TILE_SIZE } from '@byte_grounds/shared/protocol';
 import type { Rotation } from '@byte_grounds/shared/map';
 import { labelObjects, type SheetObjects } from './decor-objects.ts';
+import { registerSeatMarks, type SeatMark } from '@byte_grounds/shared/seats';
 
 /**
  * Decoration art sheets: every PNG in `src/assets/decor/` (bundled by Vite), keyed by file
@@ -38,6 +39,7 @@ export function registerSheet(id: string, url: string): void {
 
 /** Remove a runtime sheet from the picker (its cells on maps stop drawing). */
 export function unregisterSheet(id: string): void {
+  registerSeatMarks(id, []);
   delete SHEET_URLS[id];
   images.delete(id);
   objects.delete(id);
@@ -46,10 +48,15 @@ export function unregisterSheet(id: string): void {
 }
 
 /** Register every saved custom sheet (a failure only means no custom art: logged, not thrown). */
-export async function loadCustomSheets(store: { listSheets(): Promise<{ id: string; png: string }[]> }): Promise<string[]> {
+export async function loadCustomSheets(store: {
+  listSheets(): Promise<{ id: string; png: string; seats?: SeatMark[] }[]>;
+}): Promise<string[]> {
   try {
     const sheets = await store.listSheets();
-    for (const s of sheets) registerSheet(s.id, s.png);
+    for (const s of sheets) {
+      registerSheet(s.id, s.png);
+      registerSeatMarks(s.id, s.seats ?? []);
+    }
     return sheets.map((s) => s.id);
   } catch (err) {
     console.warn('[sheets] custom sheets unavailable:', err);

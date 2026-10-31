@@ -3,6 +3,7 @@ import { hasSupabase } from './supabase.ts';
 import { checkIsAdmin, ensureSession, shortId } from './auth.ts';
 import { decorImage, loadCustomSheets, registerSheet, unregisterSheet } from './decor.ts';
 import { mountDecorPicker } from './decor-picker.ts';
+import { normalizeSeatMarks, registerSeatMarks, type SeatMark } from '@byte_grounds/shared/seats';
 import {
   CELL,
   MAX_CELLS,
@@ -81,6 +82,10 @@ let showGrid = true;
 let sel: { x: number; y: number; w: number; h: number } | null = null;
 let clipboard: Pixels | null = null;
 let hover: { x: number; y: number } | null = null;
+/** Sittable cells, by "x,y" (cell coordinates). */
+let seats = new Map<string, SeatMark>();
+let seatKind: SeatMark['kind'] = 'sit';
+let seatDir: SeatMark['dir'] = 'down';
 const undo: Uint8ClampedArray[] = [];
 const redo: Uint8ClampedArray[] = [];
 const recent: string[] = [];
@@ -144,6 +149,21 @@ root.innerHTML = `
         <button id="outline">Outline</button><button id="darker">Darker</button><button id="lighter">Lighter</button><button id="clear">Clear</button>
       </div>
       <p class="hint" style="margin-top:6px">Paste goes to the cell under the pointer (or the selection). Outline uses the current color.</p>
+    </div>
+    <div>
+      <h2>Seats (sittable)</h2>
+      <div class="row">
+        <select id="seat-kind"><option value="sit">Sit</option><option value="lie">Lie down</option></select>
+        <label>facing <select id="seat-dir">
+          <option value="down">↓ down</option><option value="up">↑ up</option>
+          <option value="left">← left</option><option value="right">→ right</option></select></label>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button id="seat-mark">Mark selected cells</button><button id="seat-clear">Remove seats</button>
+      </div>
+      <p class="hint" style="margin-top:6px">Select the seat cell(s) of a chair, sofa or bed and mark them: in the game people
+        get "Sit (E)" / "Lie down (E)" there. Facing = the way the person looks (a bed: where the feet point).
+        Usually one cell per seat: the cushion, not the backrest.</p>
     </div>
   </aside>
   <main>
@@ -253,11 +273,54 @@ function draw(): void {
     ctx.setLineDash([]);
     ctx.lineWidth = 1;
   }
+  drawSeatBadges();
   if (hover && tool !== 'select') {
     ctx.strokeStyle = 'rgba(255,255,255,0.8)';
     ctx.strokeRect(hover.x * zoom + 0.5, hover.y * zoom + 0.5, zoom - 1, zoom - 1);
   }
   drawPreview();
+}
+
+const ARROW: Record<SeatMark['dir'], string> = { up: '↑', down: '↓', left: '←', right: '→' };
+
+/** A badge with the facing arrow on every seat cell (amber = sit, purple = lie), like the map editor. */
+function drawSeatBadges(): void {
+  ctx.font = `bold ${Math.max(10, zoom * 1.6)}px system-ui`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const m of seats.values()) {
+    const cx = (m.x * CELL + CELL / 2) * zoom;
+    const cy = (m.y * CELL + CELL / 2) * zoom;
+    const r = Math.max(8, zoom * 2.2);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = m.kind === 'lie' ? 'rgba(160, 110, 255, 0.85)' : 'rgba(255, 190, 60, 0.9)';
+    ctx.fill();
+    ctx.fillStyle = '#14161a';
+    ctx.fillText(ARROW[m.dir], cx, cy + 0.5);
+  }
+}
+
+function setSeats(list: readonly SeatMark[]): void {
+  const cols = px.width / CELL;
+  const rows = px.height / CELL;
+  seats = new Map(normalizeSeatMarks(list).filter((m) => m.x < cols && m.y < rows).map((m) => [`${m.x},${m.y}`, m]));
+}
+
+function seatList(): SeatMark[] {
+  return [...seats.values()].sort((a, b) => a.y - b.y || a.x - b.x);
+}
+
+function markSeats(remove: boolean): void {
+  if (!sel) return setStatus('Select the seat cell(s) first (Select cells, S)', true);
+  for (let y = sel.y; y < sel.y + sel.h; y++)
+    for (let x = sel.x; x < sel.x + sel.w; x++) {
+      if (remove) seats.delete(`${x},${y}`);
+      else seats.set(`${x},${y}`, { x, y, kind: seatKind, dir: seatDir });
+    }
+  dirty = true;
+  setStatus(remove ? 'Seats removed' : `Marked ${sel.w * sel.h} cell(s): ${seatKind === 'sit' ? 'Sit' : 'Lie down'}, facing ${seatDir}`);
+  draw();
 }
 
 function drawPreview(): void {
@@ -562,6 +625,10 @@ function selAction(kind: 'flip' | 'outline' | 'darker' | 'lighter' | 'clear'): v
 }
 
 $('#copy').addEventListener('click', copySel);
+$<HTMLSelectElement>('#seat-kind').addEventListener('change', (e) => (seatKind = (e.target as HTMLSelectElement).value as SeatMark['kind']));
+$<HTMLSelectElement>('#seat-dir').addEventListener('change', (e) => (seatDir = (e.target as HTMLSelectElement).value as SeatMark['dir']));
+$('#seat-mark').addEventListener('click', () => markSeats(false));
+$('#seat-clear').addEventListener('click', () => markSeats(true));
 $('#paste').addEventListener('click', () => {
   hover = null;
   pasteClip();
@@ -593,8 +660,9 @@ $('#borrow').addEventListener('click', () => {
 
 // ---------- sheet: new / resize / open / save ----------
 
-function setSheet(next: Pixels, nextName: string, id: string | null): void {
+function setSheet(next: Pixels, nextName: string, id: string | null, nextSeats: readonly SeatMark[] = []): void {
   px = next;
+  setSeats(nextSeats);
   name = sheetSlug(nextName);
   savedId = id;
   dirty = false;
@@ -640,6 +708,7 @@ $('#resize').addEventListener('click', () => {
   undo.length = 0;
   redo.length = 0;
   px = resized(size.cols, size.rows);
+  setSeats(seatList());
   changed();
 });
 $<HTMLInputElement>('#name').addEventListener('change', (e) => {
@@ -655,12 +724,13 @@ function pngDataUrl(): string {
 
 async function save(): Promise<string> {
   const id = customSheetId(name);
-  const sheet: CustomSheet = { id, name, png: pngDataUrl(), cols: px.width / CELL, rows: px.height / CELL };
+  const sheet: CustomSheet = { id, name, png: pngDataUrl(), cols: px.width / CELL, rows: px.height / CELL, seats: seatList() };
   await store.saveSheet(sheet);
   if (savedId && savedId !== id) setStatus(`Saved as a new sheet ${id} (renamed from ${savedId})`);
   savedId = id;
   dirty = false;
   registerSheet(id, sheet.png);
+  registerSeatMarks(id, sheet.seats ?? []);
   await refreshSaved(id);
   setStatus(`Saved ${id}: it is in the map editor and Build panel pickers now`);
   return id;
@@ -704,7 +774,7 @@ async function refreshSaved(selected: string | null): Promise<void> {
 async function openSaved(id: string): Promise<void> {
   const s = savedSheets.find((x) => x.id === id) ?? (await store.listSheets()).find((x) => x.id === id);
   if (!s) throw new Error(`no saved sheet ${id}`);
-  setSheet(await decodePng(s.png), s.name, s.id);
+  setSheet(await decodePng(s.png), s.name, s.id, s.seats ?? []);
   setStatus(`Opened ${s.id}`);
 }
 
@@ -794,7 +864,8 @@ $('#import-spec').addEventListener('click', () => {
 });
 
 function currentSpec(): SheetSpec {
-  return bufferToSpec(px, name);
+  const spec = bufferToSpec(px, name);
+  return seats.size ? { ...spec, seats: seatList() } : spec;
 }
 
 // ---------- agent API ----------
@@ -810,7 +881,7 @@ const api = {
     if (!ok) return errors;
     const out = blankPixels(ok.cols, ok.rows);
     applyOps(out, ok.ops, ok.palette);
-    setSheet(out, ok.name, null);
+    setSheet(out, ok.name, null, ok.seats ?? []);
     dirty = true;
     setStatus(`Loaded spec "${ok.name}" (${ok.ops.length} ops)`);
     return [];
@@ -833,6 +904,16 @@ const api = {
   list: async (): Promise<{ id: string; name: string; cols: number; rows: number }[]> =>
     (await store.listSheets()).map(({ id, name: n, cols, rows }) => ({ id, name: n, cols, rows })),
   open: (id: string): Promise<void> => openSaved(id),
+  /** The sittable cells, or replace them: [{ x, y, kind: 'sit' | 'lie', dir }] in cells → problems[]. */
+  seats(list?: SeatMark[]): SeatMark[] | string[] {
+    if (list === undefined) return seatList();
+    const { errors } = parseSpec({ cols: px.width / CELL, rows: px.height / CELL, seats: list });
+    if (errors.length) return errors;
+    setSeats(list);
+    dirty = true;
+    draw();
+    return [];
+  },
   /** Name the sheet (its id becomes custom_<slug>). */
   rename(next: string): void {
     name = sheetSlug(next);
@@ -847,6 +928,8 @@ sheetStudio.apply(ops, palette?) → errors[]
 sheetStudio.spec()          → SheetSpec
 sheetStudio.png()           → data URL
 sheetStudio.save()          → Promise<id>
+sheetStudio.seats()         → [{x,y,kind,dir}]
+sheetStudio.seats(list)     → errors[] (cells; kind sit|lie)
 sheetStudio.list() / open(id) / rename(n)
 
 ops (pixel coords, 32px cells):
