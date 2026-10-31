@@ -1,7 +1,17 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-31 (Gemini sheets)
+**Last updated:** 2026-10-31 (Gemini Studio map)
 **Branch:** `master` (user asked: work on master directly, no more PRs)
+
+## Gemini Studio map + Gemini MCP — DONE, PUSHED (2026-10-31)
+- `tools/gemini_mcp.py` (registered as MCP `gemini`; needs GEMINI_API_KEY where Claude Code starts):
+  generate_image / analyze_image / list_models. Style the user wants: `art/gemini/meeting_room_test.png`
+  (git-ignored folder); reference image `Gemini_Generated_Image_ebpcrpebpcrpebpc.jpg`.
+- New sheets: `gemini_studio(_grid).png` (scale 3.54) and `gemini_floors.png` (six seamless textures,
+  each a 3x3-cell block; `build_maps.py floor3`). Seat rules + drink machines (coffee bar, water cooler).
+- New built-in map `studio` ("Gemini Studio", 32x22): meeting room zone with a table for 11,
+  kitchenette, oak work area, teal lounge, open area; 34 seats. Builder: GEMINI catalog, `gchair`
+  (tuck / over a table edge). Verified locally (overview + "Get coffee (F)").
 
 ## Gemini sheets — DONE, PUSHED (2026-10-31)
 - `tools/pixelate_image.py`: AI image → 32px sheet (art-pixel shrink keeping outlines, background key,
