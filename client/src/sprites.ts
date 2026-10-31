@@ -42,7 +42,9 @@ const LPC = '/sprites/lpc';
 
 /** Per-axis option tables (the literal unions in `Appearance`). */
 export const BODY = ['male', 'female'] as const;
-export const SKIN = ['light', 'orc', 'skeleton'] as const;
+export const SKIN = ['light', 'olive', 'tan', 'brown', 'dark', 'orc', 'skeleton'] as const;
+/** Creature skins (the only ones that may go without clothes). */
+export const CREATURES: readonly Appearance['skin'][] = ['orc', 'skeleton'];
 export const HAIR = ['brown', 'black', 'blonde', 'none'] as const;
 export const OUTFIT = ['casual', 'business', 'none'] as const;
 /** Top colors available per outfit (a torso color only exists for one family). */
@@ -57,14 +59,17 @@ export function outfitTorso(outfit: Appearance['outfit']): readonly string[] {
   return outfit === 'business' ? BUSINESS_TORSO : CASUAL_TORSO;
 }
 
-/** Body sheets that exist for a sex (LPC ships no female skeleton). */
-export function skinsFor(body: Appearance['body']): readonly Appearance['skin'][] {
-  return body === 'male' ? SKIN : ['light', 'orc'];
+/**
+ * Body sheets offered for a sex: every skin for both. LPC ships no female skeleton, so
+ * `female_skeleton.png` is the (unisex) male skeleton sheet; female clothes and hair fit it.
+ */
+export function skinsFor(_body: Appearance['body']): readonly Appearance['skin'][] {
+  return SKIN;
 }
 
 /** Outfits offered for a skin: only creatures may go bare. */
 export function outfitsFor(skin: Appearance['skin']): readonly Appearance['outfit'][] {
-  return skin === 'light' ? ['casual', 'business'] : OUTFIT;
+  return CREATURES.includes(skin) ? OUTFIT : ['casual', 'business'];
 }
 
 /** Clamp the cross-axis combos: skin per sex, outfit per skin, top color per outfit. */
@@ -200,6 +205,13 @@ export const PRESETS: { id: string; label: string; appearance: Appearance }[] = 
   { id: 'pink', label: 'Casual Pink (F)', appearance: { body: 'female', hair: 'blonde', outfit: 'casual', torso: 'pink', legs: 'pink', skin: 'light' } },
   { id: 'orc', label: 'Orc', appearance: { body: 'male', hair: 'none', outfit: 'casual', torso: 'brown', legs: 'teal', skin: 'orc' } },
   { id: 'skel', label: 'Skeleton', appearance: { body: 'male', hair: 'none', outfit: 'none', torso: 'teal', legs: 'teal', skin: 'skeleton' } },
+  { id: 'f4', label: 'Olive (F)', appearance: { body: 'female', hair: 'brown', outfit: 'casual', torso: 'white', legs: 'navy', skin: 'olive' } },
+  { id: 'f5', label: 'Tan (F)', appearance: { body: 'female', hair: 'black', outfit: 'casual', torso: 'teal', legs: 'white', skin: 'tan' } },
+  { id: 'f6', label: 'Dark (F)', appearance: { body: 'female', hair: 'black', outfit: 'casual', torso: 'pink', legs: 'navy', skin: 'dark' } },
+  { id: 'fbiz', label: 'Business (F)', appearance: { body: 'female', hair: 'brown', outfit: 'business', torso: 'pink', legs: 'navy', skin: 'brown' } },
+  { id: 'm4', label: 'Brown (M)', appearance: { body: 'male', hair: 'black', outfit: 'casual', torso: 'white', legs: 'navy', skin: 'brown' } },
+  { id: 'forc', label: 'Orc (F)', appearance: { body: 'female', hair: 'black', outfit: 'casual', torso: 'maroon', legs: 'red', skin: 'orc' } },
+  { id: 'fskel', label: 'Skeleton (F)', appearance: { body: 'female', hair: 'blonde', outfit: 'business', torso: 'green', legs: 'navy', skin: 'skeleton' } },
 ];
 
 export const DEFAULT_APPEARANCE: Appearance = PRESETS[0].appearance;
