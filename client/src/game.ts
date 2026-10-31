@@ -13,6 +13,7 @@ import { MeetingView, type Participant } from './meeting.ts';
 import { drinkDuration, formatDuration, machineNear, machinesIn, type Machine } from './dispensers.ts';
 import { MediaManager, ScreenStage, VideoBubbles, hasLiveVideo, volumeForDistance } from './media.ts';
 import { WebrtcMesh } from './webrtc.ts';
+import { VoiceMeter } from './voice.ts';
 import { avatarAt, screenToWorld } from './hit.ts';
 import { AvatarMenu } from './avatar-menu.ts';
 import type { GrantsFeed } from './grants.ts';
@@ -57,6 +58,8 @@ interface Avatar {
   status: string;
   busy: boolean;
   sharing: boolean;
+  /** Mic off (or refused): a mic-off icon by the name. */
+  muted: boolean;
   /** A drink in hand ('' = none). */
   item: HeldItem;
   /** Signed in as the admin: an [ADM] tag before the name. */
@@ -94,6 +97,8 @@ const FEET: Record<Direction, { dx: number; dy: number }> = {
 };
 
 const ZOOM_KEY = 'byte_grounds.zoom';
+/** Our own key in the voice meter (peer ids never collide with it). */
+const SELF_VOICE = 'self';
 
 /** A per-person phase for sips, so a group of drinkers doesn't sip in unison. */
 function sipSeed(name: string): number {
@@ -166,6 +171,8 @@ export class Game {
   private balloons: Balloon[] = [];
   private readonly prox = new Map<PeerId, ProxState>();
   private readonly media = new MediaManager();
+  /** Voice levels (ours under `SELF_VOICE`, peers under their id): the speaking rings. */
+  private readonly voice = new VoiceMeter();
   private readonly bubbles: VideoBubbles;
   private readonly stage = new ScreenStage();
   /** The meeting room we're in (null = none), its full-screen view and the pill that opens it. */
@@ -230,6 +237,7 @@ export class Game {
       status: normalizeStatus(self.status),
       busy: false,
       sharing: false,
+      muted: false,
       item: '',
       admin: self.isAdmin,
     };
@@ -283,9 +291,19 @@ export class Game {
     this.mesh = new WebrtcMesh(
       selfId,
       net,
-      () => this.media.acquire(),
-      (peerId, stream) => this.bubbles.add(peerId, stream),
-      (peerId) => this.bubbles.remove(peerId),
+      () =>
+        this.media.acquire().then((s) => {
+          this.voice.track(SELF_VOICE, s);
+          return s;
+        }),
+      (peerId, stream) => {
+        this.bubbles.add(peerId, stream);
+        this.voice.track(peerId, stream);
+      },
+      (peerId) => {
+        this.bubbles.remove(peerId);
+        this.voice.untrack(peerId);
+      },
     );
     this.media.onVideoTrack = (track, stream) => this.mesh.setVideo(track, stream);
     this.media.onSharing = (on) => this.setSharing(on);
@@ -299,12 +317,16 @@ export class Game {
       localCamera: () => this.media.cameraStream,
       localScreen: () => this.media.screenStream,
       toggleMic: () => this.media.toggleMic(),
+      speaking: (id) => this.voice.speaking(id === 'self' ? SELF_VOICE : id),
       toggleCam: () => void this.media.toggleCam(),
       toggleScreen: () => void this.media.toggleScreen(),
       leaveRoom: () => this.leaveZone(),
     });
     this.meeting.onClose = () => this.updatePill();
-    this.media.onChange = () => this.meeting.sync();
+    this.media.onChange = () => {
+      this.meeting.sync();
+      this.syncMuted();
+    };
     this.meetPill = document.createElement('button');
     this.meetPill.id = 'meet-pill';
     this.meetPill.className = 'hidden';
@@ -360,6 +382,7 @@ export class Game {
     this.drinkBtn.remove();
     this.live?.stop();
     this.mesh.closeAll();
+    this.voice.dispose();
     this.stage.dispose();
     this.meeting.close();
     this.meetPill.remove();
@@ -446,7 +469,15 @@ export class Game {
 
   /** Our status fields as sent to others. */
   get statusFields(): StatusFields {
-    return { status: this.self.status, busy: this.self.busy, sharing: this.self.sharing, item: this.self.item };
+    const { status, busy, sharing, muted, item } = this.self;
+    return { status, busy, sharing, muted, item };
+  }
+
+  /** Tell the room when our mic goes off / on (or turns out to be refused). */
+  private syncMuted(): void {
+    if (this.self.muted === this.media.muted) return;
+    this.self.muted = this.media.muted;
+    this.sendStatus();
   }
 
   private sendStatus(): void {
@@ -573,6 +604,7 @@ export class Game {
       status: normalizeStatus(p.status),
       busy: p.busy === true,
       sharing: p.sharing === true,
+      muted: p.muted === true,
       item: p.item === 'coffee' || p.item === 'water' ? p.item : '',
       admin: p.admin === true,
       ...(typeof p.uid === 'string' ? { uid: p.uid } : {}),
@@ -617,6 +649,7 @@ export class Game {
           r.status = normalizeStatus(msg.status);
           r.busy = msg.busy === true;
           r.sharing = msg.sharing === true;
+          r.muted = msg.muted === true;
           r.item = msg.item === 'coffee' || msg.item === 'water' ? msg.item : '';
           this.onPeersChanged?.();
         }
@@ -693,6 +726,7 @@ export class Game {
       }
     }
 
+    this.voice.update(performance.now());
     this.render();
     this.raf = requestAnimationFrame(this.frame);
   };
@@ -984,6 +1018,7 @@ export class Game {
       video: null,
       presenting: this.self.sharing,
       busy: this.self.busy,
+      muted: this.self.muted,
     };
     const others = [...this.remotes]
       .filter(([id, r]) => this.prox.get(id) === 'near' && this.sameRoom(r))
@@ -997,6 +1032,7 @@ export class Game {
           video: stream && hasLiveVideo(stream) ? stream : null,
           presenting: r.sharing,
           busy: r.busy,
+          muted: r.muted,
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -1079,7 +1115,11 @@ export class Game {
       if (!it.isAvatar) {
         drawDecorCellAt(ctx, it.cell);
       } else {
-        if (!it.isSelf && it.id !== null && this.prox.get(it.id) === 'near') this.drawRing(it.av.x, it.av.y);
+        if (!it.isSelf && it.id !== null && this.prox.get(it.id) === 'near') {
+          this.drawRing(it.av.x, it.av.y, this.voice.level(it.id), this.voice.speaking(it.id));
+        } else if (it.isSelf && this.voice.speaking(SELF_VOICE)) {
+          this.drawRing(it.av.x, it.av.y, this.voice.level(SELF_VOICE), true);
+        }
         const now = Date.now();
         const sip = sipStep(it.av.item, it.av.pose, it.av.dir, it.av.moving, now, sipSeed(it.av.name));
         this.drawCharacter(it.av, sip);
@@ -1202,15 +1242,30 @@ export class Game {
 
   /** Name, status, zzZ and chat bubble above an avatar, drawn in the top pass so furniture can't cover them. */
   private drawTags(a: Avatar, now: number): void {
-    drawAvatarTags(this.ctx, a.x, a.y, a.pose, { name: a.name, status: a.status, busy: a.busy, admin: a.admin }, now);
+    drawAvatarTags(this.ctx, a.x, a.y, a.pose, { name: a.name, status: a.status, busy: a.busy, admin: a.admin, muted: a.muted }, now);
   }
 
-  private drawRing(x: number, y: number): void {
+  /**
+   * The green ring under someone in reach. It swells and thickens with their voice `level` (0..1),
+   * with a soft outer pulse while they speak.
+   */
+  private drawRing(x: number, y: number, level = 0, speaking = false): void {
     const { ctx } = this;
+    const cx = x * TILE_SIZE;
+    const cy = y * TILE_SIZE;
+    const r = TILE_SIZE * (0.55 + 0.22 * level);
+    if (speaking) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r + 3 + 4 * level, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(79, 224, 160, ${0.25 + 0.35 * level})`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
     ctx.beginPath();
-    ctx.arc(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE * 0.55, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.strokeStyle = '#4fe0a0';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 + 2 * level;
     ctx.stroke();
+    ctx.lineWidth = 1;
   }
 }

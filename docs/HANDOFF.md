@@ -1,7 +1,19 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-31 (see-through Gemini furniture fixed)
+**Last updated:** 2026-10-31 (mute + speaking indicators, mic noise suppression)
 **Branch:** `master` (user asked: work on master directly, no more PRs)
+
+## Mute + speaking indicators, clearer mic — DONE, PUSHED (2026-10-31)
+- Spec: `docs/specs/voice-indicators.md`. `StatusFields.muted` (protocol, normalize; rides the status
+  path on both transports, no server change). `MediaManager.muted` = mic off or refused.
+- `client/src/voice.ts` `VoiceMeter`: Web Audio analysers on our mic + each incoming stream (local
+  only, not sent), level with fast attack / slow release, speaking with hysteresis + 350 ms hold.
+- Map: the green ring swells/thickens with the voice level plus an outer pulse while speaking; our
+  own ring shows while we speak; red mic-off icon after muted names. Meeting: green ring around the
+  speaking face (inset border when the camera is on), mic-off badge on muted tiles (100 ms refresh).
+- Mic constraints: echoCancellation, noiseSuppression, autoGainControl, mono, voiceIsolation.
+- Verified with two Playwright players (fake mic) in the Office meeting room: rings, mute icon,
+  meeting ring + badges. Thresholds (`SPEAK_ON/OFF`) may want tuning with real voices.
 
 ## See-through Gemini furniture — DONE, PUSHED (2026-10-31)
 - Grey/dark parts of pieces (monitors, PC towers, chair seats/backs) matched the image background

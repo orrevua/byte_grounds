@@ -184,6 +184,8 @@ export interface AvatarTags {
   admin?: boolean;
   status?: string;
   busy?: boolean;
+  /** Mic off: a small red mic-off icon after the name. */
+  muted?: boolean;
 }
 
 const NAME_FONT = '600 12px system-ui, sans-serif';
@@ -258,17 +260,20 @@ export function drawAvatarTags(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
   ctx.font = NAME_FONT;
+  const nameW = ctx.measureText(tags.name).width;
   if (tags.admin) {
     // "[ADM] name" centred as one line: yellow tag, then the name.
     const tag = '[ADM] ';
     const tagW = ctx.measureText(tag).width;
-    const left = px - (tagW + ctx.measureText(tags.name).width) / 2;
+    const left = px - (tagW + nameW) / 2;
     ctx.textAlign = 'left';
     outlinedText(ctx, tag, left, top, '#ffd84a');
     outlinedText(ctx, tags.name, left + tagW, top, '#e6e8eb');
     ctx.textAlign = 'center';
+    if (tags.muted) drawMicOff(ctx, left + tagW + nameW + 3, top);
   } else {
     outlinedText(ctx, tags.name, px, top, '#e6e8eb');
+    if (tags.muted) drawMicOff(ctx, px + nameW / 2 + 3, top);
   }
   top -= 13;
   if (tags.status) {
@@ -286,6 +291,48 @@ export function drawAvatarTags(
 /** Where a new chat balloon's tail points (world px): just above the sender's tags. */
 export function tagsTop(y: number, pose: Pose, tags: AvatarTags): number {
   return y * TILE_SIZE - labelLift(pose) - 13 - (tags.status ? 11 : 0) - (tags.busy ? 18 : 0);
+}
+
+/** A 9x12 px mic with a red slash, its left edge at `x` and its bottom on the text baseline `bottom`. */
+function drawMicOff(ctx: CanvasRenderingContext2D, x: number, bottom: number): void {
+  const t = bottom - 12;
+  const capsule = () => {
+    ctx.beginPath();
+    ctx.moveTo(x + 4.5, t + 2);
+    ctx.lineTo(x + 4.5, t + 5);
+  };
+  const cradle = () => {
+    ctx.beginPath();
+    ctx.arc(x + 4.5, t + 5, 3.5, 0, Math.PI);
+    ctx.moveTo(x + 4.5, t + 8.5);
+    ctx.lineTo(x + 4.5, t + 11);
+    ctx.moveTo(x + 2.5, t + 11);
+    ctx.lineTo(x + 6.5, t + 11);
+  };
+  const slash = () => {
+    ctx.beginPath();
+    ctx.moveTo(x, t + 1);
+    ctx.lineTo(x + 9, t + 11);
+  };
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+  for (const [path, w] of [[capsule, 6], [cradle, 3.5], [slash, 3.8]] as const) {
+    ctx.lineWidth = w;
+    path();
+    ctx.stroke();
+  }
+  ctx.strokeStyle = '#e6e8eb';
+  for (const [path, w] of [[capsule, 3.5], [cradle, 1.4]] as const) {
+    ctx.lineWidth = w;
+    path();
+    ctx.stroke();
+  }
+  ctx.strokeStyle = '#ff5c5c';
+  ctx.lineWidth = 1.8;
+  slash();
+  ctx.stroke();
+  ctx.restore();
 }
 
 /** Three letters (z z Z) drifting up and to the right, fading out, on a loop. */

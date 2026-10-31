@@ -11,6 +11,8 @@ export interface Participant {
   video: MediaStream | null;
   presenting: boolean;
   busy: boolean;
+  /** Mic off: a mic-off badge on their tile. */
+  muted: boolean;
 }
 
 /** What the meeting view reads from and drives (the game + media). */
@@ -25,6 +27,8 @@ export interface MeetingSource {
   /** Our camera (self view) and our shared screen (preview). */
   localCamera(): MediaStream | null;
   localScreen(): MediaStream | null;
+  /** Talking right now (a green ring around their face / tile). */
+  speaking(id: Participant['id']): boolean;
   toggleMic(): void;
   toggleCam(): void;
   toggleScreen(): void;
@@ -32,8 +36,9 @@ export interface MeetingSource {
   leaveRoom(): void;
 }
 
-/** How often the open view re-reads participants and streams. */
+/** How often the open view re-reads participants and streams, and who is speaking. */
 const SYNC_MS = 400;
+const SPEAKING_MS = 100;
 
 /** Material Symbols paths (Apache 2.0), 24x24. */
 const ICON = {
@@ -70,6 +75,7 @@ interface Tile {
   video: HTMLVideoElement;
   face: HTMLCanvasElement;
   label: HTMLSpanElement;
+  muted: HTMLSpanElement;
 }
 
 /**
@@ -81,6 +87,7 @@ interface Tile {
 export class MeetingView {
   private root: HTMLDivElement | null = null;
   private timer: ReturnType<typeof setInterval> | undefined;
+  private speakTimer: ReturnType<typeof setInterval> | undefined;
   private readonly tiles = new Map<string, Tile>();
   /** Called when the view closes (Back to map / Esc / leaving the room). */
   onClose: () => void = () => {};
@@ -130,11 +137,18 @@ export class MeetingView {
     document.body.appendChild(root);
     this.sync();
     this.timer = setInterval(() => this.sync(), SYNC_MS);
+    this.speakTimer = setInterval(() => this.syncSpeaking(), SPEAKING_MS);
+  }
+
+  /** Green ring on whoever is talking (cheap: only toggles a class per tile). */
+  private syncSpeaking(): void {
+    for (const [id, tile] of this.tiles) tile.root.classList.toggle('speaking', this.src.speaking(id as Participant['id']));
   }
 
   close(): void {
     if (!this.root) return;
     clearInterval(this.timer);
+    clearInterval(this.speakTimer);
     removeEventListener('keydown', this.onKey);
     for (const t of this.tiles.values()) t.video.srcObject = null;
     this.tiles.clear();
@@ -177,6 +191,7 @@ export class MeetingView {
       if (tile.video.srcObject !== cam) tile.video.srcObject = cam;
       tile.root.classList.toggle('has-video', !!cam);
       tile.root.classList.toggle('self', p.self);
+      tile.root.classList.toggle('muted', p.muted);
       tile.label.textContent = (p.self ? t('meet.you', { name: p.name }) : p.name) + (p.busy ? ' · zzZ' : '');
       tile.face.style.background = avatarColor(p.name);
       drawFace(tile.face, p.appearance);
@@ -224,9 +239,13 @@ export class MeetingView {
     face.height = HEAD_CROP.h * 3;
     const label = document.createElement('span');
     label.className = 'meet-name';
-    root.append(face, video, label);
+    const muted = document.createElement('span');
+    muted.className = 'meet-muted';
+    muted.title = t('meet.muted');
+    muted.innerHTML = icon(ICON.mic, true);
+    root.append(face, video, label, muted);
     grid.appendChild(root);
-    const tile = { root, video, face, label };
+    const tile = { root, video, face, label, muted };
     this.tiles.set(id, tile);
     return tile;
   }

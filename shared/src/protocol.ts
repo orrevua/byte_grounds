@@ -55,6 +55,8 @@ export interface PeerState {
   busy?: boolean;
   /** Sharing their screen (the outgoing video is the screen, shown big to nearby peers). */
   sharing?: boolean;
+  /** Their mic is off (or was denied): a mic-off icon by their name. */
+  muted?: boolean;
   /** What they hold (a drink from a machine); absent/'' = nothing. */
   item?: HeldItem;
   /** Signed in as the admin: shown as an [ADM] tag. Cosmetic only (RLS enforces real powers). */
@@ -88,6 +90,7 @@ export interface StatusFields {
   status: string;
   busy: boolean;
   sharing: boolean;
+  muted: boolean;
   item: HeldItem;
 }
 
@@ -95,7 +98,7 @@ export interface StatusFields {
 export function normalizeStatusFields(x: unknown): StatusFields {
   const o = (x ?? {}) as Partial<Record<keyof StatusFields, unknown>>;
   const item = HELD_ITEMS.includes(o.item as (typeof HELD_ITEMS)[number]) ? (o.item as HeldItem) : '';
-  return { status: normalizeStatus(o.status), busy: o.busy === true, sharing: o.sharing === true, item };
+  return { status: normalizeStatus(o.status), busy: o.busy === true, sharing: o.sharing === true, muted: o.muted === true, item };
 }
 
 export interface Position {
@@ -118,10 +121,11 @@ export interface JoinMsg {
   status?: string;
   busy?: boolean;
   sharing?: boolean;
+  muted?: boolean;
   item?: HeldItem;
   admin?: boolean;
 }
-/** Replace our status fields (status line, busy, sharing). */
+/** Replace our status fields (status line, busy, sharing, muted, held item). */
 export interface StatusMsg extends StatusFields {
   type: 'status';
 }

@@ -6,7 +6,7 @@ const peer = (id: string): PeerState => ({
   id,
   name: id,
   color: '#fff',
-  appearance: { body: 'male', hair: 'brown', outfit: 'casual', torso: 'teal', legs: 'teal', skin: 'light' },
+  appearance: { body: 'male', hair: 'brown', outfit: 'casual', torso: 'teal', legs: 'teal', skin: 'light', bottom: 'pants', hairStyle: 'classic' },
   x: 0,
   y: 0,
 });
@@ -44,9 +44,9 @@ describe('Room', () => {
   it('stores status fields only for known peers', () => {
     const r = new Room();
     r.add(peer('a'));
-    expect(r.updateStatus('a', { status: 'Shipping', busy: true, sharing: false, item: 'water' })).toBe(true);
-    expect(r.get('a')).toMatchObject({ status: 'Shipping', busy: true, sharing: false, item: 'water' });
-    expect(r.updateStatus('missing', { status: '', busy: false, sharing: false, item: '' })).toBe(false);
+    expect(r.updateStatus('a', { status: 'Shipping', busy: true, sharing: false, muted: true, item: 'water' })).toBe(true);
+    expect(r.get('a')).toMatchObject({ status: 'Shipping', busy: true, sharing: false, muted: true, item: 'water' });
+    expect(r.updateStatus('missing', { status: '', busy: false, sharing: false, muted: false, item: '' })).toBe(false);
   });
 
   it('removes peers', () => {

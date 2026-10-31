@@ -183,6 +183,18 @@ export class ScreenStage {
 }
 
 /**
+ * Mic capture with the browser's voice processing: echo cancellation, noise suppression, automatic
+ * gain, mono, and Chrome's stronger `voiceIsolation` where it exists (unknown constraints are ignored).
+ */
+export const MIC_CONSTRAINTS = {
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+  channelCount: 1,
+  voiceIsolation: true,
+} as MediaTrackConstraints;
+
+/**
  * Owns the single local MediaStream (shared across all peer connections), its
  * muted corner preview, and the mic/cam toggle buttons. The mic is on by default and
  * acquired lazily (`acquire()`, first time someone is near). The camera is off until the
@@ -194,6 +206,8 @@ export class MediaManager {
   private stream: MediaStream | null = null;
   private pending: Promise<MediaStream> | null = null;
   private micOn = true;
+  /** The mic was refused or is missing: we can't be heard. */
+  private micDenied = false;
   private camBusy = false;
   /** The screen being shared; while set it is the outgoing video instead of the camera. */
   private screen: MediaStreamTrack | null = null;
@@ -248,18 +262,20 @@ export class MediaManager {
     if (this.stream) return Promise.resolve(this.stream);
     if (this.pending) return this.pending;
     this.pending = navigator.mediaDevices
-      .getUserMedia({ audio: true })
+      .getUserMedia({ audio: MIC_CONSTRAINTS })
       .then((s) => {
         for (const t of s.getAudioTracks()) t.enabled = this.micOn;
         return s;
       })
       .catch(() => {
         this.notice.textContent = t('media.noMic');
+        this.micDenied = true;
         return new MediaStream();
       })
       .then((s) => {
         this.stream = s;
         this.preview.srcObject = s;
+        if (this.micDenied) this.onChange();
         return s;
       })
       .finally(() => {
@@ -285,6 +301,11 @@ export class MediaManager {
 
   get micEnabled(): boolean {
     return this.micOn;
+  }
+
+  /** Nobody can hear us: the mic is toggled off, or it was refused. */
+  get muted(): boolean {
+    return !this.micOn || this.micDenied;
   }
 
   get camEnabled(): boolean {

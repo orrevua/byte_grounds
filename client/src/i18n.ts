@@ -91,6 +91,7 @@ const en = {
   'meet.camOff': 'Turn off camera',
   'meet.camOn': 'Turn on camera',
   'meet.defaultRoom': 'Meeting room',
+  'meet.muted': 'Microphone off',
   'meet.openPill': '{room} · Open meeting view',
   // media bar + screen stage
   'media.minimize': 'Minimize',
@@ -389,6 +390,7 @@ const pt: Record<MsgKey, string> = {
   'meet.camOff': 'Desligar câmera',
   'meet.camOn': 'Ligar câmera',
   'meet.defaultRoom': 'Sala de reunião',
+  'meet.muted': 'Microfone desligado',
   'meet.openPill': '{room} · Abrir modo reunião',
   'media.minimize': 'Minimizar',
   'media.show': 'Mostrar',
