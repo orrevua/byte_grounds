@@ -47,8 +47,9 @@ describe('drinking', () => {
     expect(sipStep('', 'stand', 'down', false, 0)).toBeNull();
   });
 
-  it('without arm frames keeps the standing frame and lifts the cup', () => {
-    expect(sipStep('coffee', 'stand', 'down', false, 500, 0, false)).toMatchObject({ row: 10, col: 0 });
+  it('without the bow row (business suit) sips with both hands from the spellcast row', () => {
+    expect(sipStep('coffee', 'stand', 'down', false, 500, 0, false)).toMatchObject({ row: 2, col: 2 });
+    expect(sipStep('coffee', 'stand', 'left', false, 500, 0, false)).toMatchObject({ row: 1, col: 3 });
   });
 
   it('hides the cup facing away, lying or dancing', () => {

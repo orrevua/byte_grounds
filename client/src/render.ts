@@ -457,12 +457,16 @@ const SIP_STEPS: Partial<Record<Direction, readonly { until: number; step: SipSt
   ],
 };
 
-/** Without arm frames (see `hasArmFrames`): the standing frame, the cup lifted to the mouth. */
-const SIP_NO_ARM: Partial<Record<Direction, SipStep>> = {
-  down: { row: 10, col: 0, cup: { dx: -8, dy: -14 } },
-  left: { row: 9, col: 0, cup: { dx: -9, dy: -14 } },
-  right: { row: 11, col: 0, cup: { dx: 9, dy: -14 } },
-};
+/**
+ * Without the bow row (the male business suit, see `hasArmFrames`), facing down: the spellcast row,
+ * which every layer has — both hands come up together and hold the cup at the chin (eyes closed,
+ * like a real sip).
+ */
+const SIP_TWO_HANDS: readonly { until: number; step: SipStep }[] = [
+  { until: 300, step: { row: 2, col: 1, cup: { dx: 6, dy: -4 } } },
+  { until: 900, step: { row: 2, col: 2, cup: { dx: 0, dy: -11 } } },
+  { until: 1200, step: { row: 2, col: 1, cup: { dx: 6, dy: -4 } } },
+];
 
 /**
  * The sip frame to draw now, or null: only standing still, holding a drink and not facing away,
@@ -483,7 +487,7 @@ export function sipStep(
   const t = (((nowMs + seed) % SIP_MS) + SIP_MS) % SIP_MS;
   if (t >= SIP_LEN_MS) return null;
   // Only the bow row (facing down) is missing from some layers; every layer has the spellcast rows.
-  return armFrames || dir !== 'down' ? steps.find((s) => t < s.until)!.step : (SIP_NO_ARM[dir] ?? null);
+  return (armFrames || dir !== 'down' ? steps : SIP_TWO_HANDS).find((s) => t < s.until)!.step;
 }
 
 /**
