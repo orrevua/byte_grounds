@@ -179,3 +179,9 @@ under the original's license (CC-BY-SA share-alike included).
   DCSS Contributors, Reemax, Hyptosis, Daniel Eddeland (Daneeklu), BenCreating, Evert, tapatilorenzo.
 - License: CC-BY-SA 3.0.
 - https://opengameart.org/content/lpc-tavern
+
+### modern_office.png
+
+- **Original art** made for ByteGrounds as a SheetSpec (`docs/sprite-specs/modern_office.json`,
+  rendered with `node tools/sheet_spec.mts render`). No third-party pixels.
+- License: **CC0 1.0** (public domain dedication, https://creativecommons.org/publicdomain/zero/1.0/).
