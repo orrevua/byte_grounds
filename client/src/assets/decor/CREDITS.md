@@ -185,3 +185,9 @@ under the original's license (CC-BY-SA share-alike included).
 - **Original art** made for ByteGrounds as a SheetSpec (`docs/sprite-specs/modern_office.json`,
   rendered with `node tools/sheet_spec.mts render`). No third-party pixels.
 - License: **CC0 1.0** (public domain dedication, https://creativecommons.org/publicdomain/zero/1.0/).
+
+### gemini_office.png, gemini_lounge.png (+ their _grid repacks)
+
+- Generated with Google Gemini for the project owner, then converted to real 32px-grid pixel art with
+  `tools/pixelate_image.py` (shrink, background / grid-line removal, translucent shadows) and
+  repacked with `tools/repack_decor.py`. Sources: `Gemini_Generated_Image_*.jpg` (not committed).
