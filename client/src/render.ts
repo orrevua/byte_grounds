@@ -434,18 +434,27 @@ export interface SipStep {
 }
 
 /**
- * The sip, per facing, as (frame, cup) steps over SIP_LEN_MS. Facing down: the bow row's hand
- * rises to the chin (cols 4 -> 6 -> 4); sideways: the thrust row's front fist comes up to the chin.
- * Cup positions are the hand in those frames (frame px - (32, 48)).
+ * The sip, per facing, as (frame, cup) steps over SIP_LEN_MS, always with the cup in the left
+ * hand. Facing down: the bow row's left arm crosses the chest up to the chin (cols 4 -> 6 -> 4);
+ * sideways: the spellcast row's front hand rises to the chin (cols 2 -> 3 -> 2). Cup positions are
+ * the hand in those frames, measured on the body sheets (frame px - (32, 48)).
  */
 const SIP_STEPS: Partial<Record<Direction, readonly { until: number; step: SipStep }[]>> = {
   down: [
-    { until: 300, step: { row: 18, col: 4, cup: { dx: -10, dy: -12 } } },
+    { until: 300, step: { row: 18, col: 4, cup: { dx: -11, dy: -14 } } },
     { until: 900, step: { row: 18, col: 6, cup: { dx: -11, dy: -16 } } },
-    { until: 1200, step: { row: 18, col: 4, cup: { dx: -10, dy: -12 } } },
+    { until: 1200, step: { row: 18, col: 4, cup: { dx: -11, dy: -14 } } },
   ],
-  left: [{ until: 1200, step: { row: 5, col: 7, cup: { dx: -10, dy: -11 } } }],
-  right: [{ until: 1200, step: { row: 7, col: 7, cup: { dx: 11, dy: -11 } } }],
+  left: [
+    { until: 300, step: { row: 1, col: 2, cup: { dx: -9, dy: -5 } } },
+    { until: 900, step: { row: 1, col: 3, cup: { dx: -10, dy: -7 } } },
+    { until: 1200, step: { row: 1, col: 2, cup: { dx: -9, dy: -5 } } },
+  ],
+  right: [
+    { until: 300, step: { row: 3, col: 2, cup: { dx: 8, dy: -5 } } },
+    { until: 900, step: { row: 3, col: 3, cup: { dx: 9, dy: -7 } } },
+    { until: 1200, step: { row: 3, col: 2, cup: { dx: 8, dy: -5 } } },
+  ],
 };
 
 /** Without arm frames (see `hasArmFrames`): the standing frame, the cup lifted to the mouth. */
@@ -473,7 +482,8 @@ export function sipStep(
   if (!steps) return null;
   const t = (((nowMs + seed) % SIP_MS) + SIP_MS) % SIP_MS;
   if (t >= SIP_LEN_MS) return null;
-  return armFrames ? steps.find((s) => t < s.until)!.step : (SIP_NO_ARM[dir] ?? null);
+  // Only the bow row (facing down) is missing from some layers; every layer has the spellcast rows.
+  return armFrames || dir !== 'down' ? steps.find((s) => t < s.until)!.step : (SIP_NO_ARM[dir] ?? null);
 }
 
 /**
@@ -482,9 +492,10 @@ export function sipStep(
  */
 export function cupRest(pose: Pose, dir: Direction): { dx: number; dy: number } | null {
   if (dir === 'up' || pose === 'lie' || pose === 'dance') return null;
-  // Hands hang at frame rows ~44-48 (the frame's top is 48px above the feet point).
-  if (pose === 'sit') return dir === 'down' ? { dx: -8, dy: -2 } : { dx: dir === 'left' ? -6 : 6, dy: -3 };
-  return dir === 'down' ? { dx: -12, dy: -2 } : { dx: dir === 'left' ? -5 : 5, dy: -4 };
+  // The left hand, the one that sips: facing down it hangs at frame (40, 48), on the viewer's right
+  // (the frame's top is 48px above the feet point); sideways, the front hand.
+  if (pose === 'sit') return dir === 'down' ? { dx: 8, dy: -2 } : { dx: dir === 'left' ? -6 : 6, dy: -3 };
+  return dir === 'down' ? { dx: 8, dy: -1 } : { dx: dir === 'left' ? -5 : 5, dy: -4 };
 }
 
 /**

@@ -38,7 +38,9 @@ describe('drinking', () => {
     expect(sipStep('coffee', 'stand', 'down', false, 0)).toMatchObject({ row: 18, col: 4 });
     expect(sipStep('coffee', 'stand', 'down', false, 500)).toMatchObject({ row: 18, col: 6 });
     expect(sipStep('coffee', 'stand', 'down', false, SIP_LEN_MS)).toBeNull();
-    expect(sipStep('water', 'stand', 'left', false, SIP_MS + 10)).toMatchObject({ row: 5, col: 7 });
+    expect(sipStep('water', 'stand', 'left', false, SIP_MS + 10)).toMatchObject({ row: 1, col: 2 });
+    expect(sipStep('water', 'stand', 'right', false, 500)).toMatchObject({ row: 3, col: 3 });
+    expect(cupRest('stand', 'down')!.dx).toBeGreaterThan(0); // the left hand, on the viewer's right
     expect(sipStep('coffee', 'stand', 'up', false, 0)).toBeNull();
     expect(sipStep('coffee', 'stand', 'down', true, 0)).toBeNull();
     expect(sipStep('coffee', 'sit', 'down', false, 0)).toBeNull();
