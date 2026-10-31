@@ -142,3 +142,28 @@ layers above, same authors as their sources:
 | `lpc/hair/{red,white,pink,blue}_{male,female}.png` | `blonde_{male,female}.png` |
 
 Their seated versions under `lpc/sit/` come from `tools/gen_pose_sheets.py`.
+
+## Modern wardrobe: new top, bottom and hair styles (`tools/vendor_modern.py`)
+
+Fetched from the **Universal LPC Spritesheet Character Generator**
+(https://github.com/sanderfrenken/Universal-LPC-Spritesheet-Character-Generator, CC-BY-SA 3.0 /
+GPL-3.0; per-file authors in its `CREDITS.csv`) and cropped to the 832×1344 universal grid (the
+generator sheets carry extra animation rows below it). Pixels are unchanged except the vest and the
+collared jacket, which are composited over our `white_longsleeve_male.png` (CC-BY-SA 3.0
+derivatives). Generator color names map onto ours (gray→grey, tan→khaki, chestnut→brown,
+redhead→red).
+
+| Files | Generator source |
+| --- | --- |
+| `lpc/torso/{color}_tshirt_{male,female}.png` | `torso/clothes/shortsleeve/shortsleeve/male`, `.../tshirt/female` |
+| `lpc/torso/{color}_{vneck,polo}_female.png` | `torso/clothes/shortsleeve/{tshirt_vneck,shortsleeve_polo}/female` |
+| `lpc/torso/{color}_cardigan_female.png` | `torso/clothes/longsleeve/longsleeve2_cardigan/female` |
+| `lpc/torso/{color}_blouse_female.png` | `torso/clothes/blouse/female` |
+| `lpc/torso/{color}_tank_{male,female}.png` | `torso/clothes/sleeveless/sleeveless/male`, `.../tanktop/female` |
+| `lpc/torso/{color}_vest_male.png` | `torso/clothes/vest/male` (over the white longsleeve) |
+| `lpc/torso/{color}_jacket_male.png` | `torso/jacket/collared/male` (over the white longsleeve) |
+| `lpc/legs/{color}_shorts_{male,female}.png` | `legs/shorts/shorts/{male,thin}` |
+| `lpc/legs/{color}_skirt_female.png` | `legs/skirts/plain/female` |
+| `lpc/hair/{color}_{style}_{male,female}.png` | `hair/{bob,curly_short,buzzcut,bangs_bun,dreadlocks_short}/adult`, `hair/{pixie,ponytail,afro,spiked,long,messy1,parted}/{male,female}` |
+
+Their seated versions under `lpc/sit/` come from `tools/gen_pose_sheets.py`.

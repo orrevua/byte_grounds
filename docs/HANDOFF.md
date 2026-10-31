@@ -1,7 +1,18 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-31 (more Gemini sheets + wardrobe colors)
+**Last updated:** 2026-10-31 (modern LPC wardrobe: new clothing + hair styles)
 **Branch:** `master` (user asked: work on master directly, no more PRs)
+
+## Modern LPC wardrobe (new styles, not recolors) — DONE, PUSHED (2026-10-31)
+- User wanted real new clothing *styles*. Gemini was tried for a hoodie sheet: looks fine but drifts
+  (feet changed, wrong width) → rejected; fallback the user approved: modern clothes from the LPC
+  generator. `tools/vendor_modern.py` fetches + crops (832x2944 → 832x1344) into `lpc/`; 318 layers.
+- Appearance gained `bottom` (pants|shorts|skirt; skirt female only) and `hairStyle` (classic + 12 cuts);
+  `outfit` gained tshirt, vneck, polo, cardigan, blouse, tank, vest, jacket — per sex via
+  `OUTFITS_BY_BODY` (`outfitsFor(body, skin)`). Serialization is 8-part; 4/5/6-part legacy still parses.
+- Editor rows: Haircut, Hair, Outfit, Top, Bottom, Bottom color. Join screen now preloads layers per
+  appearance (no `preloadAll`; the set is ~15 MB). 8 new presets (29 total). Checked in the browser:
+  editor preview, walk/cast/slash frames and sit sheets for new layers.
 
 ## More Gemini sheets + wardrobe colors — DONE, PUSHED (2026-10-31)
 - `gemini_building_grid` (walls, doors, windows, partition, reception, wall decor, stairs, railing…),

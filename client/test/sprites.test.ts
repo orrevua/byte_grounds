@@ -35,6 +35,10 @@ import {
   fitAppearance,
   skinsFor,
   outfitsFor,
+  OUTFITS_BY_BODY,
+  bottomsFor,
+  BOTTOM,
+  HAIR_STYLE,
   danceStep,
   DANCE_STEPS,
   DANCE_LOOP_MS,
@@ -194,7 +198,7 @@ describe('appearanceToLayers', () => {
     for (const body of BODY)
       for (const skin of skinsFor(body))
         for (const hair of HAIR)
-          for (const outfit of outfitsFor(skin))
+          for (const outfit of outfitsFor(body, skin))
             for (const torso of outfitTorso(outfit))
               for (const legs of LEGS)
                 for (const url of appearanceToLayers(casual({ body, skin, hair, outfit, torso, legs } as Partial<Appearance>)))
@@ -231,6 +235,33 @@ describe('appearanceToLayers', () => {
     ]);
   });
 
+  it('maps the modern styles, bottoms and haircuts to their files', () => {
+    expect(appearanceToLayers(casual({ outfit: 'jacket', torso: 'blue', bottom: 'shorts', legs: 'khaki', hairStyle: 'afro' }))).toEqual([
+      '/sprites/lpc/body/male_light.png',
+      '/sprites/lpc/legs/khaki_shorts_male.png',
+      '/sprites/lpc/torso/blue_jacket_male.png',
+      '/sprites/lpc/hair/brown_afro_male.png',
+    ]);
+    expect(appearanceToLayers(casual({ body: 'female', outfit: 'blouse', bottom: 'skirt', hairStyle: 'bob' }), 'sit')).toEqual([
+      '/sprites/lpc/sit/body/female_light.png',
+      '/sprites/lpc/sit/legs/teal_skirt_female.png',
+      '/sprites/lpc/sit/torso/teal_blouse_female.png',
+      '/sprites/lpc/sit/hair/brown_bob_female.png',
+    ]);
+  });
+
+  it('every style, bottom and haircut layer exists for every color it offers', () => {
+    for (const body of BODY) {
+      for (const outfit of outfitsFor(body, 'light'))
+        for (const torso of outfitTorso(outfit)) expect(ALL_LAYER_URLS).toContain(appearanceToLayers(casual({ body, outfit, torso } as Partial<Appearance>))[2]);
+      for (const bottom of bottomsFor(body))
+        for (const legs of LEGS) expect(ALL_LAYER_URLS).toContain(appearanceToLayers(casual({ body, bottom, legs }))[1]);
+      for (const hairStyle of HAIR_STYLE)
+        for (const hair of HAIR.filter((h) => h !== 'none'))
+          expect(ALL_LAYER_URLS).toContain(appearanceToLayers(casual({ body, hairStyle, hair }))[3]);
+    }
+  });
+
   it('draws the human skin tones for both sexes', () => {
     for (const skin of ['olive', 'tan', 'brown', 'dark'] as const) {
       expect(appearanceToLayers(casual({ skin }))[0]).toBe(`/sprites/lpc/body/male_${skin}.png`);
@@ -243,9 +274,19 @@ describe('fitAppearance', () => {
   it('offers every skin to both sexes, and bare outfits to creatures only', () => {
     expect(skinsFor('male')).toEqual(SKIN);
     expect(skinsFor('female')).toEqual(SKIN);
-    expect(outfitsFor('light')).toEqual(['casual', 'business']);
-    expect(outfitsFor('dark')).toEqual(['casual', 'business']);
-    expect(outfitsFor('skeleton')).toEqual(OUTFIT);
+    expect(outfitsFor('male', 'light')).toEqual(OUTFITS_BY_BODY.male);
+    expect(outfitsFor('female', 'dark')).toEqual(OUTFITS_BY_BODY.female);
+    expect(outfitsFor('male', 'skeleton')).toEqual([...OUTFITS_BY_BODY.male, 'none']);
+    expect(new Set([...OUTFITS_BY_BODY.male, ...OUTFITS_BY_BODY.female, 'none'])).toEqual(new Set(OUTFIT));
+  });
+
+  it('clamps a style or bottom the sex lacks (female-only tops, skirt)', () => {
+    expect(fitAppearance(casual({ outfit: 'blouse' })).outfit).toBe('casual');
+    expect(fitAppearance(casual({ body: 'female', outfit: 'jacket' })).outfit).toBe('casual');
+    expect(fitAppearance(casual({ bottom: 'skirt' })).bottom).toBe('pants');
+    expect(fitAppearance(casual({ body: 'female', bottom: 'skirt' })).bottom).toBe('skirt');
+    expect(bottomsFor('male')).toEqual(['pants', 'shorts']);
+    expect(bottomsFor('female')).toEqual(BOTTOM);
   });
 
   it('clamps outfit per skin, then top per outfit', () => {
@@ -284,7 +325,7 @@ describe('normalizeAppearance', () => {
   });
 
   it('keeps valid fields (incl. outfit and widened colors)', () => {
-    const a: Appearance = { body: 'female', hair: 'none', outfit: 'business', torso: 'green', legs: 'navy', skin: 'orc' };
+    const a: Appearance = { body: 'female', hair: 'none', outfit: 'business', torso: 'green', legs: 'navy', skin: 'orc', bottom: 'skirt', hairStyle: 'bob' };
     expect(normalizeAppearance(a)).toEqual(a);
   });
 
@@ -295,27 +336,31 @@ describe('normalizeAppearance', () => {
 });
 
 describe('serialize / parse round-trip', () => {
-  it('round-trips every preset (6-part)', () => {
+  it('round-trips every preset (8-part)', () => {
     for (const p of PRESETS) {
-      expect(serializeAppearance(p.appearance).split('.')).toHaveLength(6);
+      expect(serializeAppearance(p.appearance).split('.')).toHaveLength(8);
       expect(parseAppearance(serializeAppearance(p.appearance))).toEqual(p.appearance);
     }
   });
 
   it('round-trips a bare skeleton', () => {
-    const s = 'male.none.none.teal.teal.skeleton';
+    const s = 'male.none.none.teal.teal.skeleton.pants.classic';
     expect(serializeAppearance(parseAppearance(s))).toBe(s);
   });
 
   it('parses a legacy 4-part string (no outfit) → outfit defaults to casual', () => {
     const legacy = parseAppearance('female.black.maroon.red');
-    expect(legacy).toEqual({ body: 'female', hair: 'black', outfit: 'casual', torso: 'maroon', legs: 'red', skin: 'light' });
+    expect(legacy).toEqual({ body: 'female', hair: 'black', outfit: 'casual', torso: 'maroon', legs: 'red', skin: 'light', bottom: 'pants', hairStyle: 'classic' });
   });
 
   it('parses a legacy 5-part string (no skin) → light skin', () => {
     expect(parseAppearance('male.black.business.green.navy')).toEqual({
-      body: 'male', hair: 'black', outfit: 'business', torso: 'green', legs: 'navy', skin: 'light',
+      body: 'male', hair: 'black', outfit: 'business', torso: 'green', legs: 'navy', skin: 'light', bottom: 'pants', hairStyle: 'classic',
     });
+  });
+
+  it('parses a legacy 6-part string (no bottom / haircut) → pants, classic cut', () => {
+    expect(parseAppearance('female.red.casual.teal.white.tan')).toMatchObject({ skin: 'tan', bottom: 'pants', hairStyle: 'classic' });
   });
 
   it('parses garbage to the default appearance', () => {
@@ -348,6 +393,7 @@ describe('shuffleAppearance', () => {
   it('respects rand bounds (0 → first option, →1 → last option)', () => {
     expect(shuffleAppearance(() => 0)).toEqual({
       body: BODY[0], hair: HAIR[0], outfit: OUTFIT[0], torso: CASUAL_TORSO[0], legs: LEGS[0], skin: SKIN[0],
+      bottom: BOTTOM[0], hairStyle: HAIR_STYLE[0],
     });
     expect(shuffleAppearance(() => 0.999999)).toEqual({
       body: 'female',
@@ -356,13 +402,15 @@ describe('shuffleAppearance', () => {
       torso: CASUAL_TORSO[CASUAL_TORSO.length - 1],
       legs: LEGS[LEGS.length - 1],
       skin: 'skeleton',
+      bottom: 'skirt',
+      hairStyle: HAIR_STYLE[HAIR_STYLE.length - 1],
     });
   });
 });
 
 describe('PRESETS / DEFAULT_APPEARANCE integrity', () => {
-  it('has 21 presets with unique, non-empty ids', () => {
-    expect(PRESETS.length).toBe(21);
+  it('has 29 presets with unique, non-empty ids', () => {
+    expect(PRESETS.length).toBe(29);
     const ids = PRESETS.map((p) => p.id);
     expect(ids.every((id) => id.length > 0)).toBe(true);
     expect(new Set(ids).size).toBe(ids.length);
@@ -397,15 +445,15 @@ describe('PRESETS / DEFAULT_APPEARANCE integrity', () => {
 
 describe('CATEGORIES / options', () => {
   it('covers every editable axis (incl. outfit)', () => {
-    expect(CATEGORIES.map((c) => c.key)).toEqual(['body', 'skin', 'hair', 'outfit', 'torso', 'legs']);
+    expect(CATEGORIES.map((c) => c.key)).toEqual(['body', 'skin', 'hairStyle', 'hair', 'outfit', 'torso', 'bottom', 'legs']);
   });
 
   it('resolves the Skin options from the body and the Outfit options from the skin', () => {
     const skin = CATEGORIES.find((c) => c.key === 'skin')!;
     const outfit = CATEGORIES.find((c) => c.key === 'outfit')!;
     expect(optionsFor(skin, casual({ body: 'female' }))).toEqual(SKIN);
-    expect(optionsFor(outfit, casual({}))).toEqual(['casual', 'business']);
-    expect(optionsFor(outfit, casual({ skin: 'orc' }))).toEqual(OUTFIT);
+    expect(optionsFor(outfit, casual({}))).toEqual(OUTFITS_BY_BODY.male);
+    expect(optionsFor(outfit, casual({ body: 'female', skin: 'orc' }))).toEqual([...OUTFITS_BY_BODY.female, 'none']);
   });
 
   it('resolves the Top options from the current outfit', () => {

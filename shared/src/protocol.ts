@@ -23,12 +23,18 @@ export type Facing = 'up' | 'down' | 'left' | 'right';
 export interface Appearance {
   body: 'male' | 'female'; // sex: keys every legs/torso/hair file
   hair: 'brown' | 'black' | 'blonde' | 'red' | 'white' | 'pink' | 'blue' | 'none'; // 'none' = omit the hair layer
-  outfit: 'casual' | 'business' | 'none'; // garment family (casual longsleeve/tunic vs formal); 'none' = bare (creatures only)
+  outfit:
+    | 'casual' | 'business' | 'tshirt' | 'vneck' | 'polo' | 'cardigan' | 'blouse' | 'tank' | 'vest' | 'jacket'
+    | 'none'; // top style (casual longsleeve/tunic, formal, modern LPC tops; some per sex); 'none' = bare (creatures only)
   torso:
     | 'teal' | 'maroon' | 'brown' | 'white' | 'pink' | 'green'
     | 'black' | 'blue' | 'red' | 'yellow' | 'purple' | 'orange' | 'grey' | 'navy' | 'burgundy'; // top color (clamped to the outfit's palette)
   legs: 'teal' | 'red' | 'white' | 'navy' | 'pink' | 'black' | 'brown' | 'grey' | 'green' | 'khaki'; // pants color
   skin: 'light' | 'olive' | 'tan' | 'brown' | 'dark' | 'orc' | 'skeleton'; // body sheet (human tones, then creatures)
+  bottom: 'pants' | 'shorts' | 'skirt'; // bottom style, colored by `legs` (skirt: female only)
+  hairStyle:
+    | 'classic' | 'bob' | 'pixie' | 'ponytail' | 'curly' | 'afro' | 'spiked' | 'long' | 'buzzcut' | 'bun'
+    | 'messy' | 'dreads' | 'parted'; // haircut, colored by `hair`
 }
 
 export interface PeerState {

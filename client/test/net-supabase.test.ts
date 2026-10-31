@@ -87,7 +87,7 @@ vi.mock('@supabase/supabase-js', () => ({
   }),
 }));
 
-const appearance = { body: 'male', hair: 'brown', outfit: 'casual', torso: 'teal', legs: 'teal', skin: 'light' } as const;
+const appearance = { body: 'male', hair: 'brown', outfit: 'casual', torso: 'teal', legs: 'teal', skin: 'light', bottom: 'pants', hairStyle: 'classic' } as const;
 
 async function joinAs(name: string, uid?: string): Promise<{ net: SupabaseNet; inbox: ServerToClient[]; id: string }> {
   const inbox: ServerToClient[] = [];

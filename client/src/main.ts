@@ -8,7 +8,7 @@ import {
   fitAppearance,
   optionsFor,
   parseAppearance,
-  preloadAll,
+  preloadAppearance,
   serializeAppearance,
   shuffleAppearance,
 } from './sprites.ts';
@@ -132,10 +132,13 @@ function renderJoin(): void {
   /** Every change goes through the cross-axis clamp; a bare outfit dims the Top/Pants rows. */
   function setAppearance(next: Appearance): void {
     appearance = fitAppearance(next);
-    for (const key of ['torso', 'legs']) {
+    for (const key of ['torso', 'bottom', 'legs']) {
       app!.querySelector(`.axis[data-key="${key}"]`)!.classList.toggle('disabled', appearance.outfit === 'none');
     }
     redraw();
+    // Layers load on demand (the full wardrobe is too big to fetch up front); draw once they land.
+    const shown = appearance;
+    void preloadAppearance(shown).then(() => shown === appearance && redraw());
   }
 
   // Per-category prev/next cycling (wrap-around).
@@ -164,9 +167,9 @@ function renderJoin(): void {
     });
   }
 
-  // Clamp a loaded appearance and dim the rows; preload the full vendored set once, then draw.
+  // Clamp a loaded appearance and dim the rows (loads its layers, then draws); warm the presets.
   setAppearance(appearance);
-  void preloadAll().then(redraw);
+  for (const p of PRESETS) void preloadAppearance(p.appearance);
 
   go.addEventListener('click', () => {
     go.disabled = true;
