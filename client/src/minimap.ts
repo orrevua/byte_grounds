@@ -1,6 +1,7 @@
 import { decorLayer, type OfficeMap } from '@byte_grounds/shared/map';
 import { drawDecorCellAt, drawMap, mapPixelSize } from './render.ts';
 import { isTouchDevice } from './input.ts';
+import { t } from './i18n.ts';
 
 /** Largest minimap (CSS px); phones get a smaller one above the touch pad, clear of the centred Sit / Dance buttons. */
 const MAX_DESKTOP = { w: 200, h: 150 };
@@ -57,11 +58,11 @@ export class Minimap {
     this.el.id = 'minimap';
     if (isTouchDevice()) this.el.classList.add('touch');
     this.canvas = document.createElement('canvas');
-    this.canvas.title = 'Click or drag to look around';
+    this.canvas.title = t('game.minimapTitle');
     this.ctx = this.canvas.getContext('2d')!;
     this.backBtn = document.createElement('button');
     this.backBtn.type = 'button';
-    this.backBtn.textContent = 'Back to me';
+    this.backBtn.textContent = t('game.backToMe');
     this.backBtn.className = 'hidden';
     this.backBtn.addEventListener('click', () => this.onRecenter());
     this.el.append(this.backBtn, this.canvas);

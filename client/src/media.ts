@@ -1,5 +1,6 @@
 import { CONNECT_RADIUS } from '@byte_grounds/shared/protocol';
 import type { PeerId } from '@byte_grounds/shared/protocol';
+import { t } from './i18n.ts';
 
 export const BUBBLE_W = 120;
 export const BUBBLE_H = 90;
@@ -140,12 +141,12 @@ export class ScreenStage {
     const root = (this.root = document.createElement('div'));
     root.id = 'screen-stage';
     root.className = 'hidden';
-    root.innerHTML = '<div class="stage-head"><span></span><button type="button">Minimize</button></div>';
+    root.innerHTML = `<div class="stage-head"><span></span><button type="button">${t('media.minimize')}</button></div>`;
     this.title = root.querySelector('span')!;
     this.minBtn = root.querySelector('button')!;
     this.minBtn.addEventListener('click', () => {
       const min = root.classList.toggle('min');
-      this.minBtn.textContent = min ? 'Show' : 'Minimize';
+      this.minBtn.textContent = min ? t('media.show') : t('media.minimize');
     });
     this.video = document.createElement('video');
     this.video.autoplay = true;
@@ -161,7 +162,7 @@ export class ScreenStage {
   }
 
   show(id: PeerId, name: string, stream: MediaStream): void {
-    this.title.textContent = `${name} is presenting`;
+    this.title.textContent = t('meet.presenting', { name });
     if (this.current?.id === id && this.current.stream === stream) return;
     this.current = { id, stream };
     this.video.srcObject = stream;
@@ -229,9 +230,9 @@ export class MediaManager {
 
     const bar = document.createElement('div');
     bar.style.cssText = 'display:flex;gap:6px;';
-    this.micBtn = this.makeButton('Mic: on', () => this.toggleMic());
-    this.camBtn = this.makeButton('Cam: off', () => void this.toggleCam());
-    this.screenBtn = this.makeButton('Share screen', () => void this.toggleScreen());
+    this.micBtn = this.makeButton(t('media.micOn'), () => this.toggleMic());
+    this.camBtn = this.makeButton(t('media.camOff'), () => void this.toggleCam());
+    this.screenBtn = this.makeButton(t('media.share'), () => void this.toggleScreen());
     bar.append(this.micBtn, this.camBtn, this.screenBtn);
     this.screenBtn.style.display = 'none';
 
@@ -253,7 +254,7 @@ export class MediaManager {
         return s;
       })
       .catch(() => {
-        this.notice.textContent = 'Mic unavailable — you can still move, see and hear others.';
+        this.notice.textContent = t('media.noMic');
         return new MediaStream();
       })
       .then((s) => {
@@ -274,7 +275,7 @@ export class MediaManager {
   toggleMic(): void {
     this.micOn = !this.micOn;
     for (const t of this.stream?.getAudioTracks() ?? []) t.enabled = this.micOn;
-    this.micBtn.textContent = `Mic: ${this.micOn ? 'on' : 'off'}`;
+    this.micBtn.textContent = this.micOn ? t('media.micOn') : t('media.micOff');
     this.onChange();
   }
 
@@ -339,13 +340,13 @@ export class MediaManager {
             this.onVideoTrack(track, stream);
           }
         } catch {
-          this.notice.textContent = 'Camera unavailable or blocked.';
+          this.notice.textContent = t('media.noCam');
         }
       }
     } finally {
       this.camBusy = false;
       const on = !!this.stream?.getVideoTracks().length;
-      this.camBtn.textContent = `Cam: ${on ? 'on' : 'off'}`;
+      this.camBtn.textContent = on ? t('media.camOn') : t('media.camOff');
       this.preview.style.display = on ? '' : 'none';
       this.onChange();
     }
@@ -395,9 +396,9 @@ export class MediaManager {
 
   private updateScreenUi(): void {
     const on = !!this.screen;
-    this.screenBtn.textContent = on ? 'Stop sharing' : 'Share screen';
+    this.screenBtn.textContent = on ? t('media.stopShare') : t('media.share');
     this.screenBtn.style.background = on ? '#c0392b' : '#2a2f37';
-    this.notice.textContent = on ? 'Sharing your screen with the meeting room.' : '';
+    this.notice.textContent = on ? t('media.sharing') : '';
     this.notice.style.color = on ? '#9fd0ff' : '#ffb4b4';
   }
 

@@ -24,6 +24,9 @@ import { LiveMap } from './live-map.ts';
 import { Hud } from './hud.ts';
 import { dayKey, loadDailyStatus, saveDailyStatus } from './chat.ts';
 import { isTouchDevice } from './input.ts';
+import { applyDocLang, langSwitch, t, type MsgKey } from './i18n.ts';
+
+applyDocLang();
 
 /** Color is vestigial now (the sprite appearance drives the look); keep a stable default. */
 const DEFAULT_COLOR = '#4f8cff';
@@ -57,10 +60,10 @@ function setStatus(status: NetStatus): void {
   banner.className = `net-banner-${status}`;
   banner.textContent =
     status === 'connecting'
-      ? 'Connecting…'
+      ? t('net.connecting')
       : status === 'reconnecting'
-        ? 'Reconnecting…'
-        : 'Disconnected — reload to retry';
+        ? t('net.reconnecting')
+        : t('net.closed');
 }
 
 function loadAppearance(): Appearance {
@@ -75,13 +78,13 @@ function renderJoin(): void {
     (c) =>
       `<div class="axis" data-key="${c.key}">
          <button type="button" class="arrow" data-dir="-1">◀</button>
-         <span class="axis-label">${c.label}</span>
+         <span class="axis-label">${t(`axis.${c.key}` as MsgKey)}</span>
          <button type="button" class="arrow" data-dir="1">▶</button>
        </div>`,
   ).join('');
 
   const presetBtns = PRESETS.map(
-    (p) => `<button type="button" class="preset" data-id="${p.id}">${p.label}</button>`,
+    (p) => `<button type="button" class="preset" data-id="${p.id}">${t(`preset.${p.id}` as MsgKey)}</button>`,
   ).join('');
 
   app!.innerHTML = `
@@ -89,27 +92,28 @@ function renderJoin(): void {
       <div class="panel">
         <div class="brand">
           <img src="/logo.svg" alt="" width="48" height="48" />
-          <div><h1>ByteGrounds</h1><p class="tagline">A tiny virtual office for friends</p></div>
+          <div><h1>ByteGrounds</h1><p class="tagline">${t('join.tagline')}</p></div>
         </div>
-        <label>Name <input id="name" maxlength="16" placeholder="Your name" /></label>
-        <label>Map <select id="map"><option value="${DEFAULT_MAP.id}">${DEFAULT_MAP.name}</option></select></label>
+        <label>${t('join.name')} <input id="name" maxlength="16" placeholder="${t('join.namePlaceholder')}" /></label>
+        <label>${t('join.map')} <select id="map"><option value="${DEFAULT_MAP.id}">${DEFAULT_MAP.name}</option></select></label>
         <div class="editor">
           <canvas id="preview" width="64" height="64"></canvas>
           <div class="axes">${categoryRows}</div>
         </div>
-        <button type="button" id="shuffle">Shuffle</button>
-        <div class="preset-label">Presets</div>
+        <button type="button" id="shuffle">${t('join.shuffle')}</button>
+        <div class="preset-label">${t('join.presets')}</div>
         <div id="presets">${presetBtns}</div>
-        <button id="go">Join</button>
+        <button id="go">${t('join.go')}</button>
         <div id="join-error" class="join-error"></div>
         <div id="admin-box" class="admin-box"></div>
-        <a class="editor-link" href="editor.html">Map editor →</a>
-        <a class="editor-link studio-link hidden" href="sheets.html">Sheet Studio (admin) →</a>
+        <a class="editor-link" href="editor.html">${t('join.mapEditor')}</a>
+        <a class="editor-link studio-link hidden" href="sheets.html">${t('join.studio')}</a>
       </div>
     </div>`;
 
   const nameEl = app!.querySelector<HTMLInputElement>('#name')!;
-  nameEl.value = localStorage.getItem(NAME_KEY) ?? 'Guest';
+  nameEl.value = localStorage.getItem(NAME_KEY) ?? t('join.guest');
+  app!.querySelector('.brand')!.append(langSwitch());
   const mapEl = app!.querySelector<HTMLSelectElement>('#map')!;
   const errorEl = app!.querySelector<HTMLDivElement>('#join-error')!;
   const go = app!.querySelector<HTMLButtonElement>('#go')!;
@@ -174,7 +178,7 @@ function renderJoin(): void {
   go.addEventListener('click', () => {
     go.disabled = true;
     errorEl.textContent = '';
-    join(nameEl.value.trim() || 'Guest', appearance, mapEl.value).catch((err) => {
+    join(nameEl.value.trim() || t('join.guest'), appearance, mapEl.value).catch((err) => {
       go.disabled = false;
       errorEl.textContent = storeError(err);
     });
@@ -203,9 +207,9 @@ function renderAdminBox(box: HTMLDivElement): void {
 /** Email sign-ups are open, so a signed-in account is only labelled admin when `is_admin()` says so. */
 function showSignedIn(box: HTMLDivElement, email: string, isAdmin: boolean): void {
   document.querySelector('.studio-link')?.classList.toggle('hidden', !isAdmin);
-  box.innerHTML = `<div><span class="admin-email"></span> · <button type="button" class="link">Sign out</button></div>
+  box.innerHTML = `<div><span class="admin-email"></span> · <button type="button" class="link">${t('join.signOut')}</button></div>
     <div class="join-error"></div>`;
-  box.querySelector('.admin-email')!.textContent = isAdmin ? `Admin: ${email}` : `Signed in: ${email} (not admin)`;
+  box.querySelector('.admin-email')!.textContent = t(isAdmin ? 'join.admin' : 'join.signedIn', { email });
   const errorEl = box.querySelector<HTMLDivElement>('.join-error')!;
   box.querySelector('button')!.addEventListener('click', () => {
     signOutAdmin()
@@ -215,15 +219,15 @@ function showSignedIn(box: HTMLDivElement, email: string, isAdmin: boolean): voi
 }
 
 function showAdminLink(box: HTMLDivElement): void {
-  box.innerHTML = '<button type="button" class="link">Admin login</button>';
+  box.innerHTML = `<button type="button" class="link">${t('join.adminLogin')}</button>`;
   box.querySelector('button')!.addEventListener('click', () => showAdminForm(box));
 }
 
 function showAdminForm(box: HTMLDivElement): void {
   box.innerHTML = `<form class="admin-form">
-      <input name="email" type="email" placeholder="Admin email" autocomplete="username" required />
-      <input name="password" type="password" placeholder="Password" autocomplete="current-password" required />
-      <button type="submit">Sign in</button>
+      <input name="email" type="email" placeholder="${t('join.adminEmail')}" autocomplete="username" required />
+      <input name="password" type="password" placeholder="${t('join.password')}" autocomplete="current-password" required />
+      <button type="submit">${t('join.signIn')}</button>
       <div class="join-error"></div>
     </form>`;
   const form = box.querySelector('form')!;
@@ -252,8 +256,8 @@ function errorMessage(err: unknown): string {
 function storeError(err: unknown): string {
   const msg = errorMessage(err);
   return /relation|schema cache|does not exist|42P01|PGRST/i.test(msg)
-    ? 'Maps aren\'t set up in Supabase yet: run supabase/schema.sql (see README).'
-    : `Couldn't load maps: ${msg}`;
+    ? t('join.mapsNotSetUp')
+    : t('join.mapsLoadFailed', { msg });
 }
 
 async function join(name: string, appearance: Appearance, mapId: string): Promise<void> {

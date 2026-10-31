@@ -1,4 +1,5 @@
 import type { DecorCell, Rotation } from '@byte_grounds/shared/map';
+import { t as tr } from './i18n.ts';
 
 export { transformFacing } from '@byte_grounds/shared/map';
 
@@ -71,6 +72,6 @@ export function transformFields(t: DecorTransform): Pick<DecorCell, 'rot' | 'fli
 
 /** Editor label, e.g. "Rotation 90° · mirrored" or "No rotation". */
 export function describeTransform(t: DecorTransform): string {
-  const turned = t.rot === 0 ? 'No rotation' : `Rotation ${t.rot}°`;
-  return t.flipX ? `${turned} · mirrored` : turned;
+  const turned = t.rot === 0 ? tr('picker.noRotation') : tr('picker.rotation', { deg: t.rot });
+  return t.flipX ? tr('picker.mirrored', { turn: turned }) : turned;
 }

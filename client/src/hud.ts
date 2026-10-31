@@ -1,5 +1,6 @@
 import { CHAT_MAX, STATUS_MAX, type StatusFields } from '@byte_grounds/shared/protocol';
-import { CHAT_HELP, parseChatInput } from './chat.ts';
+import { parseChatInput } from './chat.ts';
+import { t } from './i18n.ts';
 
 export interface HudActions {
   leave(): void;
@@ -35,14 +36,14 @@ export class Hud {
     root.id = 'hud';
     root.innerHTML = `
       <div class="hud-bar">
-        <button type="button" class="hud-leave" title="Back to character and map selection">← Leave</button>
-        <button type="button" class="hud-status" title="Today's status (click to edit)"></button>
-        <button type="button" class="hud-busy" title="Busy: zzZ over your avatar (or type /busy)">Busy</button>
-        <button type="button" class="hud-chat" title="Chat (Enter)">Chat</button>
+        <button type="button" class="hud-leave" title="${t('hud.leaveTitle')}">${t('hud.leave')}</button>
+        <button type="button" class="hud-status" title="${t('hud.statusTitle')}"></button>
+        <button type="button" class="hud-busy" title="${t('hud.busyTitle')}">${t('hud.busy')}</button>
+        <button type="button" class="hud-chat" title="${t('hud.chatTitle')}">${t('hud.chat')}</button>
       </div>
       <div class="hud-panel">
         <div class="chat-log" aria-live="polite"></div>
-        <form class="chat-form"><input maxlength="${CHAT_MAX}" placeholder="Message… (/help)" aria-label="Chat message" /></form>
+        <form class="chat-form"><input maxlength="${CHAT_MAX}" placeholder="${t('hud.messagePlaceholder')}" aria-label="${t('hud.messageLabel')}" /></form>
       </div>`;
     this.statusBtn = root.querySelector('.hud-status')!;
     this.busyBtn = root.querySelector('.hud-busy')!;
@@ -71,10 +72,10 @@ export class Hud {
   /** Reflect our status fields (status text, busy). */
   setSelfStatus(fields: StatusFields): void {
     this.status = fields.status;
-    this.statusBtn.textContent = fields.status || 'Set a status…';
+    this.statusBtn.textContent = fields.status || t('hud.setStatus');
     this.statusBtn.classList.toggle('empty', !fields.status);
     this.busyBtn.classList.toggle('on', fields.busy);
-    this.busyBtn.textContent = fields.busy ? 'Busy · zzZ' : 'Busy';
+    this.busyBtn.textContent = fields.busy ? t('hud.busyOn') : t('hud.busy');
   }
 
   addChat(name: string, text: string, self: boolean): void {
@@ -121,7 +122,7 @@ export class Hud {
   }
 
   private updateChatBtn(): void {
-    this.chatBtn.textContent = this.unread ? `Chat (${this.unread})` : 'Chat';
+    this.chatBtn.textContent = this.unread ? t('hud.chatUnread', { n: this.unread }) : t('hud.chat');
   }
 
   private submit(): void {
@@ -134,11 +135,11 @@ export class Hud {
         return this.actions.toggleBusy();
       case 'status':
         this.actions.setStatus(cmd.text);
-        return this.note(cmd.text ? `Status set: ${cmd.text}` : 'Status cleared');
+        return this.note(cmd.text ? t('hud.statusSet', { text: cmd.text }) : t('hud.statusCleared'));
       case 'help':
-        return this.note(CHAT_HELP);
+        return this.note(t('chat.help'));
       case 'unknown':
-        return this.note(`Unknown command /${cmd.name}. ${CHAT_HELP}`);
+        return this.note(t('hud.unknownCommand', { name: cmd.name, help: t('chat.help') }));
       case 'empty':
         return;
     }
@@ -149,7 +150,7 @@ export class Hud {
     const field = document.createElement('input');
     field.className = 'hud-status-input';
     field.maxLength = STATUS_MAX;
-    field.placeholder = 'What are you working on today?';
+    field.placeholder = t('hud.statusPlaceholder');
     field.value = this.status;
     let done = false;
     const finish = (save: boolean) => {
@@ -170,9 +171,9 @@ export class Hud {
 
   private readonly onKey = (e: KeyboardEvent): void => {
     if (e.key !== 'Enter' || e.repeat) return;
-    const t = e.target;
-    if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) return;
-    if (t instanceof HTMLButtonElement) return;
+    const el = e.target;
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) return;
+    if (el instanceof HTMLButtonElement) return;
     e.preventDefault();
     this.setChatOpen(true);
     this.input.focus();

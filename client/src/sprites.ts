@@ -212,37 +212,17 @@ export function danceStep(ms: number): DanceStep & { row: number } {
   return { ...s, row: ANIM_ROW[s.anim][s.dir] };
 }
 
-/** The old 6 variants re-expressed as appearances plus a few extras, offered as quick-start presets. */
+/** A small set of quick-start looks (one row of the editor each); everything else is in the axes. */
 export const PRESETS: { id: string; label: string; appearance: Appearance }[] = [
   { id: 'm1', label: 'Teal (M)', appearance: { body: 'male', hair: 'brown', outfit: 'casual', torso: 'teal', legs: 'teal', skin: 'light', bottom: 'pants', hairStyle: 'classic' } },
-  { id: 'm2', label: 'Maroon (M)', appearance: { body: 'male', hair: 'black', outfit: 'casual', torso: 'maroon', legs: 'red', skin: 'light', bottom: 'pants', hairStyle: 'classic' } },
-  { id: 'm3', label: 'Brown (M)', appearance: { body: 'male', hair: 'blonde', outfit: 'casual', torso: 'brown', legs: 'white', skin: 'light', bottom: 'pants', hairStyle: 'classic' } },
-  { id: 'f1', label: 'Teal (F)', appearance: { body: 'female', hair: 'brown', outfit: 'casual', torso: 'teal', legs: 'teal', skin: 'light', bottom: 'pants', hairStyle: 'classic' } },
-  { id: 'f2', label: 'Maroon (F)', appearance: { body: 'female', hair: 'black', outfit: 'casual', torso: 'maroon', legs: 'red', skin: 'light', bottom: 'pants', hairStyle: 'classic' } },
-  { id: 'f3', label: 'Brown (F)', appearance: { body: 'female', hair: 'blonde', outfit: 'casual', torso: 'brown', legs: 'white', skin: 'light', bottom: 'pants', hairStyle: 'classic' } },
   { id: 'biz', label: 'Business (M)', appearance: { body: 'male', hair: 'black', outfit: 'business', torso: 'green', legs: 'navy', skin: 'light', bottom: 'pants', hairStyle: 'classic' } },
-  { id: 'pink', label: 'Casual Pink (F)', appearance: { body: 'female', hair: 'blonde', outfit: 'casual', torso: 'pink', legs: 'pink', skin: 'light', bottom: 'pants', hairStyle: 'classic' } },
-  { id: 'orc', label: 'Orc', appearance: { body: 'male', hair: 'none', outfit: 'casual', torso: 'brown', legs: 'teal', skin: 'orc', bottom: 'pants', hairStyle: 'classic' } },
-  { id: 'skel', label: 'Skeleton', appearance: { body: 'male', hair: 'none', outfit: 'none', torso: 'teal', legs: 'teal', skin: 'skeleton', bottom: 'pants', hairStyle: 'classic' } },
-  { id: 'f4', label: 'Olive (F)', appearance: { body: 'female', hair: 'brown', outfit: 'casual', torso: 'white', legs: 'navy', skin: 'olive', bottom: 'pants', hairStyle: 'classic' } },
-  { id: 'f5', label: 'Tan (F)', appearance: { body: 'female', hair: 'black', outfit: 'casual', torso: 'teal', legs: 'white', skin: 'tan', bottom: 'pants', hairStyle: 'classic' } },
-  { id: 'f6', label: 'Dark (F)', appearance: { body: 'female', hair: 'black', outfit: 'casual', torso: 'pink', legs: 'navy', skin: 'dark', bottom: 'pants', hairStyle: 'classic' } },
   { id: 'fbiz', label: 'Business (F)', appearance: { body: 'female', hair: 'brown', outfit: 'business', torso: 'pink', legs: 'navy', skin: 'brown', bottom: 'pants', hairStyle: 'classic' } },
-  { id: 'm4', label: 'Brown (M)', appearance: { body: 'male', hair: 'black', outfit: 'casual', torso: 'white', legs: 'navy', skin: 'brown', bottom: 'pants', hairStyle: 'classic' } },
-  { id: 'forc', label: 'Orc (F)', appearance: { body: 'female', hair: 'black', outfit: 'casual', torso: 'maroon', legs: 'red', skin: 'orc', bottom: 'pants', hairStyle: 'classic' } },
-  { id: 'fskel', label: 'Skeleton (F)', appearance: { body: 'female', hair: 'blonde', outfit: 'business', torso: 'green', legs: 'navy', skin: 'skeleton', bottom: 'pants', hairStyle: 'classic' } },
-  { id: 'm5', label: 'Navy suit (M)', appearance: { body: 'male', hair: 'white', outfit: 'business', torso: 'navy', legs: 'grey', skin: 'brown', bottom: 'pants', hairStyle: 'classic' } },
-  { id: 'f7', label: 'Red top (F)', appearance: { body: 'female', hair: 'red', outfit: 'casual', torso: 'red', legs: 'black', skin: 'light', bottom: 'pants', hairStyle: 'classic' } },
-  { id: 'm6', label: 'Yellow (M)', appearance: { body: 'male', hair: 'blue', outfit: 'casual', torso: 'yellow', legs: 'khaki', skin: 'tan', bottom: 'pants', hairStyle: 'classic' } },
-  { id: 'f8', label: 'Burgundy (F)', appearance: { body: 'female', hair: 'pink', outfit: 'business', torso: 'burgundy', legs: 'black', skin: 'dark', bottom: 'pants', hairStyle: 'classic' } },
   { id: 'm7', label: 'Tee & shorts (M)', appearance: { body: 'male', hair: 'black', outfit: 'tshirt', torso: 'red', legs: 'khaki', skin: 'tan', bottom: 'shorts', hairStyle: 'spiked' } },
   { id: 'f9', label: 'Blouse & skirt (F)', appearance: { body: 'female', hair: 'brown', outfit: 'blouse', torso: 'white', legs: 'navy', skin: 'light', bottom: 'skirt', hairStyle: 'bob' } },
   { id: 'm8', label: 'Jacket (M)', appearance: { body: 'male', hair: 'blonde', outfit: 'jacket', torso: 'blue', legs: 'grey', skin: 'olive', bottom: 'pants', hairStyle: 'buzzcut' } },
-  { id: 'f10', label: 'V-neck (F)', appearance: { body: 'female', hair: 'black', outfit: 'vneck', torso: 'yellow', legs: 'black', skin: 'dark', bottom: 'pants', hairStyle: 'curly' } },
-  { id: 'm9', label: 'Vest (M)', appearance: { body: 'male', hair: 'brown', outfit: 'vest', torso: 'maroon', legs: 'black', skin: 'light', bottom: 'pants', hairStyle: 'parted' } },
   { id: 'f11', label: 'Polo (F)', appearance: { body: 'female', hair: 'red', outfit: 'polo', torso: 'pink', legs: 'white', skin: 'tan', bottom: 'shorts', hairStyle: 'ponytail' } },
-  { id: 'm10', label: 'Tank (M)', appearance: { body: 'male', hair: 'black', outfit: 'tank', torso: 'teal', legs: 'khaki', skin: 'brown', bottom: 'shorts', hairStyle: 'afro' } },
-  { id: 'f12', label: 'Cardigan (F)', appearance: { body: 'female', hair: 'blonde', outfit: 'cardigan', torso: 'purple', legs: 'grey', skin: 'olive', bottom: 'skirt', hairStyle: 'long' } },
+  { id: 'orc', label: 'Orc', appearance: { body: 'male', hair: 'none', outfit: 'casual', torso: 'brown', legs: 'teal', skin: 'orc', bottom: 'pants', hairStyle: 'classic' } },
+  { id: 'skel', label: 'Skeleton', appearance: { body: 'male', hair: 'none', outfit: 'none', torso: 'teal', legs: 'teal', skin: 'skeleton', bottom: 'pants', hairStyle: 'classic' } },
 ];
 
 export const DEFAULT_APPEARANCE: Appearance = PRESETS[0].appearance;

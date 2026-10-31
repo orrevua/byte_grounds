@@ -7,6 +7,7 @@ import { toMapEdit, type EditOp, type MapEdit, type PlaceOp } from './edit-ops.t
 import { EditLog, bakedObjectAt, placeCells, replaceMapContents } from './live-model.ts';
 import { cellBlocks } from './editor-model.ts';
 import { decorLayer, tileAt } from '@byte_grounds/shared/map';
+import { t } from './i18n.ts';
 
 /** Auto-bake: quiet time after the last edit (+ up to JITTER_MS), and the unbaked edits needed. */
 const BAKE_IDLE_MS = 5000;
@@ -29,10 +30,10 @@ export type MoveSource =
 /** Why an edit was refused, in words for the builder. */
 function editError(err: unknown): string {
   const { code, message } = (err ?? {}) as { code?: string; message?: string };
-  if (code === NO_PERMISSION) return "You can't build anymore";
-  if (message === 'rate limit') return 'Slow down: too many edits at once';
-  if (message === 'edit cap') return 'Too many unsaved edits: ask the admin or a map editor to drop by';
-  return `Couldn't save the edit: ${message ?? String(err)}`;
+  if (code === NO_PERMISSION) return t('live.noPermission');
+  if (message === 'rate limit') return t('live.rateLimit');
+  if (message === 'edit cap') return t('live.editCap');
+  return t('live.saveFailed', { msg: message ?? String(err) });
 }
 
 /**
@@ -131,15 +132,15 @@ export class LiveMap {
    */
   pickUp(x: number, y: number): MoveSource | string {
     const log = this.log;
-    if (!log) return 'The room is still loading';
+    if (!log) return t('live.loading');
     const e = log.placementAt(x, y);
     if (e) {
-      if (e.author !== this.uid && !this.opts.isAdmin) return "Only the admin can move other people's pieces";
+      if (e.author !== this.uid && !this.opts.isAdmin) return t('live.notYours');
       return { kind: 'live', edit: e, op: e.op as PlaceOp };
     }
-    if (!this.opts.isAdmin) return 'Nothing of yours to move here';
+    if (!this.opts.isAdmin) return t('live.nothingOfYours');
     const obj = bakedObjectAt(log.map, x, y);
-    return obj ? { kind: 'baked', ...obj } : 'Nothing to move here';
+    return obj ? { kind: 'baked', ...obj } : t('live.nothing');
   }
 
   /**
@@ -178,7 +179,7 @@ export class LiveMap {
   /** Undo our latest placement still standing. */
   async undoOwn(): Promise<void> {
     const e = this.log?.lastOwnPlacement(this.uid);
-    if (!e) return this.emitError('Nothing of yours to undo');
+    if (!e) return this.emitError(t('live.nothingToUndo'));
     await this.remove(e);
   }
 
@@ -196,7 +197,7 @@ export class LiveMap {
   private enqueue(task: () => Promise<void>): void {
     this.queue = this.queue.then(task).catch((err) => {
       console.warn('[live] load failed:', err);
-      this.emitError("Couldn't load the latest room changes: reload the page");
+      this.emitError(t('live.reloadFailed'));
     });
   }
 

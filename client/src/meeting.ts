@@ -1,5 +1,6 @@
 import type { Appearance, PeerId } from '@byte_grounds/shared/protocol';
 import { drawHead, HEAD_CROP } from './sprites.ts';
+import { t } from './i18n.ts';
 
 /** One person in the meeting view. `video` is their live camera (or screen, when presenting). */
 export interface Participant {
@@ -107,12 +108,12 @@ export class MeetingView {
         <div class="meet-controls">
           <button type="button" class="meet-btn" data-act="mic"></button>
           <button type="button" class="meet-btn" data-act="cam"></button>
-          <button type="button" class="meet-btn" data-act="present" title="Present now">${icon(ICON.present)}</button>
-          <button type="button" class="meet-btn meet-leave" data-act="leave" title="Leave the room">${icon(ICON.hangup)}</button>
+          <button type="button" class="meet-btn" data-act="present" title="${t('meet.present')}">${icon(ICON.present)}</button>
+          <button type="button" class="meet-btn meet-leave" data-act="leave" title="${t('meet.leave')}">${icon(ICON.hangup)}</button>
         </div>
         <div class="meet-side">
-          <span class="meet-people" title="People in the room">${icon(ICON.people)}<b></b></span>
-          <button type="button" class="meet-btn meet-back" data-act="back" title="Back to the map (Esc)">${icon(ICON.map)}<span>Back to map</span></button>
+          <span class="meet-people" title="${t('meet.people')}">${icon(ICON.people)}<b></b></span>
+          <button type="button" class="meet-btn meet-back" data-act="back" title="${t('meet.backTitle')}">${icon(ICON.map)}<span>${t('meet.back')}</span></button>
         </div>
       </div>`;
     root.querySelector('.meet-room')!.textContent = this.src.roomName();
@@ -161,8 +162,8 @@ export class MeetingView {
     if (stageVideo.srcObject !== screen) stageVideo.srcObject = screen;
     stage.querySelector('.meet-stage-label')!.textContent = presenter
       ? presenter.self
-        ? 'You are presenting to everyone'
-        : `${presenter.name} is presenting`
+        ? t('meet.youPresenting')
+        : t('meet.presenting', { name: presenter.name })
       : '';
 
     const grid = root.querySelector<HTMLDivElement>('.meet-grid')!;
@@ -176,7 +177,7 @@ export class MeetingView {
       if (tile.video.srcObject !== cam) tile.video.srcObject = cam;
       tile.root.classList.toggle('has-video', !!cam);
       tile.root.classList.toggle('self', p.self);
-      tile.label.textContent = (p.self ? `${p.name} (You)` : p.name) + (p.busy ? ' · zzZ' : '');
+      tile.label.textContent = (p.self ? t('meet.you', { name: p.name }) : p.name) + (p.busy ? ' · zzZ' : '');
       tile.face.style.background = avatarColor(p.name);
       drawFace(tile.face, p.appearance);
     }
@@ -196,16 +197,16 @@ export class MeetingView {
     const micOn = this.src.micOn();
     mic.innerHTML = icon(ICON.mic, !micOn);
     mic.classList.toggle('off', !micOn);
-    mic.title = micOn ? 'Turn off microphone' : 'Turn on microphone';
+    mic.title = micOn ? t('meet.micOff') : t('meet.micOn');
     const camBtn = root.querySelector<HTMLButtonElement>('[data-act="cam"]')!;
     const camOn = this.src.camOn();
     camBtn.innerHTML = icon(ICON.cam, !camOn);
     camBtn.classList.toggle('off', !camOn);
-    camBtn.title = camOn ? 'Turn off camera' : 'Turn on camera';
+    camBtn.title = camOn ? t('meet.camOff') : t('meet.camOn');
     const present = root.querySelector<HTMLButtonElement>('[data-act="present"]')!;
     present.classList.toggle('on', this.src.sharing());
     present.classList.toggle('hidden', !this.src.canShare());
-    present.title = this.src.sharing() ? 'Stop presenting' : 'Present now';
+    present.title = this.src.sharing() ? t('meet.stopPresenting') : t('meet.present');
     root.querySelector('.meet-people b')!.textContent = String(people.length);
     root.querySelector('.meet-clock')!.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }

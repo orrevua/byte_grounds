@@ -1,4 +1,5 @@
 import type { MoveInput } from './movement.ts';
+import { t } from './i18n.ts';
 
 const KEY_MAP: Record<string, keyof MoveInput> = {
   w: 'up',
@@ -85,7 +86,7 @@ export class TouchPad {
     for (const { dir, label, area } of PAD_BUTTONS) {
       const b = document.createElement('button');
       b.textContent = label;
-      b.setAttribute('aria-label', `Move ${dir}`);
+      b.setAttribute('aria-label', t('game.move', { dir }));
       b.style.cssText =
         `grid-area:${area};border:0;border-radius:12px;background:#2a2f37cc;color:#e6e8eb;` +
         'font-size:22px;touch-action:none;-webkit-tap-highlight-color:transparent;';

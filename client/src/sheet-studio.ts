@@ -3,6 +3,7 @@ import { hasSupabase } from './supabase.ts';
 import { checkIsAdmin, ensureSession, shortId } from './auth.ts';
 import { decorImage, loadCustomSheets, registerSheet, unregisterSheet } from './decor.ts';
 import { mountDecorPicker } from './decor-picker.ts';
+import { applyDocLang, langSwitch, t as tr, type MsgKey } from './i18n.ts';
 import { normalizeSeatMarks, registerSeatMarks, type SeatMark } from '@byte_grounds/shared/seats';
 import {
   CELL,
@@ -31,16 +32,16 @@ import {
 type Tool = 'pencil' | 'eraser' | 'fill' | 'line' | 'rect' | 'rectFill' | 'ellipse' | 'picker' | 'select';
 type RGBA = [number, number, number, number];
 
-const TOOLS: { id: Tool; label: string; key: string }[] = [
-  { id: 'pencil', label: 'Pencil', key: 'b' },
-  { id: 'eraser', label: 'Eraser', key: 'e' },
-  { id: 'fill', label: 'Fill', key: 'g' },
-  { id: 'line', label: 'Line', key: 'l' },
-  { id: 'rect', label: 'Rect', key: 'r' },
-  { id: 'rectFill', label: 'Filled rect', key: 'f' },
-  { id: 'ellipse', label: 'Ellipse', key: 'o' },
-  { id: 'picker', label: 'Eyedropper', key: 'i' },
-  { id: 'select', label: 'Select cells', key: 's' },
+const TOOLS: { id: Tool; label: MsgKey; key: string }[] = [
+  { id: 'pencil', label: 'studio.pencil', key: 'b' },
+  { id: 'eraser', label: 'studio.eraser', key: 'e' },
+  { id: 'fill', label: 'studio.fill', key: 'g' },
+  { id: 'line', label: 'studio.line', key: 'l' },
+  { id: 'rect', label: 'studio.rect', key: 'r' },
+  { id: 'rectFill', label: 'studio.rectFill', key: 'f' },
+  { id: 'ellipse', label: 'studio.ellipse', key: 'o' },
+  { id: 'picker', label: 'studio.picker', key: 'i' },
+  { id: 'select', label: 'studio.select', key: 's' },
 ];
 
 /** A palette for the soft, modern office look (Gather-like), plus outlines and a shadow. */
@@ -52,12 +53,12 @@ const PALETTE = [
 ];
 
 type Bg = 'dark' | 'checker' | 'beige' | 'carpet' | 'tile';
-const BGS: { id: Bg; label: string }[] = [
-  { id: 'checker', label: 'Transparent' },
-  { id: 'dark', label: 'Dark' },
-  { id: 'beige', label: 'Beige floor' },
-  { id: 'carpet', label: 'Purple carpet' },
-  { id: 'tile', label: 'Grey tiles' },
+const BGS: { id: Bg; label: MsgKey }[] = [
+  { id: 'checker', label: 'studio.bgChecker' },
+  { id: 'dark', label: 'studio.bgDark' },
+  { id: 'beige', label: 'studio.bgBeige' },
+  { id: 'carpet', label: 'studio.bgCarpet' },
+  { id: 'tile', label: 'studio.bgTile' },
 ];
 
 const UNDO_LIMIT = 80;
@@ -94,107 +95,107 @@ const recent: string[] = [];
 
 root.innerHTML = `
   <aside>
-    <h1>Sheet Studio <a href="editor.html">Map editor →</a></h1>
+    <h1>Sheet Studio <a href="editor.html">${tr('join.mapEditor')}</a></h1>
     <div>
-      <h2>Sheet</h2>
+      <h2>${tr('studio.sheet')}</h2>
       <div class="row"><input id="name" style="flex:1" maxlength="40" /></div>
       <div class="row" style="margin-top:6px">
-        <label>Cols <input id="cols" type="number" min="1" max="${MAX_CELLS}" /></label>
-        <label>Rows <input id="rows" type="number" min="1" max="${MAX_CELLS}" /></label>
-        <button id="resize">Resize</button>
+        <label>${tr('studio.cols')} <input id="cols" type="number" min="1" max="${MAX_CELLS}" /></label>
+        <label>${tr('studio.rows')} <input id="rows" type="number" min="1" max="${MAX_CELLS}" /></label>
+        <button id="resize">${tr('editor.resize')}</button>
       </div>
       <div class="row" style="margin-top:6px">
-        <button id="new">New</button>
-        <button id="save" class="primary">Save</button>
-        <button id="delete" class="danger">Delete</button>
+        <button id="new">${tr('studio.new')}</button>
+        <button id="save" class="primary">${tr('editor.save')}</button>
+        <button id="delete" class="danger">${tr('editor.delete')}</button>
       </div>
       <div class="row" style="margin-top:6px">
-        <select id="saved" style="flex:1"><option value="">Open a saved sheet…</option></select>
+        <select id="saved" style="flex:1"><option value="">${tr('studio.openSaved')}</option></select>
       </div>
       <div class="row" style="margin-top:6px">
-        <button id="open-png">Open PNG</button>
-        <button id="export-png">Export PNG</button>
+        <button id="open-png">${tr('studio.openPng')}</button>
+        <button id="export-png">${tr('studio.exportPng')}</button>
       </div>
       <div class="row" style="margin-top:6px">
-        <button id="import-spec">Import spec</button>
-        <button id="export-spec">Export spec</button>
+        <button id="import-spec">${tr('studio.importSpec')}</button>
+        <button id="export-spec">${tr('studio.exportSpec')}</button>
       </div>
       <input id="png-file" type="file" accept="image/png" class="hidden" />
       <div id="status" class="status"></div>
     </div>
     <div>
-      <h2>Tools</h2>
+      <h2>${tr('studio.tools')}</h2>
       <div class="tools" id="tools"></div>
       <div class="row" style="margin-top:6px">
-        <label><input type="checkbox" id="mirror" /> Mirror in cell (M)</label>
+        <label><input type="checkbox" id="mirror" /> ${tr('studio.mirror')}</label>
       </div>
     </div>
     <div>
-      <h2>Color</h2>
+      <h2>${tr('editor.color')}</h2>
       <div class="row">
         <div id="current"><span></span></div>
         <input type="color" id="color" />
-        <label style="flex:1">Alpha <input type="range" id="alpha" min="0" max="255" style="width:100%" /></label>
+        <label style="flex:1">${tr('studio.alpha')} <input type="range" id="alpha" min="0" max="255" style="width:100%" /></label>
       </div>
       <div class="swatches" id="swatches" style="margin-top:6px"></div>
       <div class="swatches" id="recent" style="margin-top:6px"></div>
     </div>
     <div>
-      <h2>Selection</h2>
-      <p class="hint" id="sel-info">Select cells (S) to copy, flip, outline or shade them.</p>
+      <h2>${tr('studio.selection')}</h2>
+      <p class="hint" id="sel-info">${tr('studio.selHint')}</p>
       <div class="row" style="margin-top:6px">
-        <button id="copy">Copy</button><button id="paste">Paste</button><button id="flip">Flip ⇋</button>
+        <button id="copy">${tr('studio.copy')}</button><button id="paste">${tr('studio.paste')}</button><button id="flip">${tr('studio.flip')} ⇋</button>
       </div>
       <div class="row" style="margin-top:6px">
-        <button id="outline">Outline</button><button id="darker">Darker</button><button id="lighter">Lighter</button><button id="clear">Clear</button>
+        <button id="outline">${tr('studio.outline')}</button><button id="darker">${tr('studio.darker')}</button><button id="lighter">${tr('studio.lighter')}</button><button id="clear">${tr('studio.clear')}</button>
       </div>
-      <p class="hint" style="margin-top:6px">Paste goes to the cell under the pointer (or the selection). Outline uses the current color.</p>
+      <p class="hint" style="margin-top:6px">${tr('studio.pasteHint')}</p>
     </div>
     <div>
-      <h2>Seats (sittable)</h2>
+      <h2>${tr('studio.seats')}</h2>
       <div class="row">
-        <select id="seat-kind"><option value="sit">Sit</option><option value="lie">Lie down</option></select>
-        <label>facing <select id="seat-dir">
-          <option value="down">↓ down</option><option value="up">↑ up</option>
-          <option value="left">← left</option><option value="right">→ right</option></select></label>
+        <select id="seat-kind"><option value="sit">${tr('studio.sit')}</option><option value="lie">${tr('studio.lie')}</option></select>
+        <label>${tr('studio.facing')} <select id="seat-dir">
+          <option value="down">↓ ${tr('editor.down')}</option><option value="up">↑ ${tr('editor.up')}</option>
+          <option value="left">← ${tr('editor.left')}</option><option value="right">→ ${tr('editor.right')}</option></select></label>
       </div>
       <div class="row" style="margin-top:6px">
-        <button id="seat-mark">Mark selected cells</button><button id="seat-clear">Remove seats</button>
+        <button id="seat-mark">${tr('studio.markSeats')}</button><button id="seat-clear">${tr('studio.removeSeats')}</button>
       </div>
-      <p class="hint" style="margin-top:6px">Select the seat cell(s) of a chair, sofa or bed and mark them: in the game people
-        get "Sit (E)" / "Lie down (E)" there. Facing = the way the person looks (a bed: where the feet point).
-        Usually one cell per seat: the cushion, not the backrest.</p>
+      <p class="hint" style="margin-top:6px">${tr('studio.seatHint')}</p>
     </div>
   </aside>
   <main>
     <div class="bar">
-      <label>Zoom <select id="zoom">${[4, 6, 8, 12, 16].map((z) => `<option value="${z}"${z === zoom ? ' selected' : ''}>${z}x</option>`).join('')}</select></label>
-      <label>Background <select id="bg">${BGS.map((b) => `<option value="${b.id}">${b.label}</option>`).join('')}</select></label>
-      <label><input type="checkbox" id="grid" checked /> Grid</label>
-      <button id="undo" title="Ctrl+Z">Undo</button><button id="redo" title="Ctrl+Y">Redo</button>
+      <label>${tr('editor.zoom')} <select id="zoom">${[4, 6, 8, 12, 16].map((z) => `<option value="${z}"${z === zoom ? ' selected' : ''}>${z}x</option>`).join('')}</select></label>
+      <label>${tr('studio.background')} <select id="bg">${BGS.map((b) => `<option value="${b.id}">${tr(b.label)}</option>`).join('')}</select></label>
+      <label><input type="checkbox" id="grid" checked /> ${tr('studio.grid')}</label>
+      <button id="undo" title="Ctrl+Z">${tr('studio.undo')}</button><button id="redo" title="Ctrl+Y">${tr('studio.redo')}</button>
       <span class="hint" id="pos"></span>
     </div>
     <div id="canvas-wrap"><canvas id="art"></canvas></div>
   </main>
   <aside class="right">
     <div>
-      <h2>Preview (2x)</h2>
+      <h2>${tr('studio.preview')}</h2>
       <canvas id="preview" width="128" height="128"></canvas>
     </div>
     <div>
-      <h2>Borrow from game art</h2>
+      <h2>${tr('studio.borrow')}</h2>
       <div id="decor-body"></div>
-      <div class="row" style="margin-top:6px"><button id="borrow">Copy picked cells</button></div>
-      <p class="hint" style="margin-top:6px">Pick a piece above, copy it, then Paste it into your sheet to remix it.</p>
+      <div class="row" style="margin-top:6px"><button id="borrow">${tr('studio.borrowBtn')}</button></div>
+      <p class="hint" style="margin-top:6px">${tr('studio.borrowHint')}</p>
     </div>
     <div>
-      <h2>Agent API</h2>
-      <p class="hint">In the console, or from an automation: <code>window.sheetStudio</code></p>
+      <h2>${tr('studio.agentApi')}</h2>
+      <p class="hint">${tr('studio.agentHint')} <code>window.sheetStudio</code></p>
       <pre id="api-help"></pre>
     </div>
   </aside>`;
 
 const $ = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+applyDocLang();
+$('h1').append(' ', langSwitch());
 const canvas = $<HTMLCanvasElement>('#art');
 const ctx = canvas.getContext('2d')!;
 const art = document.createElement('canvas');
@@ -312,14 +313,18 @@ function seatList(): SeatMark[] {
 }
 
 function markSeats(remove: boolean): void {
-  if (!sel) return setStatus('Select the seat cell(s) first (Select cells, S)', true);
+  if (!sel) return setStatus(tr('studio.selectSeatFirst'), true);
   for (let y = sel.y; y < sel.y + sel.h; y++)
     for (let x = sel.x; x < sel.x + sel.w; x++) {
       if (remove) seats.delete(`${x},${y}`);
       else seats.set(`${x},${y}`, { x, y, kind: seatKind, dir: seatDir });
     }
   dirty = true;
-  setStatus(remove ? 'Seats removed' : `Marked ${sel.w * sel.h} cell(s): ${seatKind === 'sit' ? 'Sit' : 'Lie down'}, facing ${seatDir}`);
+  setStatus(
+    remove
+      ? tr('studio.seatsRemoved')
+      : tr('studio.seatsMarked', { n: sel.w * sel.h, kind: tr(seatKind === 'sit' ? 'studio.sit' : 'studio.lie'), dir: tr(`editor.${seatDir}`) }),
+  );
   draw();
 }
 
@@ -482,7 +487,7 @@ canvas.addEventListener('contextmenu', (e) => {
 const toolsEl = $<HTMLDivElement>('#tools');
 for (const t of TOOLS) {
   const b = document.createElement('button');
-  b.textContent = `${t.label} (${t.key.toUpperCase()})`;
+  b.textContent = `${tr(t.label)} (${t.key.toUpperCase()})`;
   b.dataset.tool = t.id;
   b.addEventListener('click', () => setTool(t.id));
   toolsEl.appendChild(b);
@@ -574,8 +579,8 @@ function clampSel(s: { x: number; y: number; w: number; h: number }) {
 
 function updateSelInfo(): void {
   $<HTMLParagraphElement>('#sel-info').textContent = sel
-    ? `Cells ${sel.x},${sel.y} · ${sel.w}x${sel.h} (${sel.w * CELL}x${sel.h * CELL} px)`
-    : 'Select cells (S) to copy, flip, outline or shade them.';
+    ? tr('studio.selInfo', { x: sel.x, y: sel.y, w: sel.w, h: sel.h, pw: sel.w * CELL, ph: sel.h * CELL })
+    : tr('studio.selHint');
 }
 
 /** The selection in pixels, or the whole sheet. */
@@ -592,11 +597,11 @@ function copySel(): void {
     out.data.set(px.data.subarray(from, from + r.w * 4), y * r.w * 4);
   }
   clipboard = out;
-  setStatus(`Copied ${r.w / CELL}x${r.h / CELL} cells`);
+  setStatus(tr('studio.copied', { w: r.w / CELL, h: r.h / CELL }));
 }
 
 function pasteClip(): void {
-  if (!clipboard) return setStatus('Nothing copied yet', true);
+  if (!clipboard) return setStatus(tr('studio.nothingCopied'), true);
   const at = hover ? { x: Math.floor(hover.x / CELL) * CELL, y: Math.floor(hover.y / CELL) * CELL } : sel ? { x: sel.x * CELL, y: sel.y * CELL } : { x: 0, y: 0 };
   snapshot();
   for (let y = 0; y < clipboard.height; y++)
@@ -645,9 +650,9 @@ function mountPicker(): void {
 }
 
 $('#borrow').addEventListener('click', () => {
-  if (!picked) return setStatus('Pick a piece in "Borrow from game art" first', true);
+  if (!picked) return setStatus(tr('studio.pickBorrowFirst'), true);
   const img = decorImage(picked.sheet);
-  if (!img?.complete) return setStatus('That sheet is still loading', true);
+  if (!img?.complete) return setStatus(tr('studio.stillLoading'), true);
   const tmp = document.createElement('canvas');
   tmp.width = picked.w * CELL;
   tmp.height = picked.h * CELL;
@@ -655,7 +660,7 @@ $('#borrow').addEventListener('click', () => {
   t.drawImage(img, picked.sx * CELL, picked.sy * CELL, tmp.width, tmp.height, 0, 0, tmp.width, tmp.height);
   const d = t.getImageData(0, 0, tmp.width, tmp.height);
   clipboard = { width: d.width, height: d.height, data: d.data };
-  setStatus(`Copied ${picked.w}x${picked.h} cells of ${picked.sheet}: hover a cell and Paste (Ctrl+V)`);
+  setStatus(tr('studio.borrowed', { w: picked.w, h: picked.h, sheet: picked.sheet }));
 });
 
 // ---------- sheet: new / resize / open / save ----------
@@ -691,16 +696,16 @@ function sizeFromInputs(): { cols: number; rows: number } | null {
   const rows = Number($<HTMLInputElement>('#rows').value);
   const ok = (n: number) => Number.isInteger(n) && n >= 1 && n <= MAX_CELLS;
   if (!ok(cols) || !ok(rows)) {
-    setStatus(`Cols and rows must be 1..${MAX_CELLS}`, true);
+    setStatus(tr('studio.badSize', { max: MAX_CELLS }), true);
     return null;
   }
   return { cols, rows };
 }
 
 $('#new').addEventListener('click', () => {
-  if (dirty && !confirm('Discard unsaved changes?')) return;
+  if (dirty && !confirm(tr('studio.confirmDiscard'))) return;
   const size = sizeFromInputs();
-  if (size) setSheet(blankPixels(size.cols, size.rows), prompt('Name for the new sheet?', 'my_sheet') ?? 'my_sheet', null);
+  if (size) setSheet(blankPixels(size.cols, size.rows), prompt(tr('studio.promptName'), 'my_sheet') ?? 'my_sheet', null);
 });
 $('#resize').addEventListener('click', () => {
   const size = sizeFromInputs();
@@ -726,13 +731,13 @@ async function save(): Promise<string> {
   const id = customSheetId(name);
   const sheet: CustomSheet = { id, name, png: pngDataUrl(), cols: px.width / CELL, rows: px.height / CELL, seats: seatList() };
   await store.saveSheet(sheet);
-  if (savedId && savedId !== id) setStatus(`Saved as a new sheet ${id} (renamed from ${savedId})`);
+  if (savedId && savedId !== id) setStatus(tr('studio.savedRenamed', { id, from: savedId }));
   savedId = id;
   dirty = false;
   registerSheet(id, sheet.png);
   registerSeatMarks(id, sheet.seats ?? []);
   await refreshSaved(id);
-  setStatus(`Saved ${id}: it is in the map editor and Build panel pickers now`);
+  setStatus(tr('studio.saved', { id }));
   return id;
 }
 
@@ -740,7 +745,7 @@ $('#save').addEventListener('click', () => {
   save().catch((err) => setStatus(saveError(err), true));
 });
 $('#delete').addEventListener('click', () => {
-  if (!savedId || !confirm(`Delete ${savedId}? Pieces already placed on maps stop drawing.`)) return;
+  if (!savedId || !confirm(tr('studio.confirmDelete', { id: savedId }))) return;
   const id = savedId;
   store
     .deleteSheet(id)
@@ -748,16 +753,16 @@ $('#delete').addEventListener('click', () => {
       unregisterSheet(id);
       savedId = null;
       await refreshSaved('');
-      setStatus(`Deleted ${id}`);
+      setStatus(tr('studio.deleted', { id }));
     })
     .catch((err) => setStatus(saveError(err), true));
 });
 
 function saveError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err);
-  if (/42501|row-level security|permission/i.test(msg)) return 'Only admins can save sheets.';
-  if (/relation|does not exist|42P01|schema cache/i.test(msg)) return 'Run supabase/sheets.sql in Supabase first (see README).';
-  return `Save failed: ${msg}`;
+  if (/42501|row-level security|permission/i.test(msg)) return tr('studio.adminsOnlySave');
+  if (/relation|does not exist|42P01|schema cache/i.test(msg)) return tr('studio.runSql');
+  return tr('studio.saveFailed', { msg });
 }
 
 let savedSheets: CustomSheet[] = [];
@@ -766,7 +771,7 @@ async function refreshSaved(selected: string | null): Promise<void> {
   savedSheets = await store.listSheets().catch(() => []);
   const sel = $<HTMLSelectElement>('#saved');
   sel.replaceChildren(
-    new Option('Open a saved sheet…', ''),
+    new Option(tr('studio.openSaved'), ''),
     ...savedSheets.map((s) => new Option(`${s.name} (${s.cols}x${s.rows})`, s.id, false, s.id === selected)),
   );
 }
@@ -775,12 +780,12 @@ async function openSaved(id: string): Promise<void> {
   const s = savedSheets.find((x) => x.id === id) ?? (await store.listSheets()).find((x) => x.id === id);
   if (!s) throw new Error(`no saved sheet ${id}`);
   setSheet(await decodePng(s.png), s.name, s.id, s.seats ?? []);
-  setStatus(`Opened ${s.id}`);
+  setStatus(tr('studio.opened', { id: s.id }));
 }
 
 $<HTMLSelectElement>('#saved').addEventListener('change', (e) => {
   const id = (e.target as HTMLSelectElement).value;
-  if (!id || (dirty && !confirm('Discard unsaved changes?'))) return;
+  if (!id || (dirty && !confirm(tr('studio.confirmDiscard')))) return;
   openSaved(id).catch((err) => setStatus(String(err), true));
 });
 
@@ -828,20 +833,20 @@ $('#export-spec').addEventListener('click', () => {
   const text = JSON.stringify(currentSpec(), null, 1);
   download(`${name}.json`, URL.createObjectURL(new Blob([text], { type: 'application/json' })));
   void navigator.clipboard?.writeText(text).catch(() => {});
-  setStatus('Spec downloaded (and copied to the clipboard)');
+  setStatus(tr('studio.specDownloaded'));
 });
 
 $('#import-spec').addEventListener('click', () => {
   const dlg = document.createElement('div');
   dlg.id = 'dialog';
   dlg.innerHTML = `<div class="box">
-      <h2>Import a SheetSpec (JSON)</h2>
+      <h2>${tr('studio.importTitle')}</h2>
       <textarea spellcheck="false" placeholder='{ "name": "desk", "cols": 2, "rows": 2, "palette": {...}, "ops": [...] }'></textarea>
       <div class="status error"></div>
       <div class="row">
-        <button class="primary" data-act="replace">Load as new sheet</button>
-        <button data-act="apply">Apply ops onto this sheet</button>
-        <button data-act="cancel">Cancel</button>
+        <button class="primary" data-act="replace">${tr('studio.loadNew')}</button>
+        <button data-act="apply">${tr('studio.applyOps')}</button>
+        <button data-act="cancel">${tr('studio.cancel')}</button>
       </div></div>`;
   document.body.appendChild(dlg);
   const ta = dlg.querySelector('textarea')!;
@@ -883,7 +888,7 @@ const api = {
     applyOps(out, ok.ops, ok.palette);
     setSheet(out, ok.name, null, ok.seats ?? []);
     dirty = true;
-    setStatus(`Loaded spec "${ok.name}" (${ok.ops.length} ops)`);
+    setStatus(tr('studio.loadedSpec', { name: ok.name, n: ok.ops.length }));
     return [];
   },
   /** Apply ops on top of the current sheet (one undo step); returns problems (empty = applied). */
@@ -956,7 +961,7 @@ async function gate(): Promise<boolean> {
   if (!hasSupabase) return true;
   const overlay = document.createElement('div');
   overlay.id = 'gate';
-  overlay.innerHTML = '<div class="gate-box"><p>Checking permission…</p></div>';
+  overlay.innerHTML = `<div class="gate-box"><p>${tr('editor.checking')}</p></div>`;
   document.body.appendChild(overlay);
   const uid = await ensureSession();
   if (uid && (await checkIsAdmin())) {
@@ -964,10 +969,9 @@ async function gate(): Promise<boolean> {
     return true;
   }
   overlay.querySelector('.gate-box')!.innerHTML = `
-    <h2>Admins only</h2>
-    <p>Sheet Studio is for the admin. Sign in with the admin account on the Play page (Admin login),
-      then come back.${uid ? ` Your id: <b>${shortId(uid)}</b>.` : ''}</p>
-    <a href="index.html">← Back to Play</a>`;
+    <h2>${tr('studio.adminsOnly')}</h2>
+    <p>${tr('studio.adminsOnlyText')}${uid ? ` ${tr('studio.yourId', { id: `<b>${shortId(uid)}</b>` })}` : ''}</p>
+    <a href="index.html">${tr('editor.backToPlay')}</a>`;
   return false;
 }
 

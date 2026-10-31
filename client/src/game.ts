@@ -30,6 +30,7 @@ import {
   type Direction,
 } from './sprites.ts';
 import type { Net } from './net.ts';
+import { t } from './i18n.ts';
 
 export interface SelfInfo {
   name: string;
@@ -260,9 +261,9 @@ export class Game {
     this.zoomCtl = document.createElement('div');
     this.zoomCtl.id = 'zoom-ctl';
     this.zoomCtl.innerHTML =
-      '<button type="button" data-z="1" title="Zoom in (+ or mouse wheel)">+</button>' +
+      `<button type="button" data-z="1" title="${t('game.zoomIn')}">+</button>` +
       '<span></span>' +
-      '<button type="button" data-z="-1" title="Zoom out (-)">−</button>';
+      `<button type="button" data-z="-1" title="${t('game.zoomOut')}">−</button>`;
     this.zoomCtl.addEventListener('click', (e) => {
       const dir = Number((e.target as HTMLElement).closest<HTMLButtonElement>('[data-z]')?.dataset.z);
       if (dir === 1 || dir === -1) this.setZoom(stepZoom(this.zoom, dir));
@@ -289,7 +290,7 @@ export class Game {
     this.media.onVideoTrack = (track, stream) => this.mesh.setVideo(track, stream);
     this.media.onSharing = (on) => this.setSharing(on);
     this.meeting = new MeetingView({
-      roomName: () => this.zone?.name ?? 'Meeting room',
+      roomName: () => this.zone?.name ?? t('meet.defaultRoom'),
       participants: () => this.participants(),
       micOn: () => this.media.micEnabled,
       camOn: () => this.media.camEnabled,
@@ -488,7 +489,7 @@ export class Game {
     this.itemUntil = Date.now() + ms;
     if (this.self.pose === 'dance') this.self.pose = 'stand';
     this.sendStatus();
-    this.toast(`${k.item === 'coffee' ? 'Coffee' : 'Water'} in hand for ${formatDuration(ms)}`, 'info');
+    this.toast(t(k.item === 'coffee' ? 'game.coffeeInHand' : 'game.waterInHand', { time: formatDuration(ms) }), 'info');
   }
 
   /** The drink is finished. */
@@ -834,7 +835,7 @@ export class Game {
     switch (panel.tool) {
       case 'place': {
         const s = panel.state();
-        if (!s?.selection) return this.toast('Pick a piece in the Build panel first');
+        if (!s?.selection) return this.toast(t('game.pickFirst'));
         if (this.ghostAt(x, y)?.blocked.length) return;
         void live.send(placeOp(x, y, s.selection, s.mode, s.t));
         return;
@@ -844,7 +845,7 @@ export class Game {
           const src = live.pickUp(x, y);
           if (typeof src === 'string') return this.toast(src);
           this.moving = { src, dx: x - src.op.x, dy: y - src.op.y };
-          return this.toast('Click where it should go (Esc cancels)');
+          return this.toast(t('game.clickWhere'));
         }
         if (this.ghostAt(x, y)?.blocked.length) return;
         const { src, dx, dy } = this.moving;
@@ -905,27 +906,27 @@ export class Game {
    */
   private updateButtons(): void {
     if (this.buildBtn && this.panel) {
-      const label = this.panel.isOpen ? 'Done building' : 'Build';
+      const label = this.panel.isOpen ? t('game.doneBuilding') : t('game.build');
       if (this.buildBtn.textContent !== label) this.buildBtn.textContent = label;
     }
     const dancing = this.self.pose === 'dance';
-    const danceLabel = this.seat ? '' : dancing ? 'Stop dancing (Q)' : 'Dance (Q)';
+    const danceLabel = this.seat ? '' : dancing ? t('game.stopDancing') : t('game.dance');
     if (this.danceBtn.textContent !== danceLabel) this.danceBtn.textContent = danceLabel;
     this.danceBtn.className = danceLabel ? '' : 'hidden';
 
     const near = this.seat || dancing ? null : this.freeSeatNearby();
     const label = this.seat
-      ? 'Stand up (E)'
+      ? t('game.stand')
       : near
         ? near.kind === 'lie'
-          ? 'Lie down (E)'
-          : 'Sit (E)'
+          ? t('game.lie')
+          : t('game.sit')
         : '';
     if (this.seatBtn.textContent !== label) this.seatBtn.textContent = label;
     this.seatBtn.className = label ? '' : 'hidden';
 
     const k = this.machineNearby();
-    const drinkLabel = k ? (k.item === 'coffee' ? 'Get coffee (F)' : 'Get water (F)') : '';
+    const drinkLabel = k ? t(k.item === 'coffee' ? 'game.getCoffee' : 'game.getWater') : '';
     if (this.drinkBtn.textContent !== drinkLabel) this.drinkBtn.textContent = drinkLabel;
     this.drinkBtn.className = drinkLabel ? '' : 'hidden';
   }
@@ -966,7 +967,7 @@ export class Game {
   private updatePill(): void {
     const show = !!this.zone && !this.meeting.isOpen;
     this.meetPill.classList.toggle('hidden', !show);
-    if (this.zone) this.meetPill.textContent = `${this.zone.name} · Open meeting view`;
+    if (this.zone) this.meetPill.textContent = t('meet.openPill', { room: this.zone.name });
   }
 
   private sameRoom(r: Avatar): boolean {
@@ -1008,7 +1009,7 @@ export class Game {
     if (!z) return;
     this.standUp();
     const out = stepOutOf(this.map, z, this.self.x, this.self.y);
-    if (!out) return this.toast('No way out of this room');
+    if (!out) return this.toast(t('game.noWayOut'));
     this.self.x = out.x;
     this.self.y = out.y;
     this.self.pose = 'stand';

@@ -11,6 +11,7 @@ import {
   type DecorTransform,
 } from './decor-transform.ts';
 import type { BlockMode, DecorSelection } from './editor-model.ts';
+import { t, type MsgKey } from './i18n.ts';
 
 /** What the next stamp puts down: the picked sheet cells, how they block, and the turn/mirror. */
 export interface PickerState {
@@ -21,11 +22,11 @@ export interface PickerState {
 
 export type TransformOp = (t: DecorTransform) => DecorTransform;
 
-const TRANSFORM_BUTTONS: { label: string; title: string; op: TransformOp }[] = [
-  { label: '⟲', title: 'Rotate left (Shift+R)', op: rotateCCW },
-  { label: '⟳', title: 'Rotate right (R)', op: rotateCW },
-  { label: '⇋', title: 'Flip horizontal (F)', op: flipH },
-  { label: '⇵', title: 'Flip vertical (V)', op: flipV },
+const TRANSFORM_BUTTONS: { label: string; title: MsgKey; op: TransformOp }[] = [
+  { label: '⟲', title: 'picker.rotateLeft', op: rotateCCW },
+  { label: '⟳', title: 'picker.rotateRight', op: rotateCW },
+  { label: '⇋', title: 'picker.flipH', op: flipH },
+  { label: '⇵', title: 'picker.flipV', op: flipV },
 ];
 
 /** The brush transform a key stands for: R / Shift+R turn, F / V mirror. */
@@ -63,8 +64,7 @@ export function mountDecorPicker(
   };
 
   if (DECOR_SHEETS.length === 0) {
-    body.innerHTML = `<p class="hint">No decoration art yet. Add LPC sheet PNGs to
-      <code>client/src/assets/decor/</code> and redeploy; they show up here automatically.</p>`;
+    body.innerHTML = `<p class="hint">${t('picker.noArt')}</p>`;
     return { state, setTransform, refreshSheets: () => {} };
   }
   body.innerHTML = `
@@ -73,22 +73,18 @@ export function mountDecorPicker(
     </div>
     <div id="sheet-wrap"><canvas id="sheet"></canvas></div>
     <div class="row" style="margin-top:6px">
-      Block <select id="block-decor" style="flex:1">
-        <option value="base" selected>Base row (desks, shelves)</option>
-        <option value="all">Whole piece</option>
-        <option value="none">Nothing (rugs, beds)</option>
+      ${t('picker.block')} <select id="block-decor" style="flex:1">
+        <option value="base" selected>${t('picker.blockBase')}</option>
+        <option value="all">${t('picker.blockAll')}</option>
+        <option value="none">${t('picker.blockNone')}</option>
       </select>
     </div>
-    <p class="hint">Base row: only the bottom row blocks; people can walk behind it. Use Whole piece for
-      pieces turned sideways.</p>
+    <p class="hint">${t('picker.blockHint')}</p>
     <div class="row" id="brush-tools" style="margin-top:6px">
-      <button id="brush-reset">Reset</button> <span id="brush-transform" class="hint"></span>
+      <button id="brush-reset">${t('picker.reset')}</button> <span id="brush-transform" class="hint"></span>
     </div>
-    <p class="hint">Click an object to pick all of it (Alt+click: just that square), or drag to pick
-      any block of squares, then click the map to place it.</p>
-    <p class="hint">Turn or mirror it with R / Shift+R / F / V. Chairs, sofas and thrones already come
-      facing each way in the sheet: pick that variant instead. Turning suits rugs, tables, beds and
-      counters; a horizontal flip is almost always safe.</p>`;
+    <p class="hint">${t('picker.pickHint')}</p>
+    <p class="hint">${t('picker.turnHint')}</p>`;
   const sheetSelect = body.querySelector<HTMLSelectElement>('#sheet-select')!;
   const sheetCanvas = body.querySelector<HTMLCanvasElement>('#sheet')!;
   const sctx = sheetCanvas.getContext('2d')!;
@@ -100,7 +96,7 @@ export function mountDecorPicker(
   for (const { label, title, op } of TRANSFORM_BUTTONS) {
     const b = document.createElement('button');
     b.textContent = label;
-    b.title = title;
+    b.title = t(title);
     b.addEventListener('click', () => {
       setTransform(op(brushT));
       onChange(state());

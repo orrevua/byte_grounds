@@ -409,28 +409,22 @@ describe('shuffleAppearance', () => {
 });
 
 describe('PRESETS / DEFAULT_APPEARANCE integrity', () => {
-  it('has 29 presets with unique, non-empty ids', () => {
-    expect(PRESETS.length).toBe(29);
+  it('has 9 presets with unique, non-empty ids', () => {
+    expect(PRESETS.length).toBe(9);
     const ids = PRESETS.map((p) => p.id);
     expect(ids.every((id) => id.length > 0)).toBe(true);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('includes the Business and Casual Pink presets', () => {
-    const biz = PRESETS.find((p) => p.id === 'biz');
-    const pink = PRESETS.find((p) => p.id === 'pink');
-    expect(biz?.appearance).toMatchObject({ outfit: 'business', torso: 'green', legs: 'navy' });
-    expect(pink?.appearance).toMatchObject({ outfit: 'casual', torso: 'pink', legs: 'pink' });
+  it('includes business looks for both sexes and the modern styles', () => {
+    expect(PRESETS.find((p) => p.id === 'biz')?.appearance).toMatchObject({ outfit: 'business', torso: 'green', legs: 'navy' });
+    expect(PRESETS.find((p) => p.id === 'fbiz')?.appearance).toMatchObject({ body: 'female', outfit: 'business' });
+    expect(PRESETS.find((p) => p.id === 'f9')?.appearance).toMatchObject({ outfit: 'blouse', bottom: 'skirt' });
   });
 
   it('includes the Orc and bare Skeleton presets', () => {
     expect(PRESETS.find((p) => p.id === 'orc')?.appearance).toMatchObject({ skin: 'orc', outfit: 'casual' });
     expect(PRESETS.find((p) => p.id === 'skel')?.appearance).toMatchObject({ skin: 'skeleton', outfit: 'none', hair: 'none' });
-  });
-
-  it('includes female orc and skeleton presets in female clothes', () => {
-    expect(PRESETS.find((p) => p.id === 'forc')?.appearance).toMatchObject({ body: 'female', skin: 'orc', outfit: 'casual' });
-    expect(PRESETS.find((p) => p.id === 'fskel')?.appearance).toMatchObject({ body: 'female', skin: 'skeleton', outfit: 'business' });
   });
 
   it('every preset appearance normalizes to itself', () => {

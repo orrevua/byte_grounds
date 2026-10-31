@@ -25,18 +25,22 @@ import { mergeLiveEdits } from './live-model.ts';
 import { hasSupabase } from './supabase.ts';
 import { checkCanEditMaps, ensureSession, shortId } from './auth.ts';
 import { createAutosave, type SaveStatus } from './autosave.ts';
+import { applyDocLang, langSwitch, t, type MsgKey } from './i18n.ts';
+
+applyDocLang();
+document.title = `ByteGrounds — ${t('editor.title')}`;
 
 type Tool = 'paint' | 'block' | 'walk' | 'decor' | 'erase' | 'spawn' | 'seat' | 'zone';
 
-const TOOLS: { id: Tool; label: string }[] = [
-  { id: 'paint', label: 'Paint color' },
-  { id: 'decor', label: 'Decoration' },
-  { id: 'block', label: 'Block (wall)' },
-  { id: 'walk', label: 'Walkable' },
-  { id: 'erase', label: 'Erase decor' },
-  { id: 'spawn', label: 'Spawn point' },
-  { id: 'seat', label: 'Seat / bed' },
-  { id: 'zone', label: 'Meeting room' },
+const TOOLS: { id: Tool; label: MsgKey }[] = [
+  { id: 'paint', label: 'editor.toolPaint' },
+  { id: 'decor', label: 'editor.toolDecor' },
+  { id: 'block', label: 'editor.toolBlock' },
+  { id: 'walk', label: 'editor.toolWalk' },
+  { id: 'erase', label: 'editor.toolErase' },
+  { id: 'spawn', label: 'editor.toolSpawn' },
+  { id: 'seat', label: 'editor.toolSeat' },
+  { id: 'zone', label: 'editor.toolZone' },
 ];
 
 const ARROW: Record<Facing, string> = { up: '↑', down: '↓', left: '←', right: '→' };
@@ -65,7 +69,7 @@ const store = createStore();
 const root = document.querySelector<HTMLDivElement>('#editor')!;
 
 let maps: MapSummary[] = [];
-let map: OfficeMap = createBlankMap('New map', 20, 15);
+let map: OfficeMap = createBlankMap(t('editor.newMapName'), 20, 15);
 let savedJson = '';
 let tool: Tool = 'paint';
 let color = SWATCHES[2]!;
@@ -90,73 +94,74 @@ let canSave = !hasSupabase;
 
 root.innerHTML = `
   <aside>
-    <h1>Map editor <span><a href="sheets.html">Sheet Studio</a> · <a href="index.html">← Play</a></span></h1>
+    <h1>${t('editor.title')} <span><a href="sheets.html">Sheet Studio</a> · <a href="index.html">${t('editor.play')}</a></span></h1>
     <section>
-      <h2>Map</h2>
+      <h2>${t('editor.map')}</h2>
       <div class="row">
         <select id="map-select" style="flex:1"></select>
-        <button id="new">New…</button>
+        <button id="new">${t('editor.new')}</button>
       </div>
       <div class="row" style="margin-top:6px">
-        <input id="map-name" placeholder="Map name" style="flex:1" />
+        <input id="map-name" placeholder="${t('editor.mapName')}" style="flex:1" />
       </div>
       <div class="row" style="margin-top:6px">
-        <button id="save" class="primary" style="flex:1">Save</button>
-        <button id="delete" class="danger">Delete</button>
+        <button id="save" class="primary" style="flex:1">${t('editor.save')}</button>
+        <button id="delete" class="danger">${t('editor.delete')}</button>
       </div>
       <div id="status" class="status"></div>
     </section>
     <section>
-      <h2>Size (tiles)</h2>
+      <h2>${t('editor.size')}</h2>
       <div class="row">
         <input id="w" type="number" min="3" max="80" /> ×
         <input id="h" type="number" min="3" max="80" />
-        <button id="resize">Resize</button>
+        <button id="resize">${t('editor.resize')}</button>
       </div>
     </section>
     <section>
-      <h2>Tool</h2>
+      <h2>${t('editor.tool')}</h2>
       <div class="tools" id="tools"></div>
       <div class="row" style="margin-top:6px">
-        <button id="undo">Undo (Ctrl+Z)</button>
-        <label class="check"><input id="show-walls" type="checkbox" checked /> Show walls</label>
+        <button id="undo">${t('editor.undo')}</button>
+        <label class="check"><input id="show-walls" type="checkbox" checked /> ${t('editor.showWalls')}</label>
       </div>
     </section>
     <section id="color-section">
-      <h2>Color</h2>
+      <h2>${t('editor.color')}</h2>
       <div class="row" style="margin-bottom:6px">
-        <input id="color" type="color" /> <span class="hint">Right-click a tile to pick its color.</span>
+        <input id="color" type="color" /> <span class="hint">${t('editor.colorHint')}</span>
       </div>
       <div class="swatches" id="swatches"></div>
     </section>
     <section id="decor-section">
-      <h2>Decoration</h2>
+      <h2>${t('editor.toolDecor')}</h2>
       <div id="decor-body"></div>
     </section>
     <section id="seat-section">
-      <h2>Seat / bed</h2>
+      <h2>${t('editor.toolSeat')}</h2>
       <div class="row">
         <select id="seat-kind">
-          <option value="sit">Sit (chair, sofa)</option><option value="lie">Lie (bed)</option>
-          <option value="none">No seat (turn off automatic)</option>
+          <option value="sit">${t('editor.seatSit')}</option><option value="lie">${t('editor.seatLie')}</option>
+          <option value="none">${t('editor.seatNone')}</option>
         </select>
         <select id="seat-dir">
-          <option value="down">↓ down</option><option value="up">↑ up</option>
-          <option value="left">← left</option><option value="right">→ right</option>
+          <option value="down">↓ ${t('editor.down')}</option><option value="up">↑ ${t('editor.up')}</option>
+          <option value="left">← ${t('editor.left')}</option><option value="right">→ ${t('editor.right')}</option>
         </select>
       </div>
       <p class="hint" id="seat-hint"></p>
     </section>
     <section>
-      <h2>View</h2>
+      <h2>${t('editor.view')}</h2>
       <div class="row">
-        Zoom <select id="zoom"><option>0.5</option><option>0.75</option><option selected>1</option><option>1.5</option><option>2</option></select>
+        ${t('editor.zoom')} <select id="zoom"><option>0.5</option><option>0.75</option><option selected>1</option><option>1.5</option><option>2</option></select>
       </div>
     </section>
   </aside>
   <main><canvas id="map-canvas"></canvas></main>`;
 
 const $ = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+$('h1 span').append(' · ', langSwitch());
 const canvas = $<HTMLCanvasElement>('#map-canvas');
 const ctx = canvas.getContext('2d')!;
 const statusEl = $<HTMLDivElement>('#status');
@@ -184,7 +189,7 @@ const autosave = createAutosave({
 /** Every edit ends here: autosave picks it up (once the page may save). */
 function refreshStatus(): void {
   if (canSave) autosave.changed();
-  else setStatus(dirty() ? 'Unsaved changes' : `Saved · id "${map.id}"`);
+  else setStatus(dirty() ? t('editor.unsaved') : t('editor.saved', { id: map.id }));
 }
 
 function showSaveStatus(s: SaveStatus, err?: unknown): void {
@@ -192,27 +197,27 @@ function showSaveStatus(s: SaveStatus, err?: unknown): void {
   statusEl.title = '';
   switch (s) {
     case 'pending':
-      return setStatus('Unsaved changes');
+      return setStatus(t('editor.unsaved'));
     case 'saving':
-      return setStatus('Saving…');
+      return setStatus(t('editor.saving'));
     case 'failed':
-      setStatus('Save failed — Retry', true);
+      setStatus(t('editor.saveFailedRetry'), true);
       statusEl.classList.add('retry');
       statusEl.title = errorMessage(err);
       return;
     case 'denied':
       if (err instanceof ConflictError) return showConflict();
-      return setStatus('Save failed: you no longer have editor permission', true);
+      return setStatus(t('editor.saveDenied'), true);
     default:
-      return setStatus(`Saved · id "${map.id}"`);
+      return setStatus(t('editor.saved', { id: map.id }));
   }
 }
 
 /** Autosave stops until the user picks: reload the other editor's version, or overwrite it. */
 function showConflict(): void {
   statusEl.className = 'status error';
-  statusEl.innerHTML = `This map was changed in another editor —
-    <span class="act" data-act="reload">Reload</span> | <span class="act" data-act="overwrite">Overwrite</span>`;
+  statusEl.innerHTML = `${t('editor.conflict')} —
+    <span class="act" data-act="reload">${t('editor.reload')}</span> | <span class="act" data-act="overwrite">${t('editor.overwrite')}</span>`;
 }
 
 statusEl.addEventListener('click', (e) => {
@@ -226,7 +231,7 @@ statusEl.addEventListener('click', (e) => {
 });
 
 async function reloadAfterConflict(): Promise<void> {
-  if (dirty() && !confirm('Reload this map as the other editor saved it? Your changes here are lost.')) return;
+  if (dirty() && !confirm(t('editor.confirmReload'))) return;
   await openMap(map.id);
   void autosave.flush();
 }
@@ -248,7 +253,7 @@ async function refreshMaps(selectId: string): Promise<void> {
 
 async function openMap(id: string): Promise<void> {
   const { map: loaded, seq } = await store.loadMapState(id);
-  if (!loaded) return setStatus(`Map "${id}" not found`, true);
+  if (!loaded) return setStatus(t('editor.notFound', { id }), true);
   setMap(structuredClone(loaded), true);
   loadedSeq = seq;
   history.replaceState(null, '', `?map=${encodeURIComponent(id)}`);
@@ -270,7 +275,7 @@ function setMap(next: OfficeMap, saved: boolean): void {
 }
 
 function confirmDiscard(): boolean {
-  return !dirty() || confirm('Discard unsaved changes to this map?');
+  return !dirty() || confirm(t('editor.confirmDiscard'));
 }
 
 /** Before leaving this map: save it now; only if that fails, ask whether to drop the changes. */
@@ -289,14 +294,14 @@ mapSelect.addEventListener('change', async () => {
 
 $('#new').addEventListener('click', async () => {
   if (!(await saveOrDiscard())) return;
-  const name = prompt('Name for the new map?', 'New room')?.trim();
+  const name = prompt(t('editor.promptNewMap'), t('editor.newRoom'))?.trim();
   if (!name) return;
   let id = mapIdFromName(name);
   for (let n = 2; maps.some((m) => m.id === id); n++) id = `${mapIdFromName(name)}-${n}`;
   const m = createBlankMap(name, 20, 15);
   m.id = id;
   setMap(m, false);
-  setStatus(`New map "${id}" — not saved yet`);
+  setStatus(t('editor.newNotSaved', { id }));
 });
 
 nameEl.addEventListener('input', () => {
@@ -316,7 +321,7 @@ async function mergeLive(): Promise<void> {
     draw();
     void loadDecorSheets(edits.flatMap((e) => (e.op.kind === 'place' ? [e.op.sheet] : []))).then(draw);
   }
-  if (r.conflict) throw new ConflictError('This map was changed in another editor');
+  if (r.conflict) throw new ConflictError(t('editor.conflict'));
 }
 
 /**
@@ -357,14 +362,14 @@ document.addEventListener('visibilitychange', () => {
 addEventListener('pagehide', flushIfDirty);
 
 $('#delete').addEventListener('click', async () => {
-  if (!confirm(`Delete map "${map.name ?? map.id}" for everyone? Saved player spots on it go too.`)) return;
+  if (!confirm(t('editor.confirmDelete', { name: map.name ?? map.id }))) return;
   try {
     // Let a pending or running autosave land first, so it can't recreate the map afterwards.
     await autosave.flush();
     await store.deleteMap(map.id);
     await refreshMaps('');
     await openMap(maps[0]!.id);
-    setStatus('Deleted');
+    setStatus(t('editor.deleted'));
   } catch (err) {
     showError(err);
   }
@@ -378,8 +383,8 @@ function showError(err: unknown): void {
   const msg = errorMessage(err);
   setStatus(
     /relation|schema cache|does not exist|42P01|PGRST/i.test(msg)
-      ? "Maps aren't set up in Supabase yet: run supabase/schema.sql (see README)."
-      : `Error: ${msg}`,
+      ? t('join.mapsNotSetUp')
+      : t('editor.error', { msg }),
     true,
   );
 }
@@ -399,21 +404,19 @@ $('#resize').addEventListener('click', () => {
 // ---------- tools ----------
 
 const toolsEl = $<HTMLDivElement>('#tools');
-for (const t of TOOLS) {
+for (const item of TOOLS) {
   const b = document.createElement('button');
-  b.textContent = t.label;
-  b.dataset.tool = t.id;
-  b.addEventListener('click', () => setTool(t.id));
+  b.textContent = t(item.label);
+  b.dataset.tool = item.id;
+  b.addEventListener('click', () => setTool(item.id));
   toolsEl.appendChild(b);
 }
 
-function setTool(t: Tool): void {
-  if (t === 'zone' && tool !== 'zone') {
-    setStatus('Meeting room: drag a rectangle over the room (everyone inside hears each other and can share screens). Click inside a room to remove it.');
-  }
-  tool = t;
+function setTool(next: Tool): void {
+  if (next === 'zone' && tool !== 'zone') setStatus(t('editor.zoneHint'));
+  tool = next;
   for (const b of toolsEl.querySelectorAll<HTMLButtonElement>('button')) {
-    b.classList.toggle('active', b.dataset.tool === t);
+    b.classList.toggle('active', b.dataset.tool === next);
   }
   draw();
 }
@@ -491,16 +494,9 @@ addEventListener('beforeunload', (e) => {
 
 const seatHint = $<HTMLParagraphElement>('#seat-hint');
 function updateSeatHint(): void {
-  const auto = 'Chairs, sofas, stools and beds get automatic seats (outlined badges). ';
-  seatHint.textContent =
-    auto +
-    (seatKind === 'sit'
-      ? 'Click a tile to set your own seat (filled badge): the arrow is the way the person faces. ' +
-        'Click again to remove.'
-      : seatKind === 'lie'
-        ? 'Click the bed tile with the pillow to set your own bed spot: the arrow is where the feet point. ' +
-          'Click again to remove. Press R here to turn the arrow.'
-        : 'Click an automatic seat to turn it off (grey ×); click again to turn it back on.');
+  seatHint.textContent = `${t('editor.seatAuto')} ${t(
+    seatKind === 'sit' ? 'editor.seatHintSit' : seatKind === 'lie' ? 'editor.seatHintLie' : 'editor.seatHintNone',
+  )}`;
 }
 $<HTMLSelectElement>('#seat-kind').addEventListener('change', (e) => {
   seatKind = (e.target as HTMLSelectElement).value as Seat['kind'] | 'none';
@@ -660,7 +656,7 @@ function apply(x: number, y: number, first: boolean): void {
       eraseDecor(map, x, y);
       break;
     case 'decor':
-      if (!selection) return setStatus('Pick a piece from the decoration sheet first', true);
+      if (!selection) return setStatus(t('editor.pickFirst'), true);
       if (first) stampDecor(map, x, y, selection, blockMode, brushT);
       break;
     case 'spawn':
@@ -698,12 +694,12 @@ function finishZone(from: TilePt, to: TilePt): void {
   const click = from.x === to.x && from.y === to.y;
   const hit = zoneAt(map, to.x + 0.5, to.y + 0.5);
   if (click && hit) {
-    if (!confirm(`Remove the meeting room "${hit.name}"?`)) return;
+    if (!confirm(t('editor.confirmRemoveZone', { name: hit.name }))) return;
     pushUndo();
     map.zones = (map.zones ?? []).filter((z) => z !== hit);
   } else {
-    if (r.w < 2 || r.h < 2) return setStatus('Drag over at least 2x2 tiles to make a meeting room', true);
-    const name = prompt('Name for this meeting room?', 'Meeting room')?.trim();
+    if (r.w < 2 || r.h < 2) return setStatus(t('editor.zoneTooSmall'), true);
+    const name = prompt(t('editor.promptZone'), t('meet.defaultRoom'))?.trim();
     if (!name) return;
     pushUndo();
     map.zones = [...(map.zones ?? []), { name: name.slice(0, 40), ...r }];
@@ -784,19 +780,18 @@ canvas.addEventListener('contextmenu', (e) => {
 async function checkPermission(): Promise<boolean> {
   const overlay = document.createElement('div');
   overlay.id = 'gate';
-  overlay.innerHTML = '<div class="gate-box"><p>Checking permission…</p></div>';
+  overlay.innerHTML = `<div class="gate-box"><p>${t('editor.checking')}</p></div>`;
   document.body.appendChild(overlay);
   const uid = await ensureSession();
   if (uid && (await checkCanEditMaps())) {
     overlay.remove();
     return true;
   }
-  const id = uid ? shortId(uid) : 'unknown: signing in failed, reload to retry';
+  const id = uid ? shortId(uid) : t('editor.unknownId');
   overlay.querySelector('.gate-box')!.innerHTML = `
-    <h2>No permission</h2>
-    <p>You can't edit maps. Ask the admin to allow the map editor for you (your id: <b>${id}</b>), then
-      reload. The admin signs in on the Play page.</p>
-    <a href="index.html">← Back to Play</a>`;
+    <h2>${t('editor.noPermission')}</h2>
+    <p>${t('editor.noPermissionText', { id: `<b>${id}</b>` })}</p>
+    <a href="index.html">${t('editor.backToPlay')}</a>`;
   return false;
 }
 
@@ -820,5 +815,5 @@ loadCustomSheets(store)
   .then(() => openMap(maps.some((m) => m.id === wanted) ? wanted : maps[0]!.id))
   .catch((err) => {
     showError(err);
-    setMap(createBlankMap('New map', 20, 15), false);
+    setMap(createBlankMap(t('editor.newMapName'), 20, 15), false);
   });

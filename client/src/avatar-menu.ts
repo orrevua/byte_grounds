@@ -1,5 +1,6 @@
 import { shortId } from './auth.ts';
 import type { GrantsFeed, Perm } from './grants.ts';
+import { t, type MsgKey } from './i18n.ts';
 
 /** Someone the admin clicked: their display name and (when their client sent it) auth uid. */
 export interface MenuTarget {
@@ -7,9 +8,9 @@ export interface MenuTarget {
   uid?: string;
 }
 
-const TOGGLES: { perm: Perm; label: string }[] = [
-  { perm: 'build', label: 'Allow building' },
-  { perm: 'editor', label: 'Allow map editor' },
+const TOGGLES: { perm: Perm; label: MsgKey }[] = [
+  { perm: 'build', label: 'menu.allowBuild' },
+  { perm: 'editor', label: 'menu.allowEditor' },
 ];
 
 /**
@@ -88,7 +89,7 @@ export class AvatarMenu {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = on ? 'on' : '';
-      b.textContent = `${label}: ${on ? 'on' : 'off'}`;
+      b.textContent = `${t(label)}: ${t(on ? 'menu.on' : 'menu.off')}`;
       b.disabled = this.busy;
       b.addEventListener('click', () => void this.toggle(uid, perm, on));
       el.append(b);
@@ -103,7 +104,7 @@ export class AvatarMenu {
     try {
       await (on ? this.feed.revoke(uid, perm) : this.feed.grant(uid, perm));
     } catch (err) {
-      this.error = `Couldn't save: ${(err as { message?: string })?.message ?? String(err)}`;
+      this.error = t('menu.saveFailed', { msg: (err as { message?: string })?.message ?? String(err) });
     } finally {
       this.busy = false;
       this.render();

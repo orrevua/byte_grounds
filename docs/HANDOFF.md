@@ -1,7 +1,18 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-31 (modern LPC wardrobe: new clothing + hair styles)
+**Last updated:** 2026-10-31 (Portuguese version + fewer presets)
 **Branch:** `master` (user asked: work on master directly, no more PRs)
+
+## Portuguese version + fewer presets — DONE, PUSHED (2026-10-31)
+- Spec: `docs/specs/i18n-pt.md`. `client/src/i18n.ts`: `t(key, vars)`, en + pt tables (pt typed as
+  `Record<MsgKey, string>`, so a missing translation fails tsc; a test checks placeholders match).
+  Language = saved choice (`byte_grounds.lang`) else browser `pt*` → pt; EN/PT selector on the join
+  screen, map editor and Sheet Studio headers (switching reloads). Tests always run in English.
+- Translated: join screen, character editor rows + presets, HUD/chat, meeting overlay, media bar,
+  game buttons/toasts, build panel, decor picker, avatar menu, live-build errors, map editor, Sheet
+  Studio. Not translated: map names, chat text, Sheet Studio agent API errors.
+- Presets cut from 29 to 9 (3x3); `#join` scrolls and the panel centres with `margin: auto`, so it is
+  no longer clipped top/bottom on short windows. Checked in the browser (pt-BR, 1200x640).
 
 ## Modern LPC wardrobe (new styles, not recolors) — DONE, PUSHED (2026-10-31)
 - User wanted real new clothing *styles*. Gemini was tried for a hoodie sheet: looks fine but drifts

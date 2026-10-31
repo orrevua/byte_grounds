@@ -9,8 +9,6 @@ export type ChatInput =
   | { kind: 'unknown'; name: string }
   | { kind: 'empty' };
 
-export const CHAT_HELP = '/busy: toggle busy (zzZ) · /status <text>: set today\'s status (empty clears) · /help';
-
 /** Parse a chat box line: `/command args` or a message to say. */
 export function parseChatInput(raw: string): ChatInput {
   const line = raw.trim();

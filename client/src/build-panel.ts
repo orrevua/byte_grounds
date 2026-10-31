@@ -1,17 +1,18 @@
 import { mountDecorPicker, transformForKey, type PickerState } from './decor-picker.ts';
+import { t, type MsgKey } from './i18n.ts';
 
 /** What a click on the map does while building; erase / block / walk are admin-only. */
 export type BuildTool = 'place' | 'move' | 'erase' | 'block' | 'walk';
 
-const BUILDER_TOOLS: { id: BuildTool; label: string }[] = [
-  { id: 'place', label: 'Place' },
-  { id: 'move', label: 'Move' },
+const BUILDER_TOOLS: { id: BuildTool; label: MsgKey }[] = [
+  { id: 'place', label: 'build.place' },
+  { id: 'move', label: 'build.move' },
 ];
-const ADMIN_TOOLS: { id: BuildTool; label: string }[] = [
+const ADMIN_TOOLS: { id: BuildTool; label: MsgKey }[] = [
   ...BUILDER_TOOLS,
-  { id: 'erase', label: 'Erase' },
-  { id: 'block', label: 'Block' },
-  { id: 'walk', label: 'Walk' },
+  { id: 'erase', label: 'build.erase' },
+  { id: 'block', label: 'build.block' },
+  { id: 'walk', label: 'build.walk' },
 ];
 
 /**
@@ -58,19 +59,19 @@ export class BuildPanel {
     const el = document.createElement('div');
     el.id = 'build-panel';
     el.innerHTML = `
-      <div class="row build-head"><b>Build</b><button type="button" class="build-close" title="Close">×</button></div>
+      <div class="row build-head"><b>${t('build.title')}</b><button type="button" class="build-close" title="${t('build.close')}">×</button></div>
       <div class="tools build-tools"></div>
-      <div class="row"><button type="button" class="build-undo">Undo my last (Ctrl+Z)</button></div>
+      <div class="row"><button type="button" class="build-undo">${t('build.undo')}</button></div>
       <div class="build-picker"></div>`;
     el.querySelector('.build-close')!.addEventListener('click', () => this.close());
     el.querySelector('.build-undo')!.addEventListener('click', () => this.onUndo?.());
     const tools = el.querySelector<HTMLDivElement>('.build-tools')!;
-    for (const t of this.isAdmin ? ADMIN_TOOLS : BUILDER_TOOLS) {
+    for (const tool of this.isAdmin ? ADMIN_TOOLS : BUILDER_TOOLS) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.textContent = t.label;
-      b.dataset.tool = t.id;
-      b.addEventListener('click', () => this.setTool(t.id));
+      b.textContent = t(tool.label);
+      b.dataset.tool = tool.id;
+      b.addEventListener('click', () => this.setTool(tool.id));
       tools.appendChild(b);
     }
     document.body.appendChild(el);
