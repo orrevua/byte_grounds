@@ -24,7 +24,6 @@ import { blockedByWall, placeCells } from './live-model.ts';
 import {
   appearanceReady,
   directionFromDelta,
-  hasArmFrames,
   normalizeAppearance,
   preloadAppearance,
   walkFrameIndex,
@@ -1081,7 +1080,7 @@ export class Game {
       } else {
         if (!it.isSelf && it.id !== null && this.prox.get(it.id) === 'near') this.drawRing(it.av.x, it.av.y);
         const now = Date.now();
-        const sip = sipStep(it.av.item, it.av.pose, it.av.dir, it.av.moving, now, sipSeed(it.av.name), hasArmFrames(it.av.appearance));
+        const sip = sipStep(it.av.item, it.av.pose, it.av.dir, it.av.moving, now, sipSeed(it.av.name));
         this.drawCharacter(it.av, sip);
         if (it.av.item) drawHeldItem(ctx, it.av.item, it.av.pose, it.av.dir, it.av.x, it.av.y, now, sip);
         if (it.av.pose === 'sit' && it.av.dir === 'up') this.drawChairBackOver(it.av);

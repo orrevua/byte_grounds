@@ -422,20 +422,6 @@ export function drawAppearance(
   blitLayers(ctx, appearanceToLayers(a), col * FRAME_SIZE, WALK_ROW[dir] * FRAME_SIZE, destX, destY);
 }
 
-/**
- * Layers drawn without the thrust / bow animation rows (the male formal suit is a composite of
- * walk-only sheets): an appearance wearing one can't use the arm-raising sip frames.
- */
-const NO_ARM_FRAMES: ReadonlySet<string> = new Set([
-  `${LPC}/torso/green_formal_male.png`,
-  `${LPC}/torso/pink_formal_male.png`,
-]);
-
-/** Whether every layer of the appearance has the arm-raising frames a sip uses. */
-export function hasArmFrames(a: Appearance): boolean {
-  return appearanceToLayers(a).every((url) => !NO_ARM_FRAMES.has(url));
-}
-
 /** Blit any (row, col) frame of the appearance's stand layers (e.g. an arm-raising sip). */
 export function drawAppearanceFrame(
   ctx: CanvasRenderingContext2D,

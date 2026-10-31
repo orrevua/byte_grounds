@@ -35,8 +35,8 @@ describe('wrapText indent', () => {
 
 describe('drinking', () => {
   it('sips only standing still, holding a drink, not facing away, for SIP_LEN_MS of every SIP_MS', () => {
-    expect(sipStep('coffee', 'stand', 'down', false, 0)).toMatchObject({ row: 18, col: 4 });
-    expect(sipStep('coffee', 'stand', 'down', false, 500)).toMatchObject({ row: 18, col: 6 });
+    expect(sipStep('coffee', 'stand', 'down', false, 0)).toMatchObject({ row: 2, col: 1 });
+    expect(sipStep('coffee', 'stand', 'down', false, 500)).toMatchObject({ row: 2, col: 2, cup: { dx: 0, dy: -11 } }); // centered, both hands
     expect(sipStep('coffee', 'stand', 'down', false, SIP_LEN_MS)).toBeNull();
     expect(sipStep('water', 'stand', 'left', false, SIP_MS + 10)).toMatchObject({ row: 1, col: 2 });
     expect(sipStep('water', 'stand', 'right', false, 500)).toMatchObject({ row: 3, col: 3 });
@@ -47,10 +47,6 @@ describe('drinking', () => {
     expect(sipStep('', 'stand', 'down', false, 0)).toBeNull();
   });
 
-  it('without the bow row (business suit) sips with both hands from the spellcast row', () => {
-    expect(sipStep('coffee', 'stand', 'down', false, 500, 0, false)).toMatchObject({ row: 2, col: 2 });
-    expect(sipStep('coffee', 'stand', 'left', false, 500, 0, false)).toMatchObject({ row: 1, col: 3 });
-  });
 
   it('hides the cup facing away, lying or dancing', () => {
     expect(cupRest('stand', 'up')).toBeNull();

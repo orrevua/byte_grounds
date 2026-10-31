@@ -434,16 +434,16 @@ export interface SipStep {
 }
 
 /**
- * The sip, per facing, as (frame, cup) steps over SIP_LEN_MS, always with the cup in the left
- * hand. Facing down: the bow row's left arm crosses the chest up to the chin (cols 4 -> 6 -> 4);
- * sideways: the spellcast row's front hand rises to the chin (cols 2 -> 3 -> 2). Cup positions are
- * the hand in those frames, measured on the body sheets (frame px - (32, 48)).
+ * The sip, per facing, as (frame, cup) steps over SIP_LEN_MS, from the spellcast rows every body and
+ * outfit has. Facing down: both hands come up together and hold the cup at the chin (eyes closed,
+ * like a real sip); sideways: the front hand lifts it. Cup positions are the hands in those frames
+ * (frame px - (32, 48)).
  */
 const SIP_STEPS: Partial<Record<Direction, readonly { until: number; step: SipStep }[]>> = {
   down: [
-    { until: 300, step: { row: 18, col: 4, cup: { dx: -11, dy: -14 } } },
-    { until: 900, step: { row: 18, col: 6, cup: { dx: -11, dy: -16 } } },
-    { until: 1200, step: { row: 18, col: 4, cup: { dx: -11, dy: -14 } } },
+    { until: 300, step: { row: 2, col: 1, cup: { dx: 6, dy: -4 } } },
+    { until: 900, step: { row: 2, col: 2, cup: { dx: 0, dy: -11 } } },
+    { until: 1200, step: { row: 2, col: 1, cup: { dx: 6, dy: -4 } } },
   ],
   left: [
     { until: 300, step: { row: 1, col: 2, cup: { dx: -9, dy: -5 } } },
@@ -458,36 +458,16 @@ const SIP_STEPS: Partial<Record<Direction, readonly { until: number; step: SipSt
 };
 
 /**
- * Without the bow row (the male business suit, see `hasArmFrames`), facing down: the spellcast row,
- * which every layer has — both hands come up together and hold the cup at the chin (eyes closed,
- * like a real sip).
- */
-const SIP_TWO_HANDS: readonly { until: number; step: SipStep }[] = [
-  { until: 300, step: { row: 2, col: 1, cup: { dx: 6, dy: -4 } } },
-  { until: 900, step: { row: 2, col: 2, cup: { dx: 0, dy: -11 } } },
-  { until: 1200, step: { row: 2, col: 1, cup: { dx: 6, dy: -4 } } },
-];
-
-/**
  * The sip frame to draw now, or null: only standing still, holding a drink and not facing away,
  * in the first SIP_LEN_MS of every SIP_MS (offset by `seed` so drinkers don't sip in unison).
  */
-export function sipStep(
-  item: HeldItem,
-  pose: Pose,
-  dir: Direction,
-  moving: boolean,
-  nowMs: number,
-  seed = 0,
-  armFrames = true,
-): SipStep | null {
+export function sipStep(item: HeldItem, pose: Pose, dir: Direction, moving: boolean, nowMs: number, seed = 0): SipStep | null {
   if (!item || pose !== 'stand' || moving || !Number.isFinite(nowMs)) return null;
   const steps = SIP_STEPS[dir];
   if (!steps) return null;
   const t = (((nowMs + seed) % SIP_MS) + SIP_MS) % SIP_MS;
   if (t >= SIP_LEN_MS) return null;
-  // Only the bow row (facing down) is missing from some layers; every layer has the spellcast rows.
-  return (armFrames || dir !== 'down' ? steps : SIP_TWO_HANDS).find((s) => t < s.until)!.step;
+  return steps.find((s) => t < s.until)!.step;
 }
 
 /**
