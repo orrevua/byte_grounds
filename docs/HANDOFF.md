@@ -1,7 +1,27 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-31 (meeting rooms, picker, beds, zoom, drinks, [ADM])
+**Last updated:** 2026-10-31 (Sheet Studio)
 **Branch:** `master` (user asked: work on master directly, no more PRs)
+
+## Sheet Studio — DONE, COMMITTED + PUSHED (2026-10-31); verified in local mode
+Spec: `docs/specs/sheet-studio.md`; guide for humans + agents: `docs/sheet-studio.md`.
+- `/sheets` (admin only via `checkIsAdmin`; open in local dev): pixel editor on the 32px grid,
+  tools pencil/eraser/fill/line/rect/filled rect/ellipse/eyedropper/select, mirror, undo/redo,
+  selection copy/paste/flip/outline/darker/lighter/clear, "Borrow from game art" (decor picker),
+  backgrounds (incl. beige floor / purple carpet), 2x preview, PNG + SheetSpec import/export, save.
+- SheetSpec v1 (`client/src/sprite-spec.ts`, pure): palette keys + ops (rect, ellipse, line, pixels,
+  fill, outline, shade, copy, clear); `bufferToSpec` turns any image into text.
+- Agents: `window.sheetStudio` (new/load/apply/spec/png/save/list/open/rename) and
+  `node tools/sheet_spec.mts render|dump|check` (no deps; round-trips real sheets exactly).
+- Storage: `supabase/sheets.sql` → `decor_sheets` (read all, write `is_admin()`), ids
+  `custom_<slug>`; `Store.listSheets/saveSheet/deleteSheet`; local dev = localStorage.
+  `decor.ts` `registerSheet` / `loadCustomSheets`: game (before the map) and editor (then
+  `picker.refreshSheets()`). Custom sheets have no seat rules.
+- Starter art made by an agent with the spec: `docs/sprite-specs/modern_office.json` →
+  `client/src/assets/decor/modern_office.png` (CC0, Gather-style: desk + monitor, chairs, bean bags,
+  plant, whiteboard, sofa, tree, lamp, bookshelf, floors); seat rules for chairs, bean bags, sofa.
+- **Manual step (production):** run `supabase/sheets.sql` in the SQL editor (README step 5).
+- Not verified: Supabase mode (saving as the real admin, the gate refusing a guest).
 
 ## 2026-10-31 batch — DONE, COMMITTED + PUSHED on master; verified in local ws mode (Playwright, fake media)
 - **Meeting rooms** (`docs/specs/meeting-rooms.md`): `OfficeMap.zones` (`Zone {name,x,y,w,h}`; absent =
