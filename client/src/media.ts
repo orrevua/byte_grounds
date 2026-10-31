@@ -11,7 +11,7 @@ export function volumeForDistance(dist: number): number {
 }
 
 /** Gap between the avatar's tile point and the bubble, above or below it. */
-const BUBBLE_GAP_ABOVE = 24;
+const BUBBLE_GAP_ABOVE = 64; // clears the name, status and zzZ tags over the head
 const BUBBLE_GAP_BELOW = 16;
 const EDGE_MARGIN = 4;
 
@@ -48,6 +48,8 @@ export function bubblePosition(
 export class VideoBubbles {
   private readonly layer: HTMLDivElement;
   private readonly bubbles = new Map<PeerId, HTMLVideoElement>();
+  /** Peers whose video shows elsewhere (the screen-share stage): bubble hidden, audio kept. */
+  private readonly suppressed = new Set<PeerId>();
 
   constructor(parent: HTMLElement) {
     this.layer = document.createElement('div');
@@ -69,11 +71,31 @@ export class VideoBubbles {
       if (v.srcObject instanceof MediaStream) v.srcObject.onaddtrack = v.srcObject.onremovetrack = null;
       v.srcObject = stream;
       // The peer adds/removes its video track when it turns the camera on/off.
-      const sync = () => (v.style.display = hasLiveVideo(stream) ? '' : 'none');
+      const sync = () => this.sync(peerId);
       stream.onaddtrack = sync;
       stream.onremovetrack = sync;
     }
-    v.style.display = hasLiveVideo(stream) ? '' : 'none';
+    this.sync(peerId);
+  }
+
+  private sync(peerId: PeerId): void {
+    const v = this.bubbles.get(peerId);
+    if (!v) return;
+    const stream = v.srcObject instanceof MediaStream ? v.srcObject : null;
+    v.style.display = stream && hasLiveVideo(stream) && !this.suppressed.has(peerId) ? '' : 'none';
+  }
+
+  /** The peer's incoming stream (audio + camera or screen), if connected. */
+  stream(peerId: PeerId): MediaStream | null {
+    const src = this.bubbles.get(peerId)?.srcObject;
+    return src instanceof MediaStream ? src : null;
+  }
+
+  /** Hide (or show again) a peer's bubble while its video is shown elsewhere; audio keeps playing. */
+  suppress(peerId: PeerId, on: boolean): void {
+    if (on) this.suppressed.add(peerId);
+    else this.suppressed.delete(peerId);
+    this.sync(peerId);
   }
 
   /** Position the bubble for an avatar at canvas point (cx, cy); see `bubblePosition`. */
@@ -99,6 +121,63 @@ export class VideoBubbles {
     v.srcObject = null;
     v.remove();
     this.bubbles.delete(peerId);
+    this.suppressed.delete(peerId);
+  }
+}
+
+/**
+ * The big screen-share view (top centre, like a meeting's presentation): the presenter's stream in
+ * a muted element (their voice keeps coming from the bubble's), with Minimize / Show.
+ */
+export class ScreenStage {
+  private readonly root: HTMLDivElement;
+  private readonly title: HTMLSpanElement;
+  private readonly video: HTMLVideoElement;
+  private readonly minBtn: HTMLButtonElement;
+  private current: { id: PeerId; stream: MediaStream } | null = null;
+
+  constructor() {
+    const root = (this.root = document.createElement('div'));
+    root.id = 'screen-stage';
+    root.className = 'hidden';
+    root.innerHTML = '<div class="stage-head"><span></span><button type="button">Minimize</button></div>';
+    this.title = root.querySelector('span')!;
+    this.minBtn = root.querySelector('button')!;
+    this.minBtn.addEventListener('click', () => {
+      const min = root.classList.toggle('min');
+      this.minBtn.textContent = min ? 'Show' : 'Minimize';
+    });
+    this.video = document.createElement('video');
+    this.video.autoplay = true;
+    this.video.playsInline = true;
+    this.video.muted = true;
+    root.appendChild(this.video);
+    document.body.appendChild(root);
+  }
+
+  /** The peer on stage now, if any. */
+  get peer(): PeerId | null {
+    return this.current?.id ?? null;
+  }
+
+  show(id: PeerId, name: string, stream: MediaStream): void {
+    this.title.textContent = `${name} is presenting`;
+    if (this.current?.id === id && this.current.stream === stream) return;
+    this.current = { id, stream };
+    this.video.srcObject = stream;
+    this.root.classList.remove('hidden');
+  }
+
+  clear(): void {
+    if (!this.current) return;
+    this.current = null;
+    this.video.srcObject = null;
+    this.root.classList.add('hidden');
+  }
+
+  dispose(): void {
+    this.clear();
+    this.root.remove();
   }
 }
 
@@ -115,12 +194,18 @@ export class MediaManager {
   private pending: Promise<MediaStream> | null = null;
   private micOn = true;
   private camBusy = false;
+  /** The screen being shared; while set it is the outgoing video instead of the camera. */
+  private screen: MediaStreamTrack | null = null;
   private readonly preview: HTMLVideoElement;
   private readonly micBtn: HTMLButtonElement;
   private readonly camBtn: HTMLButtonElement;
+  private readonly screenBtn: HTMLButtonElement;
   private readonly notice: HTMLDivElement;
 
+  /** The outgoing video changed (camera, screen, or none): the mesh sends it to every peer. */
   onVideoTrack: (track: MediaStreamTrack | null, stream: MediaStream) => void = () => {};
+  /** Screen sharing started / stopped. */
+  onSharing: (on: boolean) => void = () => {};
 
   constructor() {
     const root = document.createElement('div');
@@ -140,7 +225,10 @@ export class MediaManager {
     bar.style.cssText = 'display:flex;gap:6px;';
     this.micBtn = this.makeButton('Mic: on', () => this.toggleMic());
     this.camBtn = this.makeButton('Cam: off', () => void this.toggleCam());
+    this.screenBtn = this.makeButton('Share screen', () => void this.toggleScreen());
     bar.append(this.micBtn, this.camBtn);
+    // Phones can't capture the screen (no getDisplayMedia): no button there.
+    if (typeof navigator.mediaDevices?.getDisplayMedia === 'function') bar.append(this.screenBtn);
 
     this.notice = document.createElement('div');
     this.notice.style.cssText = 'font-size:12px;color:#ffb4b4;max-width:160px;';
@@ -193,14 +281,16 @@ export class MediaManager {
       if (current) {
         current.stop();
         stream.removeTrack(current);
-        this.onVideoTrack(null, stream);
+        if (!this.screen) this.onVideoTrack(null, stream);
       } else {
         try {
           const cam = await navigator.mediaDevices.getUserMedia({ video: true });
           const track = cam.getVideoTracks()[0]!;
           stream.addTrack(track);
-          this.notice.textContent = '';
-          this.onVideoTrack(track, stream);
+          if (!this.screen) {
+            this.notice.textContent = '';
+            this.onVideoTrack(track, stream);
+          }
         } catch {
           this.notice.textContent = 'Camera unavailable or blocked.';
         }
@@ -213,11 +303,58 @@ export class MediaManager {
     }
   }
 
+  /**
+   * Share a screen / window / tab, or stop. While sharing, peers get the screen in place of the
+   * camera (same video sender); stopping puts the camera back if it is on. The browser's own
+   * "Stop sharing" ends it too.
+   */
+  async toggleScreen(): Promise<void> {
+    if (this.screen) return this.stopScreen();
+    const stream = await this.acquire();
+    let track: MediaStreamTrack;
+    try {
+      const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      track = display.getVideoTracks()[0]!;
+    } catch {
+      return; // picker cancelled or blocked
+    }
+    if (this.screen) {
+      track.stop(); // a second click raced the picker
+      return;
+    }
+    track.contentHint = 'detail';
+    this.screen = track;
+    track.addEventListener('ended', () => {
+      if (this.screen === track) this.stopScreen();
+    });
+    this.onVideoTrack(track, stream);
+    this.updateScreenUi();
+    this.onSharing(true);
+  }
+
+  private stopScreen(): void {
+    const track = this.screen;
+    if (!track) return;
+    this.screen = null;
+    track.stop();
+    if (this.stream) this.onVideoTrack(this.stream.getVideoTracks()[0] ?? null, this.stream);
+    this.updateScreenUi();
+    this.onSharing(false);
+  }
+
+  private updateScreenUi(): void {
+    const on = !!this.screen;
+    this.screenBtn.textContent = on ? 'Stop sharing' : 'Share screen';
+    this.screenBtn.style.background = on ? '#c0392b' : '#2a2f37';
+    this.notice.textContent = on ? 'Sharing your screen with people near you.' : '';
+    this.notice.style.color = on ? '#9fd0ff' : '#ffb4b4';
+  }
+
   private makeButton(label: string, onClick: () => void): HTMLButtonElement {
     const b = document.createElement('button');
     b.textContent = label;
     b.style.cssText =
-      'flex:1;padding:6px;border:0;border-radius:6px;background:#2a2f37;color:#e6e8eb;cursor:pointer;';
+      'flex:1;padding:6px 8px;border:0;border-radius:6px;background:#2a2f37;color:#e6e8eb;cursor:pointer;white-space:nowrap;';
     b.addEventListener('click', onClick);
     return b;
   }

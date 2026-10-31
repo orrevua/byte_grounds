@@ -463,3 +463,16 @@ export function drawTuckedAppearance(ctx: CanvasRenderingContext2D, a: Appearanc
   const img = loadImage(BLANKET_URL);
   if (img.complete && img.naturalWidth > 0) ctx.drawImage(img, blanket.x, blanket.y, blanket.w, blanket.h);
 }
+
+/** The face / head box of the standing down-facing frame (frame px), used for chat-balloon avatars. */
+export const HEAD_CROP = { x: 18, y: 10, w: 28, h: 26 } as const;
+
+/** Draw the appearance's head (down-facing, standing) scaled into a `w`x`h` box at (destX, destY). */
+export function drawHead(ctx: CanvasRenderingContext2D, a: Appearance, destX: number, destY: number, w: number, h: number): void {
+  const sy = WALK_ROW.down * FRAME_SIZE + HEAD_CROP.y;
+  for (const url of appearanceToLayers(a)) {
+    const img = cache.get(url);
+    if (!img || !img.complete || img.naturalWidth === 0) continue;
+    ctx.drawImage(img, HEAD_CROP.x, sy, HEAD_CROP.w, HEAD_CROP.h, destX, destY, w, h);
+  }
+}

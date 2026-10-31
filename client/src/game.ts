@@ -1,15 +1,15 @@
 import { decorLayer, seatsNearIn, type DecorCell, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
-import { POSITION_TICK_MS, TILE_SIZE, normalizePose } from '@byte_grounds/shared/protocol';
+import { POSITION_TICK_MS, TILE_SIZE, normalizeChat, normalizePose, normalizeStatus } from '@byte_grounds/shared/protocol';
 import { effectiveSeats, seatSpot } from '@byte_grounds/shared/seats';
-import type { Appearance, PeerId, PeerState, Pose, ServerToClient } from '@byte_grounds/shared/protocol';
-import { drawAvatar, drawDecorCellAt, drawMap, drawNameLabel, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
+import type { Appearance, PeerId, PeerState, Pose, ServerToClient, StatusFields } from '@byte_grounds/shared/protocol';
+import { balloonHeight, drawAvatar, drawAvatarTags, drawChatBalloon, drawDecorCellAt, tagsTop, drawMap, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
 import { avatarAnchorY, sortRenderables, stackedDecorAnchors } from './depth.ts';
 import { cameraOffset, viewportSize } from './camera.ts';
 import { Minimap, type MinimapDot } from './minimap.ts';
 import { Keyboard, TouchPad, isTouchDevice } from './input.ts';
 import { stepMovement, type MoveInput } from './movement.ts';
 import { distanceTiles, nextProxState, type ProxState } from './proximity.ts';
-import { MediaManager, VideoBubbles, volumeForDistance } from './media.ts';
+import { MediaManager, ScreenStage, VideoBubbles, hasLiveVideo, volumeForDistance } from './media.ts';
 import { WebrtcMesh } from './webrtc.ts';
 import { avatarAt, screenToWorld } from './hit.ts';
 import { AvatarMenu } from './avatar-menu.ts';
@@ -36,6 +36,8 @@ export interface SelfInfo {
   /** Supabase auth uid; absent in ws dev mode or when signing in failed. */
   uid?: string;
   isAdmin: boolean;
+  /** Today's status line (may be empty). */
+  status: string;
 }
 
 /** The fields every drawable avatar (self or remote) shares. */
@@ -49,7 +51,26 @@ interface Avatar {
   animMs: number;
   moving: boolean;
   pose: Pose;
+  status: string;
+  busy: boolean;
+  sharing: boolean;
 }
+
+/** A chat line floating over the room, Habbo style (world px; rises as newer ones arrive). */
+interface Balloon {
+  appearance: Appearance;
+  name: string;
+  text: string;
+  x: number;
+  /** Tail tip (world px) at birth; it drifts up with age and is pushed up by newer balloons. */
+  y: number;
+  /** Box height (world px). */
+  h: number;
+  born: number;
+}
+
+/** Tail height under a balloon box (matches `drawChatBalloon`). */
+const BALLOON_TAIL = 5;
 
 interface RemoteAvatar extends Avatar {
   tx: number; // latest target from the server
@@ -68,6 +89,13 @@ const MOVE_EPS = 1e-3;
 
 /** How long a toast (e.g. a refused edit) stays up. */
 const TOAST_MS = 4000;
+
+/** Chat balloons: how long one lives, its fade-out, upward drift (px/s), gap, and how many at most. */
+const BALLOON_MS = 15000;
+const BALLOON_FADE_MS = 1500;
+const BALLOON_DRIFT = 6;
+const BALLOON_GAP = 4;
+const BALLOON_MAX = 30;
 
 /** Canvas render loop, local movement, position broadcast, and remote avatars. */
 export class Game {
@@ -98,9 +126,11 @@ export class Game {
   private sentPose: Pose = 'stand';
   private sentDir: Direction = 'down';
   private readonly remotes = new Map<PeerId, RemoteAvatar>();
+  private balloons: Balloon[] = [];
   private readonly prox = new Map<PeerId, ProxState>();
   private readonly media = new MediaManager();
   private readonly bubbles: VideoBubbles;
+  private readonly stage = new ScreenStage();
   private readonly mesh: WebrtcMesh;
   private raf = 0;
   private lastT = 0;
@@ -116,6 +146,12 @@ export class Game {
   private scale = 1;
   /** Called when a remote avatar is clicked (client coords of the click). */
   onAvatarClick: ((id: PeerId, clientX: number, clientY: number) => void) | null = null;
+  /** A chat line arrived (or we sent one: `self` true). */
+  onChat: ((name: string, text: string, self: boolean) => void) | null = null;
+  /** Our status fields changed (e.g. walking ended busy), for the HUD. */
+  onSelfStatus: ((fields: StatusFields) => void) | null = null;
+  /** A remote's status fields changed, or they left (screen-share stage). */
+  onPeersChanged: (() => void) | null = null;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -144,6 +180,9 @@ export class Game {
       animMs: 0,
       moving: false,
       pose: 'stand',
+      status: normalizeStatus(self.status),
+      busy: false,
+      sharing: false,
     };
 
     this.seatBtn = document.createElement('button');
@@ -178,6 +217,7 @@ export class Game {
       (peerId) => this.bubbles.remove(peerId),
     );
     this.media.onVideoTrack = (track, stream) => this.mesh.setVideo(track, stream);
+    this.media.onSharing = (on) => this.setSharing(on);
   }
 
   /** Our current tile-space position (for saving where we left off); the stand spot while seated. */
@@ -217,6 +257,7 @@ export class Game {
     this.danceBtn.remove();
     this.live?.stop();
     this.mesh.closeAll();
+    this.stage.dispose();
   }
 
   /** Live grants: the admin gets a permissions menu when clicking an avatar; builders a Build button. */
@@ -293,6 +334,97 @@ export class Game {
     this.prox.clear();
     this.sentX = NaN;
     this.sentY = NaN;
+    // The ws relay re-joins with the status we had at join time: send the current one.
+    this.sendStatus();
+    this.onPeersChanged?.();
+  }
+
+  /** Our status fields as sent to others. */
+  get statusFields(): StatusFields {
+    return { status: this.self.status, busy: this.self.busy, sharing: this.self.sharing };
+  }
+
+  private sendStatus(): void {
+    this.net.send({ type: 'status', ...this.statusFields });
+    this.onSelfStatus?.(this.statusFields);
+  }
+
+  /** Set today's status line ('' clears it). */
+  setStatus(text: string): void {
+    const status = normalizeStatus(text);
+    if (status === this.self.status) return;
+    this.self.status = status;
+    this.sendStatus();
+  }
+
+  /** Busy / away on or off: a zzZ over the avatar; it stops a dance. Walking ends it. */
+  toggleBusy(): void {
+    this.self.busy = !this.self.busy;
+    if (this.self.busy && this.self.pose === 'dance') this.self.pose = 'stand';
+    this.sendStatus();
+  }
+
+  setSharing(on: boolean): void {
+    if (this.self.sharing === on) return;
+    this.self.sharing = on;
+    this.sendStatus();
+  }
+
+  /** Send a chat line to the room and show it over our avatar. */
+  sendChat(text: string): void {
+    const clean = normalizeChat(text);
+    if (!clean) return;
+    this.net.send({ type: 'chat', text: clean });
+    this.addBalloon(this.self, clean);
+    this.onChat?.(this.self.name, clean, true);
+  }
+
+  /**
+   * A new balloon appears just above the speaker's tags; every balloon already up moves up by its
+   * height, so the conversation stacks and rises like a chat log over the room.
+   */
+  private addBalloon(a: Avatar, text: string): void {
+    const now = Date.now();
+    const fresh: Balloon = {
+      appearance: a.appearance,
+      name: a.name,
+      text,
+      x: a.x * TILE_SIZE,
+      y: tagsTop(a.y, a.pose, { name: a.name, status: a.status, busy: a.busy }) - 2,
+      h: balloonHeight(this.ctx, a.name, text),
+      born: now,
+    };
+    // Newest to oldest, each balloon's tail must sit above the top of the one after it.
+    let ceiling = fresh.y - BALLOON_TAIL - fresh.h - BALLOON_GAP;
+    for (let i = this.balloons.length - 1; i >= 0; i--) {
+      const b = this.balloons[i]!;
+      const drawn = b.y - this.balloonDrift(b, now);
+      if (drawn > ceiling) b.y -= drawn - ceiling;
+      ceiling = Math.min(drawn, ceiling) - BALLOON_TAIL - b.h - BALLOON_GAP;
+    }
+    this.balloons.push(fresh);
+    if (this.balloons.length > BALLOON_MAX) this.balloons.shift();
+  }
+
+  private balloonDrift(b: Balloon, now: number): number {
+    return ((now - b.born) / 1000) * BALLOON_DRIFT;
+  }
+
+  private drawBalloons(now: number): void {
+    this.balloons = this.balloons.filter((b) => now - b.born < BALLOON_MS);
+    for (const b of this.balloons) {
+      const age = now - b.born;
+      const alpha = Math.min(1, (BALLOON_MS - age) / BALLOON_FADE_MS);
+      drawChatBalloon(this.ctx, b.appearance, b.name, b.text, b.x, b.y - this.balloonDrift(b, now), alpha);
+    }
+  }
+
+  /** Remotes that are sharing their screen and connected to us (in call range), nearest first. */
+  presenters(): { id: PeerId; name: string }[] {
+    return [...this.remotes]
+      .filter(([id, r]) => r.sharing && this.prox.get(id) === 'near')
+      .sort(([, a], [, b]) => distanceTiles(this.self, a) - distanceTiles(this.self, b))
+      .map(([id, r]) => ({ id, name: r.name }));
   }
 
   private makeRemote(p: PeerState): RemoteAvatar {
@@ -308,6 +440,9 @@ export class Game {
       animMs: 0,
       moving: false,
       pose: normalizePose(p.pose),
+      status: normalizeStatus(p.status),
+      busy: p.busy === true,
+      sharing: p.sharing === true,
       ...(typeof p.uid === 'string' ? { uid: p.uid } : {}),
     };
   }
@@ -344,10 +479,29 @@ export class Game {
         }
         break;
       }
+      case 'peer-status': {
+        const r = this.remotes.get(msg.id);
+        if (r) {
+          r.status = normalizeStatus(msg.status);
+          r.busy = msg.busy === true;
+          r.sharing = msg.sharing === true;
+          this.onPeersChanged?.();
+        }
+        break;
+      }
+      case 'chat': {
+        const r = this.remotes.get(msg.from);
+        const text = normalizeChat(msg.text);
+        if (!text) break;
+        if (r) this.addBalloon(r, text);
+        this.onChat?.(r?.name ?? msg.name, text, false);
+        break;
+      }
       case 'peer-left':
         this.remotes.delete(msg.id);
         this.prox.delete(msg.id);
         this.mesh.disconnect(msg.id);
+        this.onPeersChanged?.();
         break;
       case 'offer':
       case 'answer':
@@ -365,6 +519,7 @@ export class Game {
     const moveHeld = input.up || input.down || input.left || input.right;
     if (moveHeld && this.lookAt) this.followSelf();
     if (moveHeld && this.self.pose === 'dance') this.self.pose = 'stand';
+    if (moveHeld && this.self.busy && !this.seat) this.toggleBusy();
     if (this.seat && moveHeld) this.standUp();
     if (!this.seat) {
       const prevX = this.self.x;
@@ -386,6 +541,7 @@ export class Game {
 
     this.updateProximity();
     this.updateButtons();
+    this.updateStage();
 
     this.sinceSend += dt * 1000;
     if (this.sinceSend >= POSITION_TICK_MS) {
@@ -575,6 +731,22 @@ export class Game {
     this.seatBtn.className = label ? '' : 'hidden';
   }
 
+  /**
+   * Show the nearest connected presenter's screen on the stage (their bubble hides meanwhile), or
+   * clear it. Cheap enough per frame, and it catches the track arriving after the sharing flag.
+   */
+  private updateStage(): void {
+    const pick = this.presenters().find((p) => {
+      const s = this.bubbles.stream(p.id);
+      return !!s && hasLiveVideo(s);
+    });
+    const prev = this.stage.peer;
+    if (prev && prev !== pick?.id) this.bubbles.suppress(prev, false);
+    if (!pick) return this.stage.clear();
+    this.stage.show(pick.id, pick.name, this.bubbles.stream(pick.id)!);
+    if (prev !== pick.id) this.bubbles.suppress(pick.id, true);
+  }
+
   /** Update facing + walk-cycle clock from a per-frame movement delta. */
   private animate(a: { dir: Direction; animMs: number; moving: boolean }, dx: number, dy: number, dt: number): void {
     a.moving = Math.hypot(dx, dy) > MOVE_EPS;
@@ -591,6 +763,7 @@ export class Game {
       this.prox.set(id, next);
       if (next === 'near') void this.mesh.connect(id);
       else this.mesh.disconnect(id);
+      this.onPeersChanged?.();
     }
   }
 
@@ -645,9 +818,11 @@ export class Game {
 
     this.drawBuildOverlay();
 
-    // Final pass on top of all furniture: name labels, and remote bubble placement + volume.
-    for (const r of this.remotes.values()) this.drawName(r);
-    this.drawName(this.self);
+    // Final pass on top of all furniture: name tags, and remote bubble placement + volume.
+    const now = Date.now();
+    for (const r of this.remotes.values()) this.drawTags(r, now);
+    this.drawTags(this.self, now);
+    this.drawBalloons(now);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     for (const [id, r] of this.remotes) {
       if (this.prox.get(id) === 'near') this.bubbles.setVolume(id, volumeForDistance(distanceTiles(this.self, r)));
@@ -729,9 +904,9 @@ export class Game {
     }
   }
 
-  /** Name label above an avatar (sprite or disc), drawn in the top pass so furniture can't cover it. */
-  private drawName(a: Avatar): void {
-    drawNameLabel(this.ctx, a.x, a.y, a.name);
+  /** Name, status, zzZ and chat bubble above an avatar, drawn in the top pass so furniture can't cover them. */
+  private drawTags(a: Avatar, now: number): void {
+    drawAvatarTags(this.ctx, a.x, a.y, a.pose, { name: a.name, status: a.status, busy: a.busy }, now);
   }
 
   private drawRing(x: number, y: number): void {

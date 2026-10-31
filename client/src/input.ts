@@ -11,6 +11,13 @@ const KEY_MAP: Record<string, keyof MoveInput> = {
   arrowright: 'right',
 };
 
+function isTextField(t: EventTarget | null): boolean {
+  return (
+    (typeof HTMLInputElement !== 'undefined' && t instanceof HTMLInputElement) ||
+    (typeof HTMLTextAreaElement !== 'undefined' && t instanceof HTMLTextAreaElement)
+  );
+}
+
 /** Tracks held movement keys (WASD + arrows) via window listeners. */
 export class Keyboard {
   private readonly held = new Set<keyof MoveInput>();
@@ -25,6 +32,11 @@ export class Keyboard {
   private set(e: KeyboardEvent, down: boolean): void {
     const dir = KEY_MAP[e.key.toLowerCase()];
     if (!dir) return;
+    if (isTextField(e.target)) {
+      // Typing (chat, status): letters are text, not movement. Still release a held key.
+      if (!down) this.held.delete(dir);
+      return;
+    }
     e.preventDefault();
     if (down) this.held.add(dir);
     else this.held.delete(dir);

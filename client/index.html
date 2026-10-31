@@ -127,6 +127,46 @@
       @media (max-width: 720px) {
         #build-panel { top: auto; left: 0; width: auto; height: 45vh; box-shadow: 0 -6px 18px rgba(0,0,0,.45); }
       }
+      #hud { position: fixed; top: 12px; left: 12px; z-index: 16; display: flex; flex-direction: column;
+        gap: 8px; width: min(320px, calc(100vw - 24px)); pointer-events: none; }
+      #hud > * { pointer-events: auto; }
+      .hud-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+      .hud-bar button, .hud-status-input { padding: 6px 12px; border: 0; border-radius: 999px;
+        background: #2a2f37; color: #e6e8eb; font: 600 13px system-ui, sans-serif; cursor: pointer;
+        box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+      .hud-bar button:hover { background: #343a44; }
+      .hud-bar button.on { background: #4f8cff; color: #fff; }
+      .hud-bar .hud-busy.on { background: #6b5bd6; }
+      .hud-bar .hud-status { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        font-weight: 400; color: #9fd0ff; font-style: italic; }
+      .hud-bar .hud-status.empty { color: #9aa3ad; }
+      .hud-status-input { flex: 1; min-width: 160px; cursor: text; font-weight: 400; outline: 2px solid #4f8cff; }
+      .hud-panel { display: flex; flex-direction: column; background: rgba(30, 34, 40, .92);
+        border: 1px solid #2c323b; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.45);
+        max-height: min(40vh, calc(100vh - 300px)); min-height: 120px; }
+      .chat-log { flex: 1; overflow-y: auto; padding: 8px 10px; font-size: 13px; line-height: 1.4;
+        display: flex; flex-direction: column; gap: 3px; word-wrap: break-word; }
+      .chat-log:empty::before { content: 'No messages yet. Say hi, or type /help.'; color: #6f7883; }
+      .chat-line b { color: #8fb4ff; font-weight: 600; }
+      .chat-line.self b { color: #4fe0a0; }
+      .chat-line.note { color: #9aa3ad; font-style: italic; font-size: 12px; }
+      .chat-form { border-top: 1px solid #2c323b; padding: 6px; }
+      .chat-form input { width: 100%; padding: 7px 9px; border: 1px solid #333a44; border-radius: 6px;
+        background: #14161a; color: #e6e8eb; font: 13px system-ui, sans-serif; }
+      .chat-form input:focus { outline: none; border-color: #4f8cff; }
+      #screen-stage { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 14;
+        width: min(960px, calc(100vw - 700px)); min-width: min(480px, calc(100vw - 24px));
+        display: flex; flex-direction: column; background: #0d0f12; border: 2px solid #4f8cff;
+        border-radius: 10px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,.55); }
+      #screen-stage .stage-head { display: flex; align-items: center; justify-content: space-between;
+        gap: 8px; padding: 6px 10px; background: #1e2228; font: 600 13px system-ui, sans-serif; }
+      #screen-stage .stage-head button { padding: 4px 10px; border: 0; border-radius: 999px;
+        background: #2a2f37; color: #e6e8eb; font: 600 12px system-ui, sans-serif; cursor: pointer; }
+      #screen-stage video { display: block; width: 100%; max-height: 70vh; background: #000; object-fit: contain; }
+      #screen-stage.min video { display: none; }
+      @media (max-width: 900px) {
+        #screen-stage { top: auto; bottom: 120px; width: calc(100vw - 24px); min-width: 0; }
+      }
       #toast { position: fixed; top: 56px; left: 50%; transform: translateX(-50%); z-index: 40;
         max-width: 90vw; padding: 8px 14px; border-radius: 8px; background: #5a2a2a; color: #fff;
         font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,.35); }

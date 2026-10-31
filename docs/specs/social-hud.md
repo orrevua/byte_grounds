@@ -7,7 +7,8 @@
 2. **Daily status**: a short text ("Shipping the login page") shown above your avatar; resets the
    next day.
 3. **Busy** (`/busy` in chat, or the HUD button): `zzZ` floats over the avatar; walking ends it.
-4. **Chat**: room-wide text chat, ephemeral (no history), with a speech bubble over the sender.
+4. **Chat**: room-wide text chat, ephemeral (no history), shown over the room as Habbo-style
+   balloons (the speaker's face at the balloon's left edge, "name: message"), stacking and rising.
 5. **Screen share** (Google Meet style): share a screen/window/tab; nearby peers (the existing
    proximity call) see it in a large stage panel.
 6. **Name labels** above the head instead of over the face.
@@ -34,9 +35,12 @@
 - `setStatus(text)`, `toggleBusy()`, `setSharing(on)` update self and send a `status` message;
   `onReconnect` re-sends it (ws gives a new id and re-joins with the stale join object).
 - Busy: entering it stops a dance; held movement while busy (and not seated) clears it.
-- `say(id|null, text)`: bubble for 6 s. `chat` messages → `onChat` callback (chat panel).
-- Render top pass per avatar, stacked upward from above the head: name (baseline `py - 38`),
-  status (small, muted), `zzZ` (animated, busy), chat bubble.
+- Chat balloons (`Balloon[]`, world px): born with the tail just above the speaker's tags; a new
+  one pushes every older balloon fully above it (newest → oldest), all drift up 6 px/s, live 15 s
+  and fade over the last 1.5 s (max 30). `drawChatBalloon` draws the face (`drawHead`, crop
+  `HEAD_CROP` of the standing down frame) at the left edge. `chat` messages → `onChat` (panel).
+- Render top pass per avatar, stacked upward from above the head: name (`labelLift`: 38 standing,
+  34 seated, 26 lying), status (small, italic), `zzZ` (animated, busy); balloons after all tags.
 
 ### HUD (`client/src/hud.ts`, new)
 Top-left bar: `← Leave`, status pill (click → inline input, Enter saves, Esc cancels, empty

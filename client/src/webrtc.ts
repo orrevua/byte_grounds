@@ -47,13 +47,14 @@ export class PeerLink {
     readonly peerId: PeerId,
     localStream: MediaStream | null,
     protected readonly cb: PeerCallbacks,
+    /** The outgoing video (camera or screen); defaults to the local stream's camera track. */
+    video: MediaStreamTrack | null = localStream?.getVideoTracks()[0] ?? null,
   ) {
     this.polite = isPolite(selfId, peerId);
     this.pc = new RTCPeerConnection({ iceServers: [{ urls: STUN_URLS }] });
 
     if (localStream) {
       for (const t of localStream.getAudioTracks()) this.pc.addTrack(t, localStream);
-      const video = localStream.getVideoTracks()[0];
       if (video) this.setVideo(video, localStream);
     }
 
@@ -140,6 +141,8 @@ export class WebrtcMesh {
   private readonly connecting = new Map<PeerId, Promise<PeerLink>>();
   /** Per-peer signal queue: an ICE candidate must not race ahead of its offer. */
   private readonly queues = new Map<PeerId, Promise<void>>();
+  /** What we send as video now (camera or screen), so links made later start with it. */
+  private video: MediaStreamTrack | null = null;
 
   constructor(
     private selfId: PeerId,
@@ -206,8 +209,9 @@ export class WebrtcMesh {
     void this.connect(peerId);
   }
 
-  /** Apply a camera on/off to every open peer connection. */
+  /** Apply the outgoing video (camera, screen, or none) to every open peer connection. */
   setVideo(track: MediaStreamTrack | null, stream: MediaStream): void {
+    this.video = track;
     for (const link of this.links.values()) link.setVideo(track, stream);
   }
 
@@ -225,7 +229,7 @@ export class WebrtcMesh {
         this.net.send({ type: 'ice-candidate', to: peerId, candidate, sid: link.sid }),
       onTrack: (s) => this.onTrack(peerId, s),
       onFailed: () => this.restart(peerId, link),
-    });
+    }, this.video);
     // disconnected while media was being acquired: drop it.
     if (!this.connecting.has(peerId)) {
       link.close();

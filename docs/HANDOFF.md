@@ -1,7 +1,32 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-30 (Admin + live building, Phase 2 wired)
-**Branch:** `claude/nifty-archimedes-e4o1ce`
+**Last updated:** 2026-10-30 (Social HUD + wardrobe)
+**Branch:** `master` (user asked: work on master directly, no more PRs)
+
+## Social HUD + wardrobe — DONE, COMMITTED on master (2026-10-30); manual multi-browser checks partly done
+Spec: `docs/specs/social-hud.md`.
+- **Protocol:** `status` / `busy` / `sharing` on `PeerState` + `JoinMsg`; `StatusMsg` → `peer-status`;
+  `ChatMsg` → `chat` relay (`from`, `name`, `text`, `at`). `normalizeStatus` (80) / `normalizeChat` (300)
+  / `normalizeStatusFields`. ws server + `Room.updateStatus`; `SupabaseNet` broadcast events `status`
+  and `chat`, status kept in presence (late joiners), de-duplicated `peer-status`.
+- **HUD** (`hud.ts`, top-left): `← Leave` (saves position, then `location.reload()` = join screen),
+  status pill (click to edit; daily: `byte_grounds.status` = `{ text, day }`, resets next day,
+  `chat.ts`), `Busy` (or `/busy`, `/afk`; walking ends it), `Chat` + unread count; panel with log +
+  input; `/status <text>`, `/help`. Enter focuses chat; `Keyboard` ignores keys typed in inputs.
+- **Render:** names above heads (`labelLift`), status line, animated zzZ; Habbo-style chat balloons
+  with the speaker's face (`drawHead` / `HEAD_CROP` in `sprites.ts`) that stack and rise.
+- **Screen share:** `MediaManager` "Share screen" (`getDisplayMedia`; hidden where unsupported); the
+  screen replaces the camera on the same video sender; `WebrtcMesh` remembers the outgoing video for
+  links made later. `ScreenStage` (top centre, Minimize/Show) shows the nearest connected presenter;
+  their bubble hides meanwhile (audio stays). Video bubbles now float 64 px up (clear the tags).
+- **Wardrobe:** skins `light, olive, tan, brown, dark, orc, skeleton` for both sexes (upstream
+  `tanned2, tanned, dark, dark2`); `female_skeleton.png` = copy of the male skeleton (female clothes
+  fit); 7 new presets (17 total) incl. Orc (F), Skeleton (F), Business (F). Sit sheets regenerated.
+- Tests: 300 green; client typecheck + build green.
+- **Verified in a browser** (local ws mode, two Chrome contexts via Playwright, fake media): status,
+  busy zzZ, chat log both ways + balloons with faces, WASD typed in chat doesn't move, screen share
+  → the other side's stage "Ana is presenting", Leave → join screen, no console errors.
+- **Not verified:** Supabase mode (production Realtime), phones, a third peer walking up mid-share.
 
 ## Admin + live building — Phase 2 (P2-U1..U16) code DONE and WIRED (2026-10-30); P2-U17 manual checks pending
 Spec: `docs/specs/admin-live-building.md` (rev 2), Phase 2.

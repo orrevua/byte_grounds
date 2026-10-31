@@ -21,6 +21,9 @@ import { hasSupabase } from './supabase.ts';
 import { adminEmail, checkIsAdmin, ensureSession, signInAdmin, signOutAdmin } from './auth.ts';
 import { GrantsFeed } from './grants.ts';
 import { LiveMap } from './live-map.ts';
+import { Hud } from './hud.ts';
+import { dayKey, loadDailyStatus, saveDailyStatus } from './chat.ts';
+import { isTouchDevice } from './input.ts';
 
 /** Color is vestigial now (the sprite appearance drives the look); keep a stable default. */
 const DEFAULT_COLOR = '#4f8cff';
@@ -29,6 +32,7 @@ const DEFAULT_COLOR = '#4f8cff';
 const STORAGE_KEY = 'byte_grounds.appearance';
 const NAME_KEY = 'byte_grounds.name';
 const MAP_KEY = 'byte_grounds.map';
+const STATUS_KEY = 'byte_grounds.status';
 /** How often to save our spot while moving (also saved when the page is closed). */
 const SAVE_POSITION_MS = 5000;
 
@@ -258,10 +262,11 @@ async function join(name: string, appearance: Appearance, mapId: string): Promis
   const isAdmin = uid ? await checkIsAdmin() : false;
   await loadDecorSheets((map.decor ?? []).map((d) => d.sheet));
   const start = startPosition(map, saved);
-  const self: SelfInfo = { name, color: DEFAULT_COLOR, appearance, isAdmin, ...(uid ? { uid } : {}) };
+  const status = loadDailyStatus(localStorage.getItem(STATUS_KEY), dayKey(new Date()));
+  const self: SelfInfo = { name, color: DEFAULT_COLOR, appearance, isAdmin, status, ...(uid ? { uid } : {}) };
   net = createNet();
   net.connect(
-    { name, color: DEFAULT_COLOR, appearance, room: map.id, ...start, ...(uid ? { uid } : {}) },
+    { name, color: DEFAULT_COLOR, appearance, room: map.id, ...start, status, ...(uid ? { uid } : {}) },
     {
       onStatus: setStatus,
       onMessage: (msg) => {
@@ -293,23 +298,45 @@ function startGame(self: SelfInfo, selfId: PeerId, map: OfficeMap, start: { x: n
     game.attachLive(live);
     void live.start().catch((err) => console.warn('[live] edits feed failed:', err));
   }
-  savePositionPeriodically(map.id, self.name);
+  const savePosition = savePositionPeriodically(map.id, self.name);
+  attachHud(game, savePosition);
 }
 
-/** Remember where we are on this map, so we come back to the same spot next time. */
-function savePositionPeriodically(mapId: string, name: string): void {
+/** The HUD drives the game (status, busy, chat); Leave goes back to the join screen. */
+function attachHud(g: Game, savePosition: () => Promise<void>): void {
+  const hud = new Hud(
+    {
+      // A reload is the join screen, and it releases mic/cam/screen, channels and timers at once.
+      leave: () => void savePosition().finally(() => location.reload()),
+      setStatus: (text) => {
+        g.setStatus(text);
+        localStorage.setItem(STATUS_KEY, saveDailyStatus(g.statusFields.status, dayKey(new Date())));
+      },
+      toggleBusy: () => g.toggleBusy(),
+      sendChat: (text) => g.sendChat(text),
+    },
+    g.statusFields,
+    !isTouchDevice(),
+  );
+  g.onSelfStatus = (fields) => hud.setSelfStatus(fields);
+  g.onChat = (name, text, self) => hud.addChat(name, text, self);
+}
+
+/** Remember where we are on this map, so we come back to the same spot next time. Returns a save-now. */
+function savePositionPeriodically(mapId: string, name: string): () => Promise<void> {
   let last = game!.position;
-  const save = () => {
+  const save = async (): Promise<void> => {
     const pos = game?.position;
     if (!pos || (pos.x === last.x && pos.y === last.y)) return;
     last = pos;
-    void store.savePosition(mapId, name, pos.x, pos.y).catch(() => {});
+    await store.savePosition(mapId, name, pos.x, pos.y).catch(() => {});
   };
   setInterval(save, SAVE_POSITION_MS);
-  addEventListener('pagehide', save);
+  addEventListener('pagehide', () => void save());
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') save();
+    if (document.visibilityState === 'hidden') void save();
   });
+  return save;
 }
 
 renderJoin();
