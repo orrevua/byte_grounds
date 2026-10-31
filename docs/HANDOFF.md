@@ -1,7 +1,17 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-31 (Sheet Studio)
+**Last updated:** 2026-10-31 (Gemini sheets)
 **Branch:** `master` (user asked: work on master directly, no more PRs)
+
+## Gemini sheets — DONE, PUSHED (2026-10-31)
+- `tools/pixelate_image.py`: AI image → 32px sheet (art-pixel shrink keeping outlines, background key,
+  grid-line removal incl. broken / haloed lines but not poles, translucent shadows, specks). Then
+  `tools/repack_decor.py`. Guide: docs/sheet-studio.md "From an AI image".
+- `gemini_office(_grid).png` (scale 3.125) and `gemini_lounge(_grid).png` (scale 8) from the user's
+  Gemini images (JPGs in the repo root, not committed); 40 seat rules. Verified locally: blue chair
+  placed in the editor, "Sit (E)" → seated.
+- Leftover local dev servers from test runs (vite on ports 5173–5178, ws on 8080) could not be stopped
+  by the agent (permission); stop them by hand if they are still running.
 
 ## Sheet Studio — DONE, COMMITTED + PUSHED (2026-10-31); verified in local mode
 Spec: `docs/specs/sheet-studio.md`; guide for humans + agents: `docs/sheet-studio.md`.

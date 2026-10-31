@@ -98,3 +98,17 @@ rules for the sheet to `shared/src/seat-catalog.json` (see the `modern_office` r
   (`tools/sheet_spec.mts render`) still take their seats from `shared/src/seat-catalog.json`.
 - Deleting a saved sheet makes pieces already placed with it stop drawing.
 - Setup: run `supabase/sheets.sql` once in the Supabase SQL editor (after `admin.sql`).
+
+## From an AI image (Gemini & co.)
+AI "pixel art" is a big JPEG where each art pixel is a block of a few px, with a background, grid
+lines and painted shadows. Convert it to a real sheet, then give its pieces whole cells:
+```sh
+python tools/pixelate_image.py image.jpg client/src/assets/decor/<name>.png --scale <px> --preview <dir>
+python tools/repack_decor.py <name>          # writes <name>_grid.png; the picker shows that one
+```
+- `--scale` = source px per art pixel, chosen so one chair (or one grid cell of the image) becomes
+  32px: the Gemini office sheet used `3.125` (its 100px cells → 32px), the lounge one `8`.
+- Check `<dir>/<name>_x4.png`, then add seat rules for chairs/sofas to `shared/src/seat-catalog.json`
+  (cells of `<name>_grid.png`) and a CREDITS row.
+- Best prompts: flat plain background, no grid lines, pieces apart from each other, top-down 3/4
+  view, chairs drawn both facing down and facing up.
