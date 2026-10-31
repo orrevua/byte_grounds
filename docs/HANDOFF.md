@@ -1,7 +1,38 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-30 (Social HUD + wardrobe)
+**Last updated:** 2026-10-31 (meeting rooms, picker, beds, zoom, drinks, [ADM])
 **Branch:** `master` (user asked: work on master directly, no more PRs)
+
+## 2026-10-31 batch — DONE, COMMITTED + PUSHED on master; verified in local ws mode (Playwright, fake media)
+- **Meeting rooms** (`docs/specs/meeting-rooms.md`): `OfficeMap.zones` (`Zone {name,x,y,w,h}`; absent =
+  never set; a saved built-in copy without zones inherits the built-in's that fit, `pickMap`). Office
+  ships one (x 32–46, y 1–12). Same room = connected at full volume at any distance; rooms are closed
+  to outsiders (`nextLinkState`). Share screen only inside a room (leaving stops it). Pill
+  "<room> · Open meeting view" → `meeting.ts` Google Meet-style overlay (grid / presentation layout,
+  mic, cam, present, red leave = `stepOutOf`, Back to map / Esc). Editor tool **Meeting room** (drag =
+  add + name, click inside = remove). Lounge has **no** room: add one in the editor.
+- **Picker** (`decor-objects.ts` `pickCellsAt`): objects > 4 cells per side (packed sheets: chairs
+  columns, armchairs, formal sofas, thrones, counters, beds) are cut at outline seams, then at the
+  repeat period of colour variants (not when the colours repeat too = one long counter).
+- **Beds:** `tools/gen_bed_seats.py` finds every blanket in `beds_grid` / `beds_single_grid` by its
+  white hem and adds `fallback` lie spots on its head row; `derivedSeats` drops one when a pillow spot
+  is right at its head.
+- **Lying:** no more cream blanket sprite (`blanket.png`, `gen_blanket.py` deleted). Head + shoulders
+  on the pillow (`HEAD_ON_PILLOW = 0`), sleepers sort past their bed (`avatarAnchorY`), and
+  `Game.drawBedOver` redraws the bed's cells toward the feet over the body; 1px breathing.
+- **Zoom:** wheel / + - / buttons (`#zoom-ctl`) / pinch, 100–300% (`ZOOM_STEPS`), remembered
+  (`byte_grounds.zoom`); Ctrl+wheel and Ctrl+/- redirected; viewport meta `user-scalable=no`; the HUD
+  is DOM so it never scales.
+- **Drinks** (`dispensers.ts`): office coffee maker `office(10,0)`, water cooler `office(10,20|21)`
+  (Lounge has 4 coffee makers, Office both). F / button → cup for 30 s, 1 min or 5 min (random);
+  `item` in the status fields (synced). Drawn by the hand (`cupRest`), hidden facing away / lying /
+  dancing; every 7 s a sip (`sipStep`: bow row 18 cols 4→6→4 facing down, thrust rows 5/7 col 7
+  sideways). The male business suit lacks those rows (`hasArmFrames`) → cup lifts without the arm.
+- **[ADM] tag:** `admin` flag in join/presence (from `checkIsAdmin()`), yellow `[ADM]` before the
+  name. Cosmetic only; a modified client could fake the tag, but RLS still decides real powers.
+- Tests: 328 green; client typecheck + build green.
+- **Not verified:** Supabase mode (production Realtime), phones (pinch, layout), the [ADM] tag on
+  screen (needs a real admin sign-in), a 3rd peer walking into a meeting mid-share.
 
 ## Social HUD + wardrobe — DONE, COMMITTED on master (2026-10-30); manual multi-browser checks partly done
 Spec: `docs/specs/social-hud.md`.
