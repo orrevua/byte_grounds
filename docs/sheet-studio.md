@@ -112,3 +112,11 @@ python tools/repack_decor.py <name>          # writes <name>_grid.png; the picke
   (cells of `<name>_grid.png`) and a CREDITS row.
 - Best prompts: flat plain background, no grid lines, pieces apart from each other, top-down 3/4
   view, chairs drawn both facing down and facing up.
+
+## Gemini from Claude Code (MCP)
+`tools/gemini_mcp.py` is a local MCP server (registered with
+`claude mcp add gemini -- python <abs path>/tools/gemini_mcp.py`) that gives the agent three tools:
+`generate_image(prompt, output_path, reference_images?)` (saves under `art/gemini/`, git-ignored),
+`analyze_image(image_path, prompt)` and `list_models()`. It reads `GEMINI_API_KEY` from the
+environment Claude Code starts in; `GEMINI_IMAGE_MODEL` / `GEMINI_TEXT_MODEL` override the models.
+Flow: generate → `tools/pixelate_image.py` → `tools/repack_decor.py` → seat rules → commit.

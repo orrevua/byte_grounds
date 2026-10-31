@@ -10,3 +10,7 @@ coverage/
 
 __pycache__/
 *.pyc
+
+# Gemini MCP output (source images; converted sheets live in client/src/assets/decor)
+art/gemini/
+Gemini_Generated_Image_*.jpg
