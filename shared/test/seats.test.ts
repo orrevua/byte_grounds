@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import catalog from '../src/seat-catalog.json' with { type: 'json' };
-import type { DecorCell, OfficeMap, Rotation } from '../src/map.ts';
+import { createBlankMap, type DecorCell, type OfficeMap, type Rotation } from '../src/map.ts';
 import { buildIndex, derivedSeats, effectiveSeats, isSeatRule, ruleCells, seatSpot } from '../src/seats.ts';
 
 const DECOR_DIR = resolve(import.meta.dirname, '../../client/src/assets/decor');
@@ -55,12 +55,13 @@ describe('seat catalog', () => {
 describe('seat catalog beds (tier B)', () => {
   const lie = (dir: string) => ({ kind: 'lie', dir });
 
-  it('beds_grid: pillow pieces face away from the pillows; blankets are no seat', () => {
+  it('beds_grid: pillow pieces face away from the pillows; a blanket head row is a fallback spot', () => {
     expect(seatSpot('beds_grid', 11, 0)).toEqual(lie('down'));
     expect(seatSpot('beds_grid', 9, 31)).toEqual(lie('up'));
     expect(seatSpot('beds_grid', 6, 43)).toEqual(lie('right'));
     expect(seatSpot('beds_grid', 11, 49)).toEqual(lie('left'));
-    expect(seatSpot('beds_grid', 3, 2)).toBeUndefined();
+    expect(seatSpot('beds_grid', 3, 2)).toEqual({ ...lie('up'), fallback: true });
+    expect(seatSpot('beds_grid', 3, 1)).toBeUndefined(); // a blanket's body
   });
 
   it('beds_single_grid: both cells of each pillow piece', () => {
@@ -68,7 +69,7 @@ describe('seat catalog beds (tier B)', () => {
     expect(seatSpot('beds_single_grid', 11, 5)).toEqual(lie('up'));
     expect(seatSpot('beds_single_grid', 11, 10)).toEqual(lie('right'));
     expect(seatSpot('beds_single_grid', 2, 16)).toEqual(lie('left'));
-    expect(seatSpot('beds_single_grid', 9, 3)).toBeUndefined();
+    expect(seatSpot('beds_single_grid', 9, 3)).toEqual({ ...lie('down'), fallback: true });
   });
 
   it('upholstery, house_inside and wooden_furniture whole beds', () => {
@@ -227,5 +228,30 @@ describe('effectiveSeats', () => {
       { x: 5, y: 5, kind: 'lie', dir: 'down' },
       { x: 2, y: 2, kind: 'sit', dir: 'down' },
     ]);
+  });
+});
+
+describe('bed blankets', () => {
+  // beds_single_grid: a blanket head cell at (2,2), feet up (the pillow goes below it), and an
+  // up-facing pillow cell at (6,3).
+  const blanketHead = (x: number, y: number): DecorCell => ({ x, y, sheet: 'beds_single_grid', sx: 2, sy: 2 });
+  const pillow = (x: number, y: number): DecorCell => ({ x, y, sheet: 'beds_single_grid', sx: 6, sy: 3 });
+  const room = (decor: DecorCell[]): OfficeMap => ({ ...createBlankMap('b', 10, 10), decor });
+
+  it('marks blanket head cells as fallback lie spots', () => {
+    expect(seatSpot('beds_single_grid', 2, 2)).toEqual({ kind: 'lie', dir: 'up', fallback: true });
+    expect(seatSpot('beds_single_grid', 6, 3)).toEqual({ kind: 'lie', dir: 'up' });
+  });
+
+  it('a blanket alone offers Lie down', () => {
+    expect(derivedSeats(room([blanketHead(4, 4)]))).toEqual([{ x: 4, y: 4, kind: 'lie', dir: 'up' }]);
+  });
+
+  it('a pillow at the head of the blanket takes over (head on the pillow)', () => {
+    expect(derivedSeats(room([blanketHead(4, 4), pillow(4, 5)]))).toEqual([{ x: 4, y: 5, kind: 'lie', dir: 'up' }]);
+  });
+
+  it('a pillow elsewhere does not hide the blanket spot', () => {
+    expect(derivedSeats(room([blanketHead(4, 4), pillow(4, 3)]))).toHaveLength(2);
   });
 });

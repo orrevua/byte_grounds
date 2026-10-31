@@ -5,6 +5,8 @@ import { transformFacing, type Facing, type OfficeMap, type Seat } from './map.t
 export interface SeatSpot {
   kind: Seat['kind'];
   dir: Facing;
+  /** A blanket's head row (tools/gen_bed_seats.py): only used when no pillow spot is at its head. */
+  fallback?: true;
 }
 
 /**
@@ -20,6 +22,7 @@ export interface SeatRule {
   step?: [number, number];
   kind: Seat['kind'] | 'none';
   dir?: Facing;
+  fallback?: boolean;
 }
 
 const FACINGS: readonly unknown[] = ['up', 'down', 'left', 'right'];
@@ -61,7 +64,7 @@ export function buildIndex(rules: readonly unknown[]): Map<string, SeatSpot> {
     for (const { sx, sy } of ruleCells(r)) {
       const key = cellKey(r.sheet, sx, sy);
       if (r.kind === 'none') index.delete(key);
-      else index.set(key, { kind: r.kind, dir: r.dir! });
+      else index.set(key, { kind: r.kind, dir: r.dir!, ...(r.fallback === true ? { fallback: true as const } : {}) });
     }
   }
   return index;
@@ -79,15 +82,33 @@ export function seatSpot(sheet: string, sx: number, sy: number): SeatSpot | unde
  * the cell's transform. On a tile with several seat cells the last one (drawn on top) wins.
  */
 export function derivedSeats(m: OfficeMap): Seat[] {
-  const byTile = new Map<string, Seat>();
+  const byTile = new Map<string, { seat: Seat; fallback: boolean }>();
   for (const cell of m.decor ?? []) {
     const spot = seatSpot(cell.sheet, cell.sx, cell.sy);
     if (!spot) continue;
     const dir = transformFacing(spot.dir, { rot: cell.rot ?? 0, flipX: cell.flipX === true });
-    byTile.set(`${cell.x},${cell.y}`, { x: cell.x, y: cell.y, kind: spot.kind, dir });
+    byTile.set(`${cell.x},${cell.y}`, { seat: { x: cell.x, y: cell.y, kind: spot.kind, dir }, fallback: spot.fallback === true });
   }
-  return [...byTile.values()];
+  // A blanket's spot gives way to a pillow spot right at its head (pillow + blanket = one bed,
+  // head on the pillow); a blanket on its own keeps it.
+  const out: Seat[] = [];
+  for (const { seat, fallback } of byTile.values()) {
+    if (fallback) {
+      const v = STEP[seat.dir];
+      const head = byTile.get(`${seat.x - v.dx},${seat.y - v.dy}`);
+      if (head && !head.fallback && head.seat.kind === 'lie') continue;
+    }
+    out.push(seat);
+  }
+  return out;
 }
+
+const STEP: Record<Facing, { dx: number; dy: number }> = {
+  up: { dx: 0, dy: -1 },
+  down: { dx: 0, dy: 1 },
+  left: { dx: -1, dy: 0 },
+  right: { dx: 1, dy: 0 },
+};
 
 /** The seats players can use: authored seats, then derived ones on other tiles not in `noSeats`. */
 export function effectiveSeats(m: OfficeMap): Seat[] {
