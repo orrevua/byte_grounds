@@ -90,3 +90,11 @@ describe('stackedDecorAnchors', () => {
     expect(stackedDecorAnchors([deskBack, chair, phone], (c) => !('seat' in c))).toEqual([6.5, 3.5, 6.5]);
   });
 });
+
+describe('avatarAnchorY when lying', () => {
+  it('sorts a sleeper past their bed: two rows down when the feet point down', () => {
+    expect(avatarAnchorY({ y: 3.5, pose: 'lie', dir: 'down' })).toBeCloseTo(5.7);
+    expect(avatarAnchorY({ y: 3.5, pose: 'lie', dir: 'up' })).toBeCloseTo(3.7);
+    expect(avatarAnchorY({ y: 3.5, pose: 'sit', dir: 'down' })).toBe(3.5);
+  });
+});

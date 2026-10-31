@@ -33,10 +33,19 @@ export function stackedDecorAnchors<T extends { x: number; y: number; baseDy?: n
   });
 }
 
-/** An avatar's anchor is its feet point. */
-export function avatarAnchorY(a: { y: number }): number {
-  return a.y;
+/**
+ * An avatar's anchor is its feet point. Someone lying in bed sorts just past the bed's base row
+ * (beds are up to 3 tiles long; with the feet pointing down that row is 2 tiles further), so the
+ * whole bed draws first and the head stays on the pillow; the blanket is then drawn back over the
+ * body (`Game.drawBedOver`).
+ */
+export function avatarAnchorY(a: { y: number; pose?: string; dir?: string }): number {
+  if (a.pose !== 'lie') return a.y;
+  return a.y + (a.dir === 'down' ? LIE_DOWN_LIFT : LIE_LIFT);
 }
+
+const LIE_DOWN_LIFT = 2.2;
+const LIE_LIFT = 0.2;
 
 export interface Renderable {
   anchorY: number;

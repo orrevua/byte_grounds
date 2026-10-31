@@ -1,4 +1,3 @@
-import { TILE_SIZE } from '@byte_grounds/shared/protocol';
 import type { Appearance, Pose } from '@byte_grounds/shared/protocol';
 
 export type Direction = 'up' | 'left' | 'down' | 'right';
@@ -317,9 +316,9 @@ function preloadUrls(urls: Iterable<string>): Promise<void> {
   return Promise.all(pending).then(() => undefined);
 }
 
-/** Preload every stand + sit layer image (and the bed blanket) for the appearance (idempotent via the cache). */
+/** Preload every stand + sit layer image for the appearance (idempotent via the cache). */
 export function preloadAppearance(a: Appearance): Promise<void> {
-  return preloadUrls([...appearanceToLayers(a), ...appearanceToLayers(a, 'sit'), BLANKET_URL]);
+  return preloadUrls([...appearanceToLayers(a), ...appearanceToLayers(a, 'sit')]);
 }
 
 /** Preload the full vendored layer set once (editor init). */
@@ -357,28 +356,27 @@ export function lieTransform(dir: Direction): { src: Direction; rot: number } {
 /** Px shift from the pillow-tile center along the feet so the head rests on the pillow. */
 export const LIE_SHIFT = 8;
 
-export interface Rect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-/** Original-art blanket (tools/gen_blanket.py); its size matches `tuckLayout().blanket`. */
-export const BLANKET_URL = '/sprites/blanket.png';
 /** Head center row and the shoulder cut (rows kept) of a standing up/down frame. */
 const TUCK_HEAD_Y = 22;
 const TUCK_CROP = 38;
-/** Blanket: one tile wide minus a 3px inset per side, from the shoulders to the bed's foot end. */
-const BLANKET_INSET = 3;
-const BLANKET_TOP = 11;
+/** Shift of the head toward the feet: at 0 the chin meets the pillow tile's edge, where the blanket starts. */
+const HEAD_ON_PILLOW = 0;
+/** One slow breath: the sleeper's head and shoulders rise 1px and settle. */
+export const BREATH_MS = 3600;
+
+/** 0 or 1 px: the breathing offset at a millisecond clock (out of phase per sleeper via `seed`). */
+export function breathOffset(ms: number, seed = 0): number {
+  if (!Number.isFinite(ms)) return 0;
+  const t = (((ms + seed) % BREATH_MS) + BREATH_MS) % BREATH_MS;
+  return t < BREATH_MS / 2 ? 0 : 1;
+}
 
 /**
  * Tucked-in lie (up/down beds), in local px around the pillow-tile center with the feet toward
  * +y; draw rotated by `rot`. `down`: the face-on `down` frame. `up`: the back-of-head `up` frame
  * turned π (the head points at the viewer, so the crown shows; an upside-down face reads badly).
- * The head sits on the pillow, only the top `crop` rows (head + shoulders) are drawn, and the
- * blanket covers the rest of the 2-tile bed.
+ * The head rests on the pillow and only the top `crop` rows (head + shoulders) are drawn: the
+ * bed's own blanket cells are drawn back over the body (see `Game.drawBedOver`).
  */
 export function tuckLayout(dir: Direction): {
   src: Direction;
@@ -386,21 +384,13 @@ export function tuckLayout(dir: Direction): {
   frameX: number;
   frameY: number;
   crop: number;
-  blanket: Rect;
 } {
-  const bottom = TILE_SIZE * 1.5 - 2; // foot end of the 2-tile bed, inside its outline
   return {
     src: dir === 'up' ? 'up' : 'down',
     rot: dir === 'up' ? Math.PI : 0,
     frameX: -FRAME_SIZE / 2,
-    frameY: -TUCK_HEAD_Y - 2,
+    frameY: -TUCK_HEAD_Y + HEAD_ON_PILLOW,
     crop: TUCK_CROP,
-    blanket: {
-      x: -TILE_SIZE / 2 + BLANKET_INSET,
-      y: BLANKET_TOP,
-      w: TILE_SIZE - 2 * BLANKET_INSET,
-      h: bottom - BLANKET_TOP,
-    },
   };
 }
 
@@ -456,12 +446,10 @@ export function drawDanceAppearance(
   blitLayers(ctx, appearanceToLayers(a), col * FRAME_SIZE, row * FRAME_SIZE, destX + dx, destY + dy);
 }
 
-/** Tucked-in lie at local origin (see `tuckLayout`): head + shoulders, then the blanket over the body. */
-export function drawTuckedAppearance(ctx: CanvasRenderingContext2D, a: Appearance, dir: Direction): void {
-  const { src, frameX, frameY, crop, blanket } = tuckLayout(dir);
-  blitLayers(ctx, appearanceToLayers(a), 0, WALK_ROW[src] * FRAME_SIZE, frameX, frameY, crop);
-  const img = loadImage(BLANKET_URL);
-  if (img.complete && img.naturalWidth > 0) ctx.drawImage(img, blanket.x, blanket.y, blanket.w, blanket.h);
+/** Tucked-in lie at local origin (see `tuckLayout`): head + shoulders on the pillow, `breath` px lower. */
+export function drawTuckedAppearance(ctx: CanvasRenderingContext2D, a: Appearance, dir: Direction, breath = 0): void {
+  const { src, frameX, frameY, crop } = tuckLayout(dir);
+  blitLayers(ctx, appearanceToLayers(a), 0, WALK_ROW[src] * FRAME_SIZE, frameX, frameY + breath, crop);
 }
 
 /** The face / head box of the standing down-facing frame (frame px), used for chat-balloon avatars. */

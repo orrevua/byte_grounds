@@ -8,6 +8,7 @@ import {
   drawAppearance,
   drawDanceAppearance,
   drawSitAppearance,
+  breathOffset,
   drawTuckedAppearance,
   lieMode,
   lieTransform,
@@ -125,7 +126,8 @@ const FEET_VECTOR: Record<Direction, { dx: number; dy: number }> = {
  * Draw an avatar in a pose at tile point (x, y). Sitting: the bent-leg sit frame, feet-anchored
  * like standing (furniture in front hides the legs via depth sort). Lying on a left/right bed: the
  * profile frame rotated onto its side (`lieTransform`), shifted along `dir` so the head rests on
- * the pillow. On an up/down bed: tucked in, head on the pillow and a blanket over the body.
+ * the pillow. On an up/down bed: tucked in, head on the pillow. Either way the head breathes (1px,
+ * slow) and the game draws the bed's own cells back over the body.
  * Dancing: the dance step at `nowMs` (a wall clock, so every screen is on the same beat).
  */
 export function drawPosedSprite(
@@ -154,14 +156,16 @@ export function drawPosedSprite(
     ctx.save();
     ctx.translate(px, py);
     ctx.rotate(tuckLayout(dir).rot);
-    drawTuckedAppearance(ctx, a, dir);
+    drawTuckedAppearance(ctx, a, dir, breathOffset(nowMs, seedOf(x, y)));
     ctx.restore();
     return;
   }
   const feet = FEET_VECTOR[dir];
   const { src, rot } = lieTransform(dir);
   ctx.save();
-  ctx.translate(px + feet.dx * LIE_SHIFT, py + feet.dy * LIE_SHIFT);
+  // Breathing nudges the sleeper toward the pillow and back.
+  const b = breathOffset(nowMs, seedOf(x, y));
+  ctx.translate(px + feet.dx * (LIE_SHIFT - b), py + feet.dy * (LIE_SHIFT - b));
   ctx.rotate(rot);
   drawAppearance(ctx, a, src, 0, -FRAME_SIZE / 2, -FRAME_SIZE / 2);
   ctx.restore();
@@ -397,4 +401,9 @@ function drawZoneArea(ctx: CanvasRenderingContext2D, x: number, y: number, w: nu
   ctx.strokeStyle = on ? 'rgba(120, 170, 255, 0.9)' : 'rgba(120, 170, 255, 0.5)';
   ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
   ctx.setLineDash([]);
+}
+
+/** A per-bed phase so neighbours don't breathe in unison. */
+function seedOf(x: number, y: number): number {
+  return Math.floor(x * 7919 + y * 104729) % 3600;
 }

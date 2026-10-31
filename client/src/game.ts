@@ -79,6 +79,14 @@ interface RemoteAvatar extends Avatar {
   uid?: string;
 }
 
+/** Toward the feet of someone lying facing `dir`. */
+const FEET: Record<Direction, { dx: number; dy: number }> = {
+  up: { dx: 0, dy: -1 },
+  down: { dx: 0, dy: 1 },
+  left: { dx: -1, dy: 0 },
+  right: { dx: 1, dy: 0 },
+};
+
 /** How close (tiles, to the seat's center) you must be to sit/lie on it. */
 const SEAT_REACH = 1.6;
 
@@ -911,6 +919,7 @@ export class Game {
         if (!it.isSelf && it.id !== null && this.prox.get(it.id) === 'near') this.drawRing(it.av.x, it.av.y);
         this.drawCharacter(it.av);
         if (it.av.pose === 'sit' && it.av.dir === 'up') this.drawChairBackOver(it.av);
+        if (it.av.pose === 'lie' && appearanceReady(it.av.appearance)) this.drawBedOver(it.av);
       }
     }
 
@@ -945,6 +954,23 @@ export class Game {
       if (d.x === x && d.y === y && decorLayer(this.map, d) === 'object' && seatSpot(d.sheet, d.sx, d.sy)) {
         drawDecorCellAt(this.ctx, d);
       }
+    }
+  }
+
+  /**
+   * Lying in bed, the body is under the covers: draw the bed's own cells on the tiles toward the
+   * feet (the blanket) back over the avatar, so only the head and shoulders on the pillow show.
+   * Every decor cell of those tiles is redrawn in map order (floor first), exactly as the map
+   * shows them, so nothing else changes.
+   */
+  private drawBedOver(a: Avatar): void {
+    const x = Math.floor(a.x);
+    const y = Math.floor(a.y);
+    const v = FEET[a.dir];
+    const tiles = new Set([1, 2].map((k) => `${x + v.dx * k},${y + v.dy * k}`));
+    const cells = (this.map.decor ?? []).filter((d) => tiles.has(`${d.x},${d.y}`));
+    for (const layer of ['floor', 'object'] as const) {
+      for (const d of cells) if (decorLayer(this.map, d) === layer) drawDecorCellAt(this.ctx, d);
     }
   }
 
