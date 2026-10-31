@@ -1,6 +1,6 @@
 import { TILE_SIZE } from '@byte_grounds/shared/protocol';
 import { DECOR_SHEETS, TILE_SHEETS, decorImage, decorObjects } from './decor.ts';
-import { objectAt, objectCells, type CellRect } from './decor-objects.ts';
+import { pickCellsAt, type CellRect } from './decor-objects.ts';
 import {
   IDENTITY,
   describeTransform,
@@ -172,8 +172,7 @@ export function mountDecorPicker(
   const clickPick = (e: PointerEvent): CellRect => {
     const p = pixelAt(e);
     const objs = e.altKey || TILE_SHEETS.has(sheet) ? null : decorObjects(sheet);
-    const obj = objs && objectAt(objs, p.x, p.y);
-    return obj ? objectCells(obj) : { sx: Math.floor(p.x / TILE_SIZE), sy: Math.floor(p.y / TILE_SIZE), w: 1, h: 1 };
+    return (objs && pickCellsAt(objs, p.x, p.y)) ?? { sx: Math.floor(p.x / TILE_SIZE), sy: Math.floor(p.y / TILE_SIZE), w: 1, h: 1 };
   };
   const rectKey = (r: CellRect | null) => (r ? `${r.sx},${r.sy},${r.w},${r.h}` : '');
   const setHover = (pick: CellRect | null) => {

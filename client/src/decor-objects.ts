@@ -39,6 +39,8 @@ export interface SheetObjects {
   width: number;
   height: number;
   solid: Uint8Array;
+  /** Per-pixel brightness (0..255), to tell a sprite's outline from its fill. */
+  luma: Uint8Array;
   label: Int32Array;
   boxes: Map<number, ObjectBox>;
 }
@@ -121,7 +123,9 @@ export function labelObjects(buf: PixelBuffer): SheetObjects {
   const { width: w, height: h, data } = buf;
   const solid = new Uint8Array(w * h);
   const shadow = new Uint8Array(w * h);
+  const luma = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) {
+    luma[i] = Math.round(0.299 * data[i * 4]! + 0.587 * data[i * 4 + 1]! + 0.114 * data[i * 4 + 2]!);
     const a = data[i * 4 + 3]!;
     if (a >= SOLID_ALPHA) solid[i] = 1;
     else if (a > 0) shadow[i] = 1;
@@ -159,7 +163,7 @@ export function labelObjects(buf: PixelBuffer): SheetObjects {
     if (b.cx0 === Infinity) Object.assign(b, { cx0: b.x0, cy0: b.y0, cx1: b.x1, cy1: b.y1 });
   }
   absorbFragments(label, boxes);
-  return { width: w, height: h, solid, label, boxes };
+  return { width: w, height: h, solid, luma, label, boxes };
 }
 
 /** Labelled pixel in the `cell`-sized cell holding (px, py) nearest to it, solid ones first. */
@@ -188,10 +192,15 @@ function snapInCell(objs: SheetObjects, px: number, py: number, cell: number): n
  * solid pixel in the same cell; null when that cell is empty or the point is off the sheet.
  */
 export function objectAt(objs: SheetObjects, px: number, py: number, cell = TILE_SIZE): ObjectBox | null {
-  if (px < 0 || py < 0 || px >= objs.width || py >= objs.height) return null;
-  let i = py * objs.width + px;
-  if (!objs.label[i]) i = snapInCell(objs, px, py, cell);
+  const i = pixelUnder(objs, px, py, cell);
   return i < 0 ? null : (objs.boxes.get(objs.label[i]!) ?? null);
+}
+
+/** The labelled pixel a click at (px, py) lands on (snapped within its cell), or -1. */
+function pixelUnder(objs: SheetObjects, px: number, py: number, cell: number): number {
+  if (px < 0 || py < 0 || px >= objs.width || py >= objs.height) return -1;
+  const i = py * objs.width + px;
+  return objs.label[i] ? i : snapInCell(objs, px, py, cell);
 }
 
 /** `objectAt` straight from pixels; label once with `labelObjects` when querying repeatedly. */
@@ -208,4 +217,192 @@ export function objectCells(b: ObjectBox, cell = TILE_SIZE): CellRect {
   const sx = Math.floor(b.cx0 / cell);
   const sy = Math.floor(b.cy0 / cell);
   return { sx, sy, w: Math.floor(b.cx1 / cell) - sx + 1, h: Math.floor(b.cy1 / cell) - sy + 1 };
+}
+
+/**
+ * Objects bigger than this (cells per side) are usually several pieces packed edge to edge in the
+ * sheet (a row of armchairs, sofas or counters whose outlines touch), merged by the pixel flood.
+ */
+export const MAX_OBJECT_SPAN = 4;
+/** A pixel is its sprite's outline when the pixel just inside is this much brighter (or empty). */
+const OUTLINE_STEP = 12;
+/** Cells join when the art runs on across at least this share of the shared edge, both sides. */
+const MIN_CONTINUITY = 0.5;
+/** ...and when fewer than this share of the contacts are two outlines touching. */
+const MAX_SEAM_SHARE = 0.6;
+
+/**
+ * Whether two neighbouring cells hold one piece (true) or two packed pieces that merely touch
+ * (false). `b` is right of `a`, or below it when `vertical`. Only pixels of `lab` count.
+ */
+export function cellsJoined(objs: SheetObjects, lab: number, ax: number, ay: number, vertical: boolean, cell = TILE_SIZE): boolean {
+  const { width: w, height: h, solid, luma, label } = objs;
+  const at = (x: number, y: number) => (x >= 0 && y >= 0 && x < w && y < h ? y * w + x : -1);
+  const own = (i: number) => i >= 0 && label[i] === lab && solid[i] === 1;
+  /** Pixel i is an edge of its sprite: the pixel just inside (j) is empty or clearly brighter. */
+  const outline = (i: number, j: number) => !own(j) || luma[i]! + OUTLINE_STEP <= luma[j]!;
+  let aEdge = 0;
+  let bEdge = 0;
+  let joints = 0;
+  let seams = 0;
+  const aHit = new Set<number>();
+  const bHit = new Set<number>();
+  for (let k = 0; k < cell; k++) {
+    // a = the last pixel row/column of cell A on the boundary, b = the first of cell B.
+    const [x, y] = vertical ? [ax * cell + k, (ay + 1) * cell - 1] : [(ax + 1) * cell - 1, ay * cell + k];
+    const a = at(x, y);
+    const bx = vertical ? x : x + 1;
+    const by = vertical ? y + 1 : y;
+    if (own(a)) aEdge++;
+    if (own(at(bx, by))) bEdge++;
+    if (!own(a)) continue;
+    for (let d = -1; d <= 1; d++) {
+      const b = vertical ? at(bx + d, by) : at(bx, by + d);
+      if (!own(b)) continue;
+      joints++;
+      aHit.add(a);
+      bHit.add(b);
+      const aIn = vertical ? at(x, y - 1) : at(x - 1, y);
+      const bIn = vertical ? b + w : b + 1;
+      if (outline(a, aIn) && outline(b, bIn < w * h ? bIn : -1)) seams++;
+    }
+  }
+  if (joints === 0) return false;
+  const continuity = Math.min(aHit.size / Math.max(1, aEdge), bHit.size / Math.max(1, bEdge));
+  return continuity >= MIN_CONTINUITY && seams / joints < MAX_SEAM_SHARE;
+}
+
+/**
+ * The cells a click at sheet pixel (px, py) picks: the whole object under it, except that an
+ * oversized object (several packed pieces whose outlines touch) is cut at those seams and only
+ * the piece holding the click is picked. Null on an empty cell.
+ */
+export function pickCellsAt(objs: SheetObjects, px: number, py: number, cell = TILE_SIZE): CellRect | null {
+  const i = pixelUnder(objs, px, py, cell);
+  if (i < 0) return null;
+  const lab = objs.label[i]!;
+  const box = objs.boxes.get(lab);
+  if (!box) return null;
+  const rect = objectCells(box, cell);
+  if (rect.w <= MAX_OBJECT_SPAN && rect.h <= MAX_OBJECT_SPAN) return rect;
+  // Flood the object's cells from the clicked one, crossing only joined boundaries.
+  const hasArt = (cx: number, cy: number) => {
+    for (let y = cy * cell; y < Math.min((cy + 1) * cell, objs.height); y++) {
+      for (let x = cx * cell; x < Math.min((cx + 1) * cell, objs.width); x++) {
+        const j = y * objs.width + x;
+        if (objs.label[j] === lab && objs.solid[j]) return true;
+      }
+    }
+    return false;
+  };
+  const x0 = i % objs.width;
+  const start = { x: Math.floor(x0 / cell), y: Math.floor((i - x0) / objs.width / cell) };
+  const key = (c: { x: number; y: number }) => `${c.x},${c.y}`;
+  const seen = new Set([key(start)]);
+  const queue = [start];
+  let [minX, minY, maxX, maxY] = [start.x, start.y, start.x, start.y];
+  while (queue.length) {
+    const c = queue.shift()!;
+    minX = Math.min(minX, c.x);
+    minY = Math.min(minY, c.y);
+    maxX = Math.max(maxX, c.x);
+    maxY = Math.max(maxY, c.y);
+    const steps: [number, number, boolean][] = [
+      [c.x + 1, c.y, cellsJoined(objs, lab, c.x, c.y, false, cell)],
+      [c.x - 1, c.y, c.x > 0 && cellsJoined(objs, lab, c.x - 1, c.y, false, cell)],
+      [c.x, c.y + 1, cellsJoined(objs, lab, c.x, c.y, true, cell)],
+      [c.x, c.y - 1, c.y > 0 && cellsJoined(objs, lab, c.x, c.y - 1, true, cell)],
+    ];
+    for (const [nx, ny, ok] of steps) {
+      const n = { x: nx, y: ny };
+      if (!ok || seen.has(key(n)) || nx < rect.sx || ny < rect.sy || nx >= rect.sx + rect.w || ny >= rect.sy + rect.h) continue;
+      if (!hasArt(nx, ny)) continue;
+      seen.add(key(n));
+      queue.push(n);
+    }
+  }
+  let piece: CellRect = { sx: minX, sy: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+  // Still too big: color variants of one piece side by side (sofas, thrones) share an outline
+  // colour, so no seam shows. Their shapes repeat, though: cut at the repeat period.
+  if (piece.w > MAX_OBJECT_SPAN) piece = splitByPeriod(objs, lab, piece, start, false, cell);
+  if (piece.h > MAX_OBJECT_SPAN) piece = splitByPeriod(objs, lab, piece, start, true, cell);
+  return piece;
+}
+
+/** Mean brightness difference under which two repeats count as the same colours. */
+const SAME_COLOR_LUMA = 10;
+
+/** Whether the object's pixels in `rect` keep their colours when shifted `shift` px along x (or y). */
+function sameColorsAt(objs: SheetObjects, lab: number, rect: CellRect, shift: number, vertical: boolean, cell: number): boolean {
+  const idx = (x: number, y: number) => {
+    if (x >= objs.width || y >= objs.height) return -1;
+    const i = y * objs.width + x;
+    return objs.label[i] === lab && objs.solid[i] === 1 ? i : -1;
+  };
+  let sum = 0;
+  let n = 0;
+  for (let y = 0; y < rect.h * cell - (vertical ? shift : 0); y++) {
+    for (let x = 0; x < rect.w * cell - (vertical ? 0 : shift); x++) {
+      const px = rect.sx * cell + x;
+      const py = rect.sy * cell + y;
+      const a = idx(px, py);
+      const b = vertical ? idx(px, py + shift) : idx(px + shift, py);
+      if (a < 0 || b < 0) continue;
+      sum += Math.abs(objs.luma[a]! - objs.luma[b]!);
+      n++;
+    }
+  }
+  return n > 0 && sum / n < SAME_COLOR_LUMA;
+}
+
+/** Share of differing pixels allowed between two repeats of one shape. */
+const PERIOD_TOLERANCE = 0.05;
+
+/**
+ * The strip of `rect` holding cell `at`, cut every `p` cells along x (or y when `vertical`) where
+ * `p` is the smallest period at which the object's solid mask repeats; `rect` unchanged if none.
+ */
+function splitByPeriod(
+  objs: SheetObjects,
+  lab: number,
+  rect: CellRect,
+  at: { x: number; y: number },
+  vertical: boolean,
+  cell: number,
+): CellRect {
+  const len = vertical ? rect.h : rect.w;
+  const on = (x: number, y: number) => {
+    if (x >= objs.width || y >= objs.height) return false;
+    const i = y * objs.width + x;
+    return objs.label[i] === lab && objs.solid[i] === 1;
+  };
+  const px0 = rect.sx * cell;
+  const py0 = rect.sy * cell;
+  const pw = rect.w * cell;
+  const ph = rect.h * cell;
+  for (let p = 1; p <= len / 2; p++) {
+    if (len % p) continue;
+    const step = p * cell;
+    let diff = 0;
+    let total = 0;
+    for (let y = 0; y < (vertical ? ph - step : ph); y++) {
+      for (let x = 0; x < (vertical ? pw : pw - step); x++) {
+        const a = on(px0 + x, py0 + y);
+        const b = vertical ? on(px0 + x, py0 + y + step) : on(px0 + x + step, py0 + y);
+        if (a || b) total++;
+        if (a !== b) diff++;
+      }
+    }
+    if (total === 0 || diff / total > PERIOD_TOLERANCE) continue;
+    // Same shape in the same colours is one long tileable piece (a counter, a rug edge), not a
+    // row of colour variants: keep it whole.
+    if (sameColorsAt(objs, lab, rect, step, vertical, cell)) return rect;
+    if (vertical) {
+      const k = Math.floor((at.y - rect.sy) / p);
+      return { ...rect, sy: rect.sy + k * p, h: p };
+    }
+    const k = Math.floor((at.x - rect.sx) / p);
+    return { ...rect, sx: rect.sx + k * p, w: p };
+  }
+  return rect;
 }

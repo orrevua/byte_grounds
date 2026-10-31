@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findObjectAt, labelObjects, objectAt, objectCells, type PixelBuffer } from '../src/decor-objects.ts';
+import { findObjectAt, labelObjects, objectAt, objectCells, pickCellsAt, type PixelBuffer } from '../src/decor-objects.ts';
 
 function sheet(width: number, height: number): PixelBuffer {
   return { width, height, data: new Uint8ClampedArray(width * height * 4) };
@@ -68,5 +68,41 @@ describe('decor objects', () => {
     expect(findObjectAt(buf, 40, 10)).toBeNull();
     expect(findObjectAt(buf, -1, 4)).toBeNull();
     expect(findObjectAt(buf, 64, 4)).toBeNull();
+  });
+});
+
+/** Opaque fill of one colour (luma follows the grey level). */
+function paint(buf: PixelBuffer, x0: number, y0: number, x1: number, y1: number, grey: number): void {
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) buf.data.set([grey, grey, grey, 255], (y * buf.width + x) * 4);
+}
+
+/** A cell-filling sprite: a 1px dark outline around a light fill, with a dark detail. */
+function sprite(buf: PixelBuffer, cx: number, cy: number): void {
+  paint(buf, cx * 32, cy * 32, cx * 32 + 31, cy * 32 + 31, 30);
+  paint(buf, cx * 32 + 1, cy * 32 + 1, cx * 32 + 30, cy * 32 + 30, 200);
+  paint(buf, cx * 32 + 8, cy * 32 + 6, cx * 32 + 12, cy * 32 + 20, 30);
+}
+
+describe('pickCellsAt', () => {
+  it('picks one piece out of a row of packed sprites whose outlines touch', () => {
+    const buf = sheet(32 * 6, 32);
+    for (let i = 0; i < 6; i++) sprite(buf, i, 0);
+    const objs = labelObjects(buf);
+    expect(objectCells(objectAt(objs, 70, 16)!)).toEqual({ sx: 0, sy: 0, w: 6, h: 1 }); // the old merged pick
+    expect(pickCellsAt(objs, 70, 16)).toEqual({ sx: 2, sy: 0, w: 1, h: 1 });
+  });
+
+  it('keeps a long continuous piece (a counter) whole', () => {
+    const buf = sheet(32 * 6, 32);
+    paint(buf, 0, 4, 32 * 6 - 1, 27, 30);
+    paint(buf, 1, 5, 32 * 6 - 2, 26, 200);
+    expect(pickCellsAt(labelObjects(buf), 70, 16)).toEqual({ sx: 0, sy: 0, w: 6, h: 1 });
+  });
+
+  it('leaves small objects exactly as before', () => {
+    const buf = sheet(64, 64);
+    paint(buf, 4, 4, 50, 40, 120);
+    const objs = labelObjects(buf);
+    expect(pickCellsAt(objs, 10, 10)).toEqual(objectCells(objectAt(objs, 10, 10)!));
   });
 });
