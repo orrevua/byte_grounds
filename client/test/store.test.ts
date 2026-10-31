@@ -91,3 +91,16 @@ describe('LocalStore', () => {
     expect(playerKey('  FeLiPe ')).toBe('felipe');
   });
 });
+
+describe('meeting rooms on saved copies', () => {
+  it('a saved built-in copy without zones inherits the built-in rooms that fit; explicit [] keeps none', async () => {
+    const store = new LocalStore(memoryStorage());
+    const office = await store.loadMap('office');
+    const { zones, ...noZones } = office!;
+    expect(zones?.length).toBeGreaterThan(0);
+    await store.saveMap(noZones);
+    expect((await store.loadMap('office'))!.zones).toEqual(zones);
+    await store.saveMap({ ...noZones, zones: [] });
+    expect((await store.loadMap('office'))!.zones).toEqual([]);
+  });
+});

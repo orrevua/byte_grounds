@@ -214,6 +214,7 @@ class MapBuilder:
         self.occupied = {}  # (x, y) -> object name, for object-layer and floor objects
         self.spawn = None
         self.rooms = {}
+        self.zones = []
         self.wall_rect(0, 0, w - 1, h - 1)
 
     # walls / floors
@@ -249,6 +250,10 @@ class MapBuilder:
     def room(self, name, x, y):
         """A named point inside a room; the build checks each one is reachable from spawn."""
         self.rooms[name] = (x, y)
+
+    def zone(self, name, x, y, w, h):
+        """A meeting room: everyone inside hears each other at full volume and can share screens."""
+        self.zones.append({"name": name, "x": x, "y": y, "w": w, "h": h})
 
     # objects
     def put(self, name, x, y, on=None, tuck=False):
@@ -388,6 +393,7 @@ class MapBuilder:
             "colors": [c for row in self.colors for c in row],
             "decor": self.floor_decor + self.object_decor,
             "seats": self.override_seats(),
+            "zones": self.zones,
         }
 
 
@@ -409,6 +415,8 @@ def write(m):
         '  "decor": [\n    ' + ",\n    ".join(json.dumps(d, separators=(",", ":")) for d in data["decor"]) + "\n  ]",
         '  "seats": [\n    ' + seats + "\n  ]" if seats else '  "seats": []',
     ]
+    if data["zones"]:
+        parts.append('  "zones": [\n    ' + ",\n    ".join(json.dumps(z, separators=(",", ":")) for z in data["zones"]) + "\n  ]")
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / f"{m.id}.json").write_text("{\n" + ",\n".join(parts) + "\n}\n", encoding="utf-8")
     seats, overrides = len(m.effective_seats()), len(data["seats"])
@@ -544,6 +552,8 @@ def build_office():
     m.put("plant_box", 19, 29)
     m.put("plant_box", 27, 29)
     m.put("water_cooler", 18, 22)
+
+    m.zone("Meeting room", 32, 1, 15, 12)
 
     m.spawn = (23.5, 28.5)
     for name, p in {"open plan": (10, 8), "meeting": (35, 8), "break": (40, 20), "library": (9, 25), "lobby": (23, 27)}.items():

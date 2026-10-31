@@ -1,14 +1,15 @@
-import { decorLayer, seatsNearIn, type DecorCell, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
+import { decorLayer, seatsNearIn, stepOutOf, zoneAt, zoneKey, type DecorCell, type OfficeMap, type Seat, type Zone } from '@byte_grounds/shared/map';
 import { POSITION_TICK_MS, TILE_SIZE, normalizeChat, normalizePose, normalizeStatus } from '@byte_grounds/shared/protocol';
 import { effectiveSeats, seatSpot } from '@byte_grounds/shared/seats';
 import type { Appearance, PeerId, PeerState, Pose, ServerToClient, StatusFields } from '@byte_grounds/shared/protocol';
-import { balloonHeight, drawAvatar, drawAvatarTags, drawChatBalloon, drawDecorCellAt, tagsTop, drawMap, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
+import { balloonHeight, drawAvatar, drawAvatarTags, drawChatBalloon, drawDecorCellAt, drawZones, tagsTop, drawMap, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
 import { avatarAnchorY, sortRenderables, stackedDecorAnchors } from './depth.ts';
 import { cameraOffset, viewportSize } from './camera.ts';
 import { Minimap, type MinimapDot } from './minimap.ts';
 import { Keyboard, TouchPad, isTouchDevice } from './input.ts';
 import { stepMovement, type MoveInput } from './movement.ts';
-import { distanceTiles, nextProxState, type ProxState } from './proximity.ts';
+import { distanceTiles, nextLinkState, type ProxState } from './proximity.ts';
+import { MeetingView, type Participant } from './meeting.ts';
 import { MediaManager, ScreenStage, VideoBubbles, hasLiveVideo, volumeForDistance } from './media.ts';
 import { WebrtcMesh } from './webrtc.ts';
 import { avatarAt, screenToWorld } from './hit.ts';
@@ -131,6 +132,10 @@ export class Game {
   private readonly media = new MediaManager();
   private readonly bubbles: VideoBubbles;
   private readonly stage = new ScreenStage();
+  /** The meeting room we're in (null = none), its full-screen view and the pill that opens it. */
+  private zone: Zone | null = null;
+  private readonly meeting: MeetingView;
+  private readonly meetPill: HTMLButtonElement;
   private readonly mesh: WebrtcMesh;
   private raf = 0;
   private lastT = 0;
@@ -218,6 +223,30 @@ export class Game {
     );
     this.media.onVideoTrack = (track, stream) => this.mesh.setVideo(track, stream);
     this.media.onSharing = (on) => this.setSharing(on);
+    this.meeting = new MeetingView({
+      roomName: () => this.zone?.name ?? 'Meeting room',
+      participants: () => this.participants(),
+      micOn: () => this.media.micEnabled,
+      camOn: () => this.media.camEnabled,
+      sharing: () => this.media.sharing,
+      canShare: () => this.media.canShareScreen,
+      localCamera: () => this.media.cameraStream,
+      localScreen: () => this.media.screenStream,
+      toggleMic: () => this.media.toggleMic(),
+      toggleCam: () => void this.media.toggleCam(),
+      toggleScreen: () => void this.media.toggleScreen(),
+      leaveRoom: () => this.leaveZone(),
+    });
+    this.meeting.onClose = () => this.updatePill();
+    this.media.onChange = () => this.meeting.sync();
+    this.meetPill = document.createElement('button');
+    this.meetPill.id = 'meet-pill';
+    this.meetPill.className = 'hidden';
+    this.meetPill.addEventListener('click', () => {
+      this.meeting.open();
+      this.updatePill();
+    });
+    document.body.appendChild(this.meetPill);
   }
 
   /** Our current tile-space position (for saving where we left off); the stand spot while seated. */
@@ -258,6 +287,8 @@ export class Game {
     this.live?.stop();
     this.mesh.closeAll();
     this.stage.dispose();
+    this.meeting.close();
+    this.meetPill.remove();
   }
 
   /** Live grants: the admin gets a permissions menu when clicking an avatar; builders a Build button. */
@@ -520,6 +551,7 @@ export class Game {
     if (moveHeld && this.lookAt) this.followSelf();
     if (moveHeld && this.self.pose === 'dance') this.self.pose = 'stand';
     if (moveHeld && this.self.busy && !this.seat) this.toggleBusy();
+    this.updateZone();
     if (this.seat && moveHeld) this.standUp();
     if (!this.seat) {
       const prevX = this.self.x;
@@ -575,6 +607,7 @@ export class Game {
     const t = e.target;
     if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) return;
     const key = e.key.toLowerCase();
+    if (this.meeting.isOpen) return;
     if (key === 'escape' && this.moving) {
       this.moving = null;
       return;
@@ -754,11 +787,74 @@ export class Game {
     a.animMs = a.moving ? a.animMs + dt * 1000 : 0;
   }
 
+  /** Entering / leaving a meeting room: screen sharing allowed only inside; the view closes outside. */
+  private updateZone(): void {
+    const z = zoneAt(this.map, this.self.x, this.self.y);
+    if (zoneKey(z) === zoneKey(this.zone)) return;
+    this.zone = z;
+    this.media.setScreenAllowed(!!z);
+    if (!z) this.meeting.close();
+    this.updatePill();
+  }
+
+  private updatePill(): void {
+    const show = !!this.zone && !this.meeting.isOpen;
+    this.meetPill.classList.toggle('hidden', !show);
+    if (this.zone) this.meetPill.textContent = `${this.zone.name} · Open meeting view`;
+  }
+
+  private sameRoom(r: Avatar): boolean {
+    return !!this.zone && zoneKey(zoneAt(this.map, r.x, r.y)) === zoneKey(this.zone);
+  }
+
+  /** Everyone in our meeting room for the meeting view, us first. */
+  private participants(): Participant[] {
+    const me: Participant = {
+      id: 'self',
+      name: this.self.name,
+      appearance: this.self.appearance,
+      self: true,
+      video: null,
+      presenting: this.self.sharing,
+      busy: this.self.busy,
+    };
+    const others = [...this.remotes]
+      .filter(([id, r]) => this.prox.get(id) === 'near' && this.sameRoom(r))
+      .map(([id, r]): Participant => {
+        const stream = this.bubbles.stream(id);
+        return {
+          id,
+          name: r.name,
+          appearance: r.appearance,
+          self: false,
+          video: stream && hasLiveVideo(stream) ? stream : null,
+          presenting: r.sharing,
+          busy: r.busy,
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return [me, ...others];
+  }
+
+  /** Step out of the meeting room (the meeting view's red button). */
+  private leaveZone(): void {
+    const z = this.zone;
+    if (!z) return;
+    this.standUp();
+    const out = stepOutOf(this.map, z, this.self.x, this.self.y);
+    if (!out) return this.toast('No way out of this room');
+    this.self.x = out.x;
+    this.self.y = out.y;
+    this.self.pose = 'stand';
+    this.updateZone();
+  }
+
   /** Recompute near/far per remote; connect/tear down the mesh on transitions. */
   private updateProximity(): void {
+    const mine = zoneKey(this.zone);
     for (const [id, r] of this.remotes) {
       const prev = this.prox.get(id) ?? 'far';
-      const next = nextProxState(prev, distanceTiles(this.self, r));
+      const next = nextLinkState(prev, distanceTiles(this.self, r), mine, zoneKey(zoneAt(this.map, r.x, r.y)));
       if (next === prev) continue;
       this.prox.set(id, next);
       if (next === 'near') void this.mesh.connect(id);
@@ -769,6 +865,7 @@ export class Game {
 
   /** Keyboard and on-screen pad combined (either one can hold a direction). */
   private moveInput(): MoveInput {
+    if (this.meeting.isOpen) return { up: false, down: false, left: false, right: false };
     const k = this.keyboard.input;
     const t = this.touchpad?.input;
     if (!t) return k;
@@ -792,6 +889,7 @@ export class Game {
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     ctx.setTransform(1, 0, 0, 1, -camX, -camY);
     drawMap(ctx, map);
+    drawZones(ctx, map, this.zone, 'area');
 
     // One y-sorted pass over object-layer furniture + every avatar, drawn back-to-front so
     // near furniture occludes avatars behind it (and avatars occlude furniture behind them).
@@ -820,12 +918,16 @@ export class Game {
 
     // Final pass on top of all furniture: name tags, and remote bubble placement + volume.
     const now = Date.now();
+    drawZones(ctx, map, this.zone, 'label');
     for (const r of this.remotes.values()) this.drawTags(r, now);
     this.drawTags(this.self, now);
     this.drawBalloons(now);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     for (const [id, r] of this.remotes) {
-      if (this.prox.get(id) === 'near') this.bubbles.setVolume(id, volumeForDistance(distanceTiles(this.self, r)));
+      if (this.prox.get(id) === 'near') {
+        // In a meeting room everyone is heard at full volume, wherever they stand.
+        this.bubbles.setVolume(id, this.sameRoom(r) ? 1 : volumeForDistance(distanceTiles(this.self, r)));
+      }
       const { px, py } = tileToScreen(r.x, r.y);
       this.bubbles.place(id, (px - camX) * scale, (py - camY) * scale);
     }

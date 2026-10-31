@@ -206,6 +206,12 @@ export class MediaManager {
   onVideoTrack: (track: MediaStreamTrack | null, stream: MediaStream) => void = () => {};
   /** Screen sharing started / stopped. */
   onSharing: (on: boolean) => void = () => {};
+  /** Mic, camera or screen state changed (the meeting view's buttons follow it). */
+  onChange: () => void = () => {};
+  /** Screen sharing is only offered inside a meeting room (`setScreenAllowed`). */
+  private screenAllowed = false;
+  /** One-track streams for previews, cached per track (a new MediaStream would restart playback). */
+  private readonly solo = new WeakMap<MediaStreamTrack, MediaStream>();
 
   constructor() {
     const root = document.createElement('div');
@@ -226,9 +232,8 @@ export class MediaManager {
     this.micBtn = this.makeButton('Mic: on', () => this.toggleMic());
     this.camBtn = this.makeButton('Cam: off', () => void this.toggleCam());
     this.screenBtn = this.makeButton('Share screen', () => void this.toggleScreen());
-    bar.append(this.micBtn, this.camBtn);
-    // Phones can't capture the screen (no getDisplayMedia): no button there.
-    if (typeof navigator.mediaDevices?.getDisplayMedia === 'function') bar.append(this.screenBtn);
+    bar.append(this.micBtn, this.camBtn, this.screenBtn);
+    this.screenBtn.style.display = 'none';
 
     this.notice = document.createElement('div');
     this.notice.style.cssText = 'font-size:12px;color:#ffb4b4;max-width:160px;';
@@ -270,6 +275,48 @@ export class MediaManager {
     this.micOn = !this.micOn;
     for (const t of this.stream?.getAudioTracks() ?? []) t.enabled = this.micOn;
     this.micBtn.textContent = `Mic: ${this.micOn ? 'on' : 'off'}`;
+    this.onChange();
+  }
+
+  get sharing(): boolean {
+    return this.screen !== null;
+  }
+
+  get micEnabled(): boolean {
+    return this.micOn;
+  }
+
+  get camEnabled(): boolean {
+    return !!this.stream?.getVideoTracks().length;
+  }
+
+  /** Phones can't capture the screen (no getDisplayMedia). */
+  get canShareScreen(): boolean {
+    return typeof navigator.mediaDevices?.getDisplayMedia === 'function';
+  }
+
+  /** Our camera alone (for a self view), or null while it is off. */
+  get cameraStream(): MediaStream | null {
+    return this.soloStream(this.stream?.getVideoTracks()[0] ?? null);
+  }
+
+  /** The screen we share (for a preview), or null. */
+  get screenStream(): MediaStream | null {
+    return this.soloStream(this.screen);
+  }
+
+  private soloStream(track: MediaStreamTrack | null): MediaStream | null {
+    if (!track) return null;
+    let s = this.solo.get(track);
+    if (!s) this.solo.set(track, (s = new MediaStream([track])));
+    return s;
+  }
+
+  /** Offer the Share screen button (inside a meeting room); taking it away stops a share. */
+  setScreenAllowed(on: boolean): void {
+    this.screenAllowed = on;
+    if (!on) this.stopScreen();
+    this.screenBtn.style.display = on && this.canShareScreen ? '' : 'none';
   }
 
   async toggleCam(): Promise<void> {
@@ -300,6 +347,7 @@ export class MediaManager {
       const on = !!this.stream?.getVideoTracks().length;
       this.camBtn.textContent = `Cam: ${on ? 'on' : 'off'}`;
       this.preview.style.display = on ? '' : 'none';
+      this.onChange();
     }
   }
 
@@ -310,6 +358,7 @@ export class MediaManager {
    */
   async toggleScreen(): Promise<void> {
     if (this.screen) return this.stopScreen();
+    if (!this.screenAllowed || !this.canShareScreen) return;
     const stream = await this.acquire();
     let track: MediaStreamTrack;
     try {
@@ -318,8 +367,8 @@ export class MediaManager {
     } catch {
       return; // picker cancelled or blocked
     }
-    if (this.screen) {
-      track.stop(); // a second click raced the picker
+    if (this.screen || !this.screenAllowed) {
+      track.stop(); // a second click raced the picker, or we left the room meanwhile
       return;
     }
     track.contentHint = 'detail';
@@ -330,9 +379,10 @@ export class MediaManager {
     this.onVideoTrack(track, stream);
     this.updateScreenUi();
     this.onSharing(true);
+    this.onChange();
   }
 
-  private stopScreen(): void {
+  stopScreen(): void {
     const track = this.screen;
     if (!track) return;
     this.screen = null;
@@ -340,13 +390,14 @@ export class MediaManager {
     if (this.stream) this.onVideoTrack(this.stream.getVideoTracks()[0] ?? null, this.stream);
     this.updateScreenUi();
     this.onSharing(false);
+    this.onChange();
   }
 
   private updateScreenUi(): void {
     const on = !!this.screen;
     this.screenBtn.textContent = on ? 'Stop sharing' : 'Share screen';
     this.screenBtn.style.background = on ? '#c0392b' : '#2a2f37';
-    this.notice.textContent = on ? 'Sharing your screen with people near you.' : '';
+    this.notice.textContent = on ? 'Sharing your screen with the meeting room.' : '';
     this.notice.style.color = on ? '#9fd0ff' : '#ffb4b4';
   }
 

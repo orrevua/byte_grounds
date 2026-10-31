@@ -47,6 +47,18 @@ export function transformFacing(dir: Facing, t: { rot: Rotation; flipX: boolean 
   return CLOCKWISE[(CLOCKWISE.indexOf(mirrored) + t.rot / 90) % 4]!;
 }
 
+/**
+ * A meeting room: a tile rectangle where everyone inside hears everyone else at full volume
+ * (and nobody outside), and where screens can be shared.
+ */
+export interface Zone {
+  name: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface OfficeMap {
   id: string;
   name?: string;
@@ -62,6 +74,8 @@ export interface OfficeMap {
   noSeats?: { x: number; y: number }[];
   /** A saved copy of a built-in map: the built-in `rev` it was edited from. Absent = stale. */
   basedOnRev?: number;
+  /** Meeting rooms. Absent = never set (a saved copy of a built-in then inherits the built-in's). */
+  zones?: Zone[];
 }
 
 export const DEFAULT_FLOOR_COLOR = '#2a2f37';
@@ -154,8 +168,66 @@ export function parseMap(data: unknown): OfficeMap | null {
         )
       : [],
     ...parseNoSeats(m.noSeats),
+    ...parseZones(m.zones, width!, height!),
     ...(Number.isInteger(m.basedOnRev) && m.basedOnRev! > 0 ? { basedOnRev: m.basedOnRev } : {}),
   };
+}
+
+/** `{zones}` with the valid rectangles clipped to the map; `{}` when the field is absent. */
+function parseZones(data: unknown, width: number, height: number): Pick<OfficeMap, 'zones'> {
+  if (!Array.isArray(data)) return {};
+  const zones: Zone[] = [];
+  for (const z of data as Partial<Zone>[]) {
+    if (!z || ![z.x, z.y, z.w, z.h].every(Number.isInteger)) continue;
+    const x = Math.max(0, z.x!);
+    const y = Math.max(0, z.y!);
+    const w = Math.min(width, z.x! + z.w!) - x;
+    const h = Math.min(height, z.y! + z.h!) - y;
+    if (w < 1 || h < 1) continue;
+    zones.push({ name: typeof z.name === 'string' && z.name.trim() ? z.name.trim().slice(0, 40) : 'Meeting room', x, y, w, h });
+  }
+  return { zones };
+}
+
+/** The meeting room containing a (float) tile-space position, if any (the last one listed wins). */
+export function zoneAt(m: OfficeMap, x: number, y: number): Zone | null {
+  const tx = Math.floor(x);
+  const ty = Math.floor(y);
+  const zones = m.zones ?? [];
+  for (let i = zones.length - 1; i >= 0; i--) {
+    const z = zones[i]!;
+    if (tx >= z.x && ty >= z.y && tx < z.x + z.w && ty < z.y + z.h) return z;
+  }
+  return null;
+}
+
+/** A stable key for a zone (same rectangle = same room), for comparing zones across peers. */
+export function zoneKey(z: Zone | null): string | null {
+  return z ? `${z.x},${z.y},${z.w},${z.h}` : null;
+}
+
+/**
+ * The nearest walkable tile centre outside `zone`, walking (4-neighbour) from (x, y); null if the
+ * room has no way out. Used to step out of a meeting room.
+ */
+export function stepOutOf(m: OfficeMap, zone: Zone, x: number, y: number): { x: number; y: number } | null {
+  const inside = (tx: number, ty: number) => tx >= zone.x && ty >= zone.y && tx < zone.x + zone.w && ty < zone.y + zone.h;
+  const start = [Math.floor(x), Math.floor(y)] as const;
+  const seen = new Set([`${start[0]},${start[1]}`]);
+  const queue: (readonly [number, number])[] = [start];
+  while (queue.length) {
+    const [tx, ty] = queue.shift()!;
+    if (!inside(tx, ty) && tileAt(m, tx, ty) === 0) return { x: tx + 0.5, y: ty + 0.5 };
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      const nx = tx + dx;
+      const ny = ty + dy;
+      const key = `${nx},${ny}`;
+      if (seen.has(key) || tileAt(m, nx, ny) !== 0) continue;
+      seen.add(key);
+      queue.push([nx, ny]);
+    }
+  }
+  return null;
 }
 
 /** `{noSeats}` with the valid integer tiles, or `{}` when there are none (canonical: field absent). */

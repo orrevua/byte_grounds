@@ -16,3 +16,13 @@ export function nextProxState(prev: ProxState, dist: number): ProxState {
   if (prev === 'far') return dist <= CONNECT_RADIUS ? 'near' : 'far';
   return dist >= DISCONNECT_RADIUS ? 'far' : 'near';
 }
+
+/**
+ * Call state with meeting rooms (zone keys, null = not in a room): everyone in the same room is
+ * connected whatever the distance; a room is closed to anyone outside it; outside rooms the
+ * distance hysteresis applies.
+ */
+export function nextLinkState(prev: ProxState, dist: number, myZone: string | null, theirZone: string | null): ProxState {
+  if (myZone !== null || theirZone !== null) return myZone === theirZone ? 'near' : 'far';
+  return nextProxState(prev, dist);
+}

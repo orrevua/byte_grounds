@@ -61,7 +61,11 @@ export function savedWins(id: string, basedOnRev: number | null | undefined): bo
 /** The map served for `id` given its stored data (if any). */
 function pickMap(id: string, saved: unknown): OfficeMap | null {
   const map = parseMap(saved);
-  return map && savedWins(id, map.basedOnRev) ? map : builtInMap(id);
+  if (!map || !savedWins(id, map.basedOnRev)) return builtInMap(id);
+  // Saved before meeting rooms existed: keep the built-in's rooms (an explicit [] means none).
+  if (map.zones) return map;
+  const zones = (builtInMap(id)?.zones ?? []).filter((z) => z.x + z.w <= map.width && z.y + z.h <= map.height);
+  return zones.length ? { ...map, zones } : map;
 }
 
 /** What gets stored: a copy of a built-in map records the revision it was edited from. */

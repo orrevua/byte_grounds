@@ -1,8 +1,8 @@
 import { TILE_SIZE } from '@byte_grounds/shared/protocol';
-import { createBlankMap, mapIdFromName, tileAt, type Facing, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
+import { createBlankMap, mapIdFromName, tileAt, zoneAt, type Facing, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
 import { DEFAULT_MAP } from '@byte_grounds/shared/maps';
 import { effectiveSeats } from '@byte_grounds/shared/seats';
-import { drawDecorCellAt, drawMap, drawObjectDecorFlat, mapPixelSize } from './render.ts';
+import { drawDecorCellAt, drawMap, drawObjectDecorFlat, drawZones, mapPixelSize } from './render.ts';
 import { decorImage, loadDecorSheets } from './decor.ts';
 import { IDENTITY, footprint, transformFacing, type DecorTransform } from './decor-transform.ts';
 import { mountDecorPicker, transformForKey } from './decor-picker.ts';
@@ -26,7 +26,7 @@ import { hasSupabase } from './supabase.ts';
 import { checkCanEditMaps, ensureSession, shortId } from './auth.ts';
 import { createAutosave, type SaveStatus } from './autosave.ts';
 
-type Tool = 'paint' | 'block' | 'walk' | 'decor' | 'erase' | 'spawn' | 'seat';
+type Tool = 'paint' | 'block' | 'walk' | 'decor' | 'erase' | 'spawn' | 'seat' | 'zone';
 
 const TOOLS: { id: Tool; label: string }[] = [
   { id: 'paint', label: 'Paint color' },
@@ -36,6 +36,7 @@ const TOOLS: { id: Tool; label: string }[] = [
   { id: 'erase', label: 'Erase decor' },
   { id: 'spawn', label: 'Spawn point' },
   { id: 'seat', label: 'Seat / bed' },
+  { id: 'zone', label: 'Meeting room' },
 ];
 
 const ARROW: Record<Facing, string> = { up: '↑', down: '↓', left: '←', right: '→' };
@@ -407,6 +408,9 @@ for (const t of TOOLS) {
 }
 
 function setTool(t: Tool): void {
+  if (t === 'zone' && tool !== 'zone') {
+    setStatus('Meeting room: drag a rectangle over the room (everyone inside hears each other and can share screens). Click inside a room to remove it.');
+  }
   tool = t;
   for (const b of toolsEl.querySelectorAll<HTMLButtonElement>('button')) {
     b.classList.toggle('active', b.dataset.tool === t);
@@ -587,6 +591,17 @@ function draw(): void {
     ctx.fillStyle = '#14161a';
     ctx.fillText('×', cx, cy + 0.5);
   }
+  drawZones(ctx, map);
+  if (zoneDrag) {
+    const r = dragRect(zoneDrag.from, zoneDrag.to);
+    ctx.save();
+    ctx.fillStyle = 'rgba(79, 140, 255, 0.18)';
+    ctx.fillRect(r.x * TILE_SIZE, r.y * TILE_SIZE, r.w * TILE_SIZE, r.h * TILE_SIZE);
+    ctx.strokeStyle = '#8ab4f8';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(r.x * TILE_SIZE + 1, r.y * TILE_SIZE + 1, r.w * TILE_SIZE - 2, r.h * TILE_SIZE - 2);
+    ctx.restore();
+  }
   // Spawn marker.
   ctx.fillStyle = '#4fe0a0';
   ctx.beginPath();
@@ -663,6 +678,39 @@ function apply(x: number, y: number, first: boolean): void {
 
 let painting = false;
 let lastTile: { x: number; y: number } | null = null;
+/** Meeting-room tool: the rectangle being dragged (tile corners). */
+let zoneDrag: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null;
+
+type TilePt = { x: number; y: number };
+
+/** The tile rectangle spanned by two corner tiles, clipped to the map. */
+function dragRect(a: TilePt, b: TilePt): { x: number; y: number; w: number; h: number } {
+  const x0 = Math.max(0, Math.min(a.x, b.x));
+  const y0 = Math.max(0, Math.min(a.y, b.y));
+  const x1 = Math.min(map.width - 1, Math.max(a.x, b.x));
+  const y1 = Math.min(map.height - 1, Math.max(a.y, b.y));
+  return { x: x0, y: y0, w: Math.max(0, x1 - x0 + 1), h: Math.max(0, y1 - y0 + 1) };
+}
+
+/** Finish a meeting-room drag: a click inside a room offers to remove it; a drag adds one. */
+function finishZone(from: TilePt, to: TilePt): void {
+  const r = dragRect(from, to);
+  const click = from.x === to.x && from.y === to.y;
+  const hit = zoneAt(map, to.x + 0.5, to.y + 0.5);
+  if (click && hit) {
+    if (!confirm(`Remove the meeting room "${hit.name}"?`)) return;
+    pushUndo();
+    map.zones = (map.zones ?? []).filter((z) => z !== hit);
+  } else {
+    if (r.w < 2 || r.h < 2) return setStatus('Drag over at least 2x2 tiles to make a meeting room', true);
+    const name = prompt('Name for this meeting room?', 'Meeting room')?.trim();
+    if (!name) return;
+    pushUndo();
+    map.zones = [...(map.zones ?? []), { name: name.slice(0, 40), ...r }];
+  }
+  draw();
+  refreshStatus();
+}
 
 /** Tiles on the straight line from a to b (excluding a), so fast drags leave no gaps. */
 function tilesBetween(a: { x: number; y: number }, b: { x: number; y: number }): { x: number; y: number }[] {
@@ -675,6 +723,13 @@ function tilesBetween(a: { x: number; y: number }, b: { x: number; y: number }):
 }
 canvas.addEventListener('pointerdown', (e) => {
   if (e.button === 2) return;
+  if (tool === 'zone') {
+    canvas.setPointerCapture(e.pointerId);
+    const t = tileFromEvent(e);
+    zoneDrag = { from: t, to: t };
+    draw();
+    return;
+  }
   painting = true;
   canvas.setPointerCapture(e.pointerId);
   pushUndo();
@@ -685,6 +740,11 @@ canvas.addEventListener('pointerdown', (e) => {
 canvas.addEventListener('pointermove', (e) => {
   const t = tileFromEvent(e);
   hover = t;
+  if (zoneDrag) {
+    zoneDrag.to = t;
+    draw();
+    return;
+  }
   if (painting && lastTile && (t.x !== lastTile.x || t.y !== lastTile.y)) {
     for (const step of tilesBetween(lastTile, t)) apply(step.x, step.y, false);
     lastTile = t;
@@ -692,6 +752,9 @@ canvas.addEventListener('pointermove', (e) => {
 });
 const stop = () => {
   painting = false;
+  const drag = zoneDrag;
+  zoneDrag = null;
+  if (drag) finishZone(drag.from, drag.to);
 };
 canvas.addEventListener('pointerup', stop);
 canvas.addEventListener('pointercancel', stop);

@@ -1326,5 +1326,8 @@
     {"x":18,"y":22,"sheet":"office","sx":10,"sy":20,"layer":"object","baseDy":1},
     {"x":18,"y":23,"sheet":"office","sx":10,"sy":21,"layer":"object"}
   ],
-  "seats": []
+  "seats": [],
+  "zones": [
+    {"name":"Meeting room","x":32,"y":1,"w":15,"h":12}
+  ]
 }

@@ -1,6 +1,6 @@
 import { TILE_SIZE } from '@byte_grounds/shared/protocol';
-import { decorLayer, tileColor } from '@byte_grounds/shared/map';
-import type { DecorCell, OfficeMap } from '@byte_grounds/shared/map';
+import { decorLayer, tileColor, zoneKey } from '@byte_grounds/shared/map';
+import type { DecorCell, OfficeMap, Zone } from '@byte_grounds/shared/map';
 import {
   FRAME_SIZE,
   drawHead,
@@ -358,4 +358,43 @@ export function drawChatBalloon(
   ctx.font = BALLOON_FONT;
   lines.forEach((l, i) => ctx.fillText(l, tx + (i === 0 ? nameW : 0), ty + i * BALLOON_LINE_H));
   ctx.restore();
+}
+
+/** Meeting rooms on the map: a soft tint, a dashed outline and the room's name in its corner. */
+export function drawZones(
+  ctx: CanvasRenderingContext2D,
+  map: OfficeMap,
+  highlight: Zone | null = null,
+  part: 'area' | 'label' | 'both' = 'both',
+): void {
+  ctx.save();
+  for (const z of map.zones ?? []) {
+    const x = z.x * TILE_SIZE;
+    const y = z.y * TILE_SIZE;
+    const w = z.w * TILE_SIZE;
+    const h = z.h * TILE_SIZE;
+    const on = !!highlight && zoneKey(z) === zoneKey(highlight);
+    if (part !== 'label') drawZoneArea(ctx, x, y, w, h, on);
+    if (part === 'area') continue;
+    ctx.font = '600 11px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    const label = `▣ ${z.name}`;
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = 'rgba(20, 22, 26, 0.75)';
+    ctx.fillRect(x + 4, y + 4, tw + 10, 17);
+    ctx.fillStyle = '#cfe0ff';
+    ctx.fillText(label, x + 9, y + 7);
+  }
+  ctx.restore();
+}
+
+function drawZoneArea(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, on: boolean): void {
+  ctx.fillStyle = on ? 'rgba(79, 140, 255, 0.10)' : 'rgba(79, 140, 255, 0.05)';
+  ctx.fillRect(x, y, w, h);
+  ctx.setLineDash([6, 4]);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = on ? 'rgba(120, 170, 255, 0.9)' : 'rgba(120, 170, 255, 0.5)';
+  ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+  ctx.setLineDash([]);
 }

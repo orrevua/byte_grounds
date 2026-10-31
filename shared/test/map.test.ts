@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tileAt, isWalkable, decorLayer, parseMap, type OfficeMap } from '../src/map.ts';
+import { tileAt, isWalkable, decorLayer, parseMap, createBlankMap, zoneAt, zoneKey, stepOutOf, type OfficeMap } from '../src/map.ts';
 
 const m: OfficeMap = {
   id: 'test',
@@ -185,5 +185,33 @@ describe('seatsNearIn', () => {
     ] as const;
     expect(seatsNearIn(seats, 4.5, 4.5, 1.6).map((s) => s.x)).toEqual([4, 5]);
     expect(seatsNearIn(seats, 0.5, 0.5, 1.6)).toEqual([]);
+  });
+});
+
+describe('meeting zones', () => {
+  const base = createBlankMap('z', 10, 8);
+  const room = { name: 'Room', x: 5, y: 1, w: 4, h: 3 };
+
+  it('parses zones, clipping to the map and dropping bad ones; absent stays absent', () => {
+    const m = parseMap({ ...base, zones: [room, { x: 8, y: 6, w: 9, h: 9 }, { x: 1.5, y: 0, w: 1, h: 1 }, null] })!;
+    expect(m.zones).toEqual([room, { name: 'Meeting room', x: 8, y: 6, w: 2, h: 2 }]);
+    expect(parseMap(base)!).not.toHaveProperty('zones');
+    expect(parseMap({ ...base, zones: [] })!.zones).toEqual([]);
+  });
+
+  it('finds the zone under a float position', () => {
+    const m = { ...base, zones: [room] };
+    expect(zoneAt(m, 5.2, 1.9)).toBe(room);
+    expect(zoneAt(m, 4.9, 2)).toBeNull();
+    expect(zoneKey(zoneAt(m, 8.99, 3.5))).toBe('5,1,4,3');
+    expect(zoneKey(null)).toBeNull();
+  });
+
+  it('steps out to the nearest walkable tile outside the room', () => {
+    const m = { ...base, zones: [room] };
+    expect(stepOutOf(m, room, 5.5, 2.5)).toEqual({ x: 4.5, y: 2.5 });
+    // Walled in: no way out.
+    const walled = createBlankMap('w', 5, 5);
+    expect(stepOutOf(walled, { name: 'all', x: 1, y: 1, w: 3, h: 3 }, 2.5, 2.5)).toBeNull();
   });
 });
