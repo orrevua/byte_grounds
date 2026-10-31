@@ -2,7 +2,7 @@ import { decorLayer, seatsNearIn, stepOutOf, zoneAt, zoneKey, type DecorCell, ty
 import { POSITION_TICK_MS, TILE_SIZE, normalizeChat, normalizePose, normalizeStatus } from '@byte_grounds/shared/protocol';
 import { effectiveSeats, seatSpot } from '@byte_grounds/shared/seats';
 import type { Appearance, HeldItem, PeerId, PeerState, Pose, ServerToClient, StatusFields } from '@byte_grounds/shared/protocol';
-import { balloonHeight, drawAvatar, drawAvatarTags, drawChatBalloon, drawDecorCellAt, drawHeldItem, drawZones, tagsTop, drawMap, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
+import { balloonHeight, drawAvatar, drawAvatarTags, drawChatBalloon, drawDecorCellAt, drawFrameSprite, drawHeldItem, drawZones, sipStep, tagsTop, drawMap, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
 import { avatarAnchorY, sortRenderables, stackedDecorAnchors } from './depth.ts';
 import { ZOOM_STEPS, cameraOffset, clampZoom, stepZoom, viewportSize } from './camera.ts';
 import { Minimap, type MinimapDot } from './minimap.ts';
@@ -24,6 +24,7 @@ import { blockedByWall, placeCells } from './live-model.ts';
 import {
   appearanceReady,
   directionFromDelta,
+  hasArmFrames,
   normalizeAppearance,
   preloadAppearance,
   walkFrameIndex,
@@ -93,6 +94,13 @@ const FEET: Record<Direction, { dx: number; dy: number }> = {
 };
 
 const ZOOM_KEY = 'byte_grounds.zoom';
+
+/** A per-person phase for sips, so a group of drinkers doesn't sip in unison. */
+function sipSeed(name: string): number {
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) % 7000;
+  return h;
+}
 
 /** The remembered map zoom (1 when unset, unreadable or out of range). */
 function loadZoom(): number {
@@ -1072,8 +1080,10 @@ export class Game {
         drawDecorCellAt(ctx, it.cell);
       } else {
         if (!it.isSelf && it.id !== null && this.prox.get(it.id) === 'near') this.drawRing(it.av.x, it.av.y);
-        this.drawCharacter(it.av);
-        if (it.av.item) drawHeldItem(ctx, it.av.item, it.av.pose, it.av.dir, it.av.x, it.av.y, Date.now(), it.av.name.length * 977);
+        const now = Date.now();
+        const sip = sipStep(it.av.item, it.av.pose, it.av.dir, it.av.moving, now, sipSeed(it.av.name), hasArmFrames(it.av.appearance));
+        this.drawCharacter(it.av, sip);
+        if (it.av.item) drawHeldItem(ctx, it.av.item, it.av.pose, it.av.dir, it.av.x, it.av.y, now, sip);
         if (it.av.pose === 'sit' && it.av.dir === 'up') this.drawChairBackOver(it.av);
         if (it.av.pose === 'lie' && appearanceReady(it.av.appearance)) this.drawBedOver(it.av);
       }
@@ -1179,9 +1189,11 @@ export class Game {
   }
 
   /** Draw an avatar as its animated sprite, falling back to the disc until layers load. */
-  private drawCharacter(a: Avatar): void {
+  private drawCharacter(a: Avatar, sip: { row: number; col: number } | null = null): void {
     const { ctx } = this;
-    if (appearanceReady(a.appearance)) {
+    if (appearanceReady(a.appearance) && sip) {
+      drawFrameSprite(ctx, a.appearance, sip.row, sip.col, a.x, a.y);
+    } else if (appearanceReady(a.appearance)) {
       drawPosedSprite(ctx, a.appearance, a.pose, a.dir, walkFrameIndex(a.animMs, a.moving), a.x, a.y, Date.now());
     } else {
       drawAvatar(ctx, a.x, a.y, a.color, a === this.self);

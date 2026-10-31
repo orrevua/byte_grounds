@@ -9,6 +9,7 @@ import {
   drawDanceAppearance,
   drawSitAppearance,
   breathOffset,
+  drawAppearanceFrame,
   drawTuckedAppearance,
   lieMode,
   lieTransform,
@@ -421,31 +422,74 @@ function seedOf(x: number, y: number): number {
   return Math.floor(x * 7919 + y * 104729) % 3600;
 }
 
-/** Every SIP_MS the cup goes up to the mouth for SIP_LEN_MS. */
-const SIP_MS = 7000;
-const SIP_LEN_MS = 900;
+/** Every SIP_MS a standing drinker sips; the sip lasts SIP_LEN_MS. */
+export const SIP_MS = 7000;
+export const SIP_LEN_MS = 1200;
 
-/** Where the hand holding a cup is, from the feet point (world px), per facing; null = hidden. */
-function handOffset(pose: Pose, dir: Direction): { dx: number; dy: number } | null {
-  if (pose === 'lie') return null;
-  // Hands hang at frame rows ~44-46 (the frame's top is 48px above the feet point); seated, the
-  // torso drops a little onto the lap.
-  const y = pose === 'sit' ? -1 : -3;
-  switch (dir) {
-    case 'down':
-      return { dx: 9, dy: y };
-    case 'up':
-      return { dx: -9, dy: y };
-    case 'left':
-      return { dx: -8, dy: y };
-    case 'right':
-      return { dx: 8, dy: y };
-  }
+/** One frame of a sip: which sheet frame to draw and where the cup is (px from the feet point). */
+export interface SipStep {
+  row: number;
+  col: number;
+  cup: { dx: number; dy: number };
+}
+
+/**
+ * The sip, per facing, as (frame, cup) steps over SIP_LEN_MS. Facing down: the bow row's hand
+ * rises to the chin (cols 4 -> 6 -> 4); sideways: the thrust row's front fist comes up to the chin.
+ * Cup positions are the hand in those frames (frame px - (32, 48)).
+ */
+const SIP_STEPS: Partial<Record<Direction, readonly { until: number; step: SipStep }[]>> = {
+  down: [
+    { until: 300, step: { row: 18, col: 4, cup: { dx: -10, dy: -12 } } },
+    { until: 900, step: { row: 18, col: 6, cup: { dx: -11, dy: -16 } } },
+    { until: 1200, step: { row: 18, col: 4, cup: { dx: -10, dy: -12 } } },
+  ],
+  left: [{ until: 1200, step: { row: 5, col: 7, cup: { dx: -10, dy: -11 } } }],
+  right: [{ until: 1200, step: { row: 7, col: 7, cup: { dx: 11, dy: -11 } } }],
+};
+
+/** Without arm frames (see `hasArmFrames`): the standing frame, the cup lifted to the mouth. */
+const SIP_NO_ARM: Partial<Record<Direction, SipStep>> = {
+  down: { row: 10, col: 0, cup: { dx: -8, dy: -14 } },
+  left: { row: 9, col: 0, cup: { dx: -9, dy: -14 } },
+  right: { row: 11, col: 0, cup: { dx: 9, dy: -14 } },
+};
+
+/**
+ * The sip frame to draw now, or null: only standing still, holding a drink and not facing away,
+ * in the first SIP_LEN_MS of every SIP_MS (offset by `seed` so drinkers don't sip in unison).
+ */
+export function sipStep(
+  item: HeldItem,
+  pose: Pose,
+  dir: Direction,
+  moving: boolean,
+  nowMs: number,
+  seed = 0,
+  armFrames = true,
+): SipStep | null {
+  if (!item || pose !== 'stand' || moving || !Number.isFinite(nowMs)) return null;
+  const steps = SIP_STEPS[dir];
+  if (!steps) return null;
+  const t = (((nowMs + seed) % SIP_MS) + SIP_MS) % SIP_MS;
+  if (t >= SIP_LEN_MS) return null;
+  return armFrames ? steps.find((s) => t < s.until)!.step : (SIP_NO_ARM[dir] ?? null);
+}
+
+/**
+ * Where a held cup rests, from the feet point (world px); null = not shown: facing away (the body
+ * hides it), lying down, or dancing (the arms are busy). Seated, it rests on the lap.
+ */
+export function cupRest(pose: Pose, dir: Direction): { dx: number; dy: number } | null {
+  if (dir === 'up' || pose === 'lie' || pose === 'dance') return null;
+  // Hands hang at frame rows ~44-48 (the frame's top is 48px above the feet point).
+  if (pose === 'sit') return dir === 'down' ? { dx: -8, dy: -2 } : { dx: dir === 'left' ? -6 : 6, dy: -3 };
+  return dir === 'down' ? { dx: -12, dy: -2 } : { dx: dir === 'left' ? -5 : 5, dy: -4 };
 }
 
 /**
  * A held drink by the avatar's hand: a white mug of coffee with steam, or a paper cup of water.
- * Now and then it goes up to the mouth for a sip. Pixel-drawn (whole px) so it matches the sprites.
+ * `sip` (from `sipStep`) puts it where the raised hand is. Pixel-drawn (whole px) like the sprites.
  */
 export function drawHeldItem(
   ctx: CanvasRenderingContext2D,
@@ -455,15 +499,12 @@ export function drawHeldItem(
   x: number,
   y: number,
   nowMs: number,
-  seed = 0,
+  sip: SipStep | null = null,
 ): void {
-  const hand = item ? handOffset(pose, dir) : null;
-  if (!hand) return;
-  const sipping = (nowMs + seed) % SIP_MS < SIP_LEN_MS && dir !== 'up';
-  // A sip brings the cup up to the mouth (~15px above the hands) and toward the face.
-  const lift = sipping ? { dx: dir === 'down' ? -6 : dir === 'left' ? 3 : -3, dy: -15 } : { dx: 0, dy: 0 };
-  const cx = Math.round(x * TILE_SIZE + hand.dx + lift.dx);
-  const cy = Math.round(y * TILE_SIZE + hand.dy + lift.dy);
+  const at = sip?.cup ?? (item ? cupRest(pose, dir) : null);
+  if (!item || !at) return;
+  const cx = Math.round(x * TILE_SIZE + at.dx);
+  const cy = Math.round(y * TILE_SIZE + at.dy);
   const px = (dx: number, dy: number, w: number, h: number, color: string) => {
     ctx.fillStyle = color;
     ctx.fillRect(cx + dx, cy + dy, w, h);
@@ -476,10 +517,10 @@ export function drawHeldItem(
     px(4, -1, 2, 3, '#2a1d17'); // handle
     px(4, 0, 1, 1, '#f4f1ea');
     px(-2, 2, 5, 1, '#cfc8ba'); // shade
-    if (!sipping) {
+    if (!sip) {
       // Steam: two wisps drifting up and fading.
       for (let i = 0; i < 2; i++) {
-        const t = ((nowMs + seed) / 1400 + i / 2) % 1;
+        const t = (nowMs / 1400 + i / 2) % 1;
         ctx.globalAlpha = 0.55 * (1 - t);
         const sx = Math.round(Math.sin((t + i) * Math.PI * 2) * 1.5) + (i ? 1 : -1);
         px(sx, -5 - Math.round(t * 7), 1, 2, '#ffffff');
@@ -492,4 +533,10 @@ export function drawHeldItem(
     px(-2, -1, 4, 1, '#b9e3f8'); // surface
   }
   ctx.restore();
+}
+
+/** Draw a sheet frame (row, col) of an appearance feet-anchored at tile point (x, y), like `drawSprite`. */
+export function drawFrameSprite(ctx: CanvasRenderingContext2D, a: Appearance, row: number, col: number, x: number, y: number): void {
+  ctx.imageSmoothingEnabled = false;
+  drawAppearanceFrame(ctx, a, row, col, x * TILE_SIZE - FRAME_SIZE / 2, y * TILE_SIZE - FRAME_SIZE + FOOT_OFFSET);
 }

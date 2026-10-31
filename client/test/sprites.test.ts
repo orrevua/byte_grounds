@@ -29,6 +29,7 @@ import {
   lieTransform,
   lieMode,
   tuckLayout,
+  hasArmFrames,
   breathOffset,
   BREATH_MS,
   sitFrame,
@@ -528,5 +529,14 @@ describe('danceStep', () => {
   it('draws the stand layers', () => {
     const a = casual({ outfit: 'business', torso: 'pink' });
     expect(appearanceToLayers(a, 'dance')).toEqual(appearanceToLayers(a));
+  });
+});
+
+describe('hasArmFrames', () => {
+  it('is false only for the male business suit (walk-only composite)', () => {
+    const a = (o: Partial<Appearance>) => normalizeAppearance({ body: 'male', hair: 'brown', outfit: 'casual', torso: 'teal', legs: 'teal', skin: 'light', ...o });
+    expect(hasArmFrames(a({}))).toBe(true);
+    expect(hasArmFrames(a({ outfit: 'business', torso: 'green' }))).toBe(false);
+    expect(hasArmFrames(a({ body: 'female', outfit: 'business', torso: 'green' }))).toBe(true);
   });
 });

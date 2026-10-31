@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { labelLift, wrapText } from '../src/render.ts';
+import { SIP_LEN_MS, SIP_MS, cupRest, labelLift, sipStep, wrapText } from '../src/render.ts';
 
 const measure = (s: string) => s.length * 6; // 6 px per char
 
@@ -30,5 +30,29 @@ describe('labelLift', () => {
 describe('wrapText indent', () => {
   it('gives the first line less room and keeps every word', () => {
     expect(wrapText(measure, 'hey Bruno how are you', 60, 3, 24)).toEqual(['hey', 'Bruno how', 'are you']);
+  });
+});
+
+describe('drinking', () => {
+  it('sips only standing still, holding a drink, not facing away, for SIP_LEN_MS of every SIP_MS', () => {
+    expect(sipStep('coffee', 'stand', 'down', false, 0)).toMatchObject({ row: 18, col: 4 });
+    expect(sipStep('coffee', 'stand', 'down', false, 500)).toMatchObject({ row: 18, col: 6 });
+    expect(sipStep('coffee', 'stand', 'down', false, SIP_LEN_MS)).toBeNull();
+    expect(sipStep('water', 'stand', 'left', false, SIP_MS + 10)).toMatchObject({ row: 5, col: 7 });
+    expect(sipStep('coffee', 'stand', 'up', false, 0)).toBeNull();
+    expect(sipStep('coffee', 'stand', 'down', true, 0)).toBeNull();
+    expect(sipStep('coffee', 'sit', 'down', false, 0)).toBeNull();
+    expect(sipStep('', 'stand', 'down', false, 0)).toBeNull();
+  });
+
+  it('without arm frames keeps the standing frame and lifts the cup', () => {
+    expect(sipStep('coffee', 'stand', 'down', false, 500, 0, false)).toMatchObject({ row: 10, col: 0 });
+  });
+
+  it('hides the cup facing away, lying or dancing', () => {
+    expect(cupRest('stand', 'up')).toBeNull();
+    expect(cupRest('lie', 'down')).toBeNull();
+    expect(cupRest('dance', 'down')).toBeNull();
+    expect(cupRest('sit', 'left')).not.toBeNull();
   });
 });
