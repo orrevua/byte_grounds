@@ -1,5 +1,6 @@
+import { decorLevel, isGroundCell, type DecorLevel } from '@byte_grounds/shared/ground';
 import { decorLayer, tileAt, type DecorCell, type OfficeMap } from '@byte_grounds/shared/map';
-import { brushCells, cellBlocks, eraseDecor, setBlocked, stampDecor } from './editor-model.ts';
+import { brushCells, cellBlocks, eraseDecor, setBlocked, stampDecor, type BlockMode } from './editor-model.ts';
 import type { EditOp, MapEdit, PlaceOp } from './edit-ops.ts';
 
 /** Applying live edits (D3): pure, so every client turns the same log into the same map. */
@@ -16,6 +17,11 @@ function inBounds(m: OfficeMap, x: number, y: number): boolean {
 export function blockedByWall(m: OfficeMap, x: number, y: number): boolean {
   if (tileAt(m, x, y) !== 1) return false;
   return !(m.decor ?? []).some((d) => d.x === x && d.y === y && decorLayer(m, d) === 'object');
+}
+
+/** A cell that can't go here: it would block a wall tile. Floor / wall tiles (ground) always may. */
+export function refusedByWall(m: OfficeMap, c: DecorCell, mode: BlockMode): boolean {
+  return !isGroundCell(c) && cellBlocks(c, mode) && blockedByWall(m, c.x, c.y);
 }
 
 /** Largest piece a place op can describe (`parseEditOp`: w, h <= 8). */
@@ -117,7 +123,7 @@ function applyPlace(m: OfficeMap, op: PlaceOp, knownSheet: (s: string) => boolea
   if (!knownSheet(op.sheet)) return false;
   const cells = placeCells(op).filter((c) => inBounds(m, c.x, c.y));
   if (cells.length === 0) return false;
-  if (cells.some((c) => cellBlocks(c, op.mode) && blockedByWall(m, c.x, c.y))) return false;
+  if (cells.some((c) => refusedByWall(m, c, op.mode))) return false;
   // Live undo removes the cells again: a new floor goes over the old one, which then shows again.
   stampDecor(m, op.x, op.y, op, op.mode, { rot: op.rot, flipX: op.flipX }, { keepGround: true });
   return true;
@@ -228,8 +234,11 @@ export class EditLog {
   }
 
   /** The latest placement still standing that covers tile (x, y). */
-  placementAt(x: number, y: number): MapEdit | null {
-    return this.latestLive((e) => placeCells(e.op as PlaceOp).some((c) => c.x === x && c.y === y));
+  /** The latest live placement with a cell on (x, y) (of `level`, when given). */
+  placementAt(x: number, y: number, level?: DecorLevel): MapEdit | null {
+    return this.latestLive((e) =>
+      placeCells(e.op as PlaceOp).some((c) => c.x === x && c.y === y && (!level || decorLevel(c) === level)),
+    );
   }
 
   private latestLive(match: (e: MapEdit) => boolean): MapEdit | null {

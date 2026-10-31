@@ -1,3 +1,4 @@
+import type { DecorLevel } from '@byte_grounds/shared/ground';
 import { mountDecorPicker, transformForKey, type PickerState } from './decor-picker.ts';
 import { t, type MsgKey } from './i18n.ts';
 
@@ -22,6 +23,8 @@ const ADMIN_TOOLS: { id: BuildTool; label: MsgKey }[] = [
  */
 export class BuildPanel {
   tool: BuildTool = 'place';
+  /** What Erase takes: the furniture on the tile, or the floor under it. */
+  eraseLevel: DecorLevel = 'furniture';
   onUndo: (() => void) | null = null;
   /** Called when the tool changes (the game drops a piece being moved). */
   onTool: ((t: BuildTool) => void) | null = null;
@@ -61,9 +64,16 @@ export class BuildPanel {
     el.innerHTML = `
       <div class="row build-head"><b>${t('build.title')}</b><button type="button" class="build-close" title="${t('build.close')}">×</button></div>
       <div class="tools build-tools"></div>
+      <div class="row build-erase hidden">${t('build.eraseWhat')}
+        <button type="button" data-level="furniture">${t('build.eraseFurniture')}</button>
+        <button type="button" data-level="ground">${t('build.eraseFloor')}</button>
+      </div>
       <div class="row"><button type="button" class="build-undo">${t('build.undo')}</button></div>
       <div class="build-picker"></div>`;
     el.querySelector('.build-close')!.addEventListener('click', () => this.close());
+    for (const b of el.querySelectorAll<HTMLButtonElement>('.build-erase button')) {
+      b.addEventListener('click', () => this.setEraseLevel(b.dataset.level as DecorLevel));
+    }
     el.querySelector('.build-undo')!.addEventListener('click', () => this.onUndo?.());
     const tools = el.querySelector<HTMLDivElement>('.build-tools')!;
     for (const tool of this.isAdmin ? ADMIN_TOOLS : BUILDER_TOOLS) {
@@ -91,6 +101,15 @@ export class BuildPanel {
     this.tool = t;
     for (const b of this.el?.querySelectorAll<HTMLButtonElement>('.build-tools button') ?? []) {
       b.classList.toggle('active', b.dataset.tool === t);
+    }
+    this.el?.querySelector('.build-erase')?.classList.toggle('hidden', t !== 'erase');
+    this.setEraseLevel(this.eraseLevel);
+  }
+
+  private setEraseLevel(level: DecorLevel): void {
+    this.eraseLevel = level;
+    for (const b of this.el?.querySelectorAll<HTMLButtonElement>('.build-erase button') ?? []) {
+      b.classList.toggle('active', b.dataset.level === level);
     }
   }
 

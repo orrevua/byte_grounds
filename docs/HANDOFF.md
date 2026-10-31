@@ -1,7 +1,20 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-31 (decor hierarchy: floors replace floors only)
+**Last updated:** 2026-10-31 (erase furniture or floor; floors never refused)
 **Branch:** `master` (user asked: work on master directly, no more PRs)
+
+## Erase furniture or floor; no red squares for floors — DONE, PUSHED (2026-10-31)
+- Build panel Erase (admin) + map editor Erase have a Furniture / Floor choice.
+  `eraseDecor(m, x, y, level?)` (default: furniture first, then floor) frees the tile when its last
+  object-layer piece goes (built-in maps never have an object on a wall tile: checked).
+  `EditLog.placementAt(x, y, level)`; `LiveMap.removeAt(x, y, level)`: the latest live placement of
+  that level, else (admin) the `erase` op; the map's own floor under furniture asks to erase the
+  furniture first (the DB's `erase` op has no level field; no SQL change needed).
+- `refusedByWall`: floor/wall tiles (ground) are never refused (no red ghost); blocking furniture
+  still is on a wall tile with no object on it.
+- Built-in maps checked, not rebuilt: their blocked tiles are walls (bare or with paintings/curtains),
+  furniture is object-layer over floor-layer ground. Red squares came from erased pieces leaving
+  their tile blocked (now freed) and from floors counted as blocking.
 
 ## Decor hierarchy — DONE, PUSHED (2026-10-31)
 - Spec: `docs/specs/decor-hierarchy.md`. `shared/src/ground.ts` + `ground-cells.json` (written by

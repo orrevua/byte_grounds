@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { createBlankMap, isWalkable } from '@byte_grounds/shared/map';
 import { builtInMap } from '@byte_grounds/shared/maps';
 import { decorLevel, isGroundCell } from '@byte_grounds/shared/ground';
-import { brushCells, cellBlocks, eraseDecor, stampDecor } from '../src/editor-model.ts';
+import { brushCells, cellBlocks, eraseDecor, setBlocked, stampDecor } from '../src/editor-model.ts';
+import { EditLog, refusedByWall } from '../src/live-model.ts';
+import type { EditOp, MapEdit } from '../src/edit-ops.ts';
 import { IDENTITY } from '../src/decor-transform.ts';
 
 const oak = { sheet: 'gemini_floors', sx: 0, sy: 0, w: 1, h: 1 };
@@ -78,5 +80,40 @@ describe('decor hierarchy', () => {
     }
     expect(floors).toBeGreaterThan(3000);
     expect(ground / floors).toBeGreaterThan(0.97);
+  });
+
+  it('erases the furniture or the floor, as asked; by default the furniture first', () => {
+    const m = createBlankMap('t', 6, 6);
+    stampDecor(m, 2, 2, oak, 'none');
+    stampDecor(m, 2, 2, chair, 'all');
+    expect(isWalkable(m, 2.5, 2.5)).toBe(false);
+    expect(eraseDecor(m, 2, 2, 'ground')).toBe(true);
+    expect(art(m, 2, 2)).toEqual(['chairs:0']);
+    expect(isWalkable(m, 2.5, 2.5)).toBe(false); // the chair still blocks
+    stampDecor(m, 2, 2, oak, 'none');
+    expect(eraseDecor(m, 2, 2)).toBe(true); // furniture first
+    expect(art(m, 2, 2)).toEqual(['gemini_floors:0']);
+    expect(isWalkable(m, 2.5, 2.5)).toBe(true); // its last object left: walkable again
+    expect(eraseDecor(m, 2, 2, 'furniture')).toBe(false);
+  });
+
+  it('never refuses a floor on a wall; refuses blocking furniture there', () => {
+    const m = createBlankMap('t', 6, 6);
+    setBlocked(m, 3, 3, true);
+    const [floor] = brushCells(3, 3, oak, IDENTITY, 'all');
+    const [seat] = brushCells(3, 3, chair, IDENTITY, 'base');
+    expect(refusedByWall(m, floor!, 'all')).toBe(false);
+    expect(refusedByWall(m, seat!, 'base')).toBe(true);
+  });
+
+  it('live erase finds the latest placement of the chosen level', () => {
+    const place = (sel: typeof oak): EditOp => ({ kind: 'place', x: 2, y: 2, ...sel, mode: 'none', rot: 0, flipX: false });
+    const edit = (id: number, op: EditOp): MapEdit => ({ id, author: 'u1', op });
+    const log = new EditLog(createBlankMap('t', 6, 6), 0, () => true);
+    log.add(edit(1, place(chair)));
+    log.add(edit(2, place(oak)));
+    expect(log.placementAt(2, 2)!.id).toBe(2);
+    expect(log.placementAt(2, 2, 'furniture')!.id).toBe(1);
+    expect(log.placementAt(2, 2, 'ground')!.id).toBe(2);
   });
 });

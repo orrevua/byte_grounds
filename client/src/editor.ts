@@ -2,6 +2,7 @@ import { TILE_SIZE } from '@byte_grounds/shared/protocol';
 import { createBlankMap, mapIdFromName, tileAt, zoneAt, type Facing, type OfficeMap, type Seat } from '@byte_grounds/shared/map';
 import { DEFAULT_MAP } from '@byte_grounds/shared/maps';
 import { effectiveSeats } from '@byte_grounds/shared/seats';
+import type { DecorLevel } from '@byte_grounds/shared/ground';
 import { drawDecorCellAt, drawMap, drawObjectDecorFlat, drawZones, mapPixelSize } from './render.ts';
 import { decorImage, loadCustomSheets, loadDecorSheets } from './decor.ts';
 import { IDENTITY, footprint, transformFacing, type DecorTransform } from './decor-transform.ts';
@@ -121,6 +122,11 @@ root.innerHTML = `
     <section>
       <h2>${t('editor.tool')}</h2>
       <div class="tools" id="tools"></div>
+      <div class="row" id="erase-row" style="margin-top:6px;display:none">
+        ${t('editor.eraseWhat')} <select id="erase-level" style="flex:1">
+          <option value="furniture">${t('build.eraseFurniture')}</option><option value="ground">${t('build.eraseFloor')}</option>
+        </select>
+      </div>
       <div class="row" style="margin-top:6px">
         <button id="undo">${t('editor.undo')}</button>
         <label class="check"><input id="show-walls" type="checkbox" checked /> ${t('editor.showWalls')}</label>
@@ -415,6 +421,7 @@ for (const item of TOOLS) {
 function setTool(next: Tool): void {
   if (next === 'zone' && tool !== 'zone') setStatus(t('editor.zoneHint'));
   tool = next;
+  $('#erase-row').style.display = next === 'erase' ? '' : 'none';
   for (const b of toolsEl.querySelectorAll<HTMLButtonElement>('button')) {
     b.classList.toggle('active', b.dataset.tool === next);
   }
@@ -653,7 +660,7 @@ function apply(x: number, y: number, first: boolean): void {
       setBlocked(map, x, y, false);
       break;
     case 'erase':
-      eraseDecor(map, x, y);
+      eraseDecor(map, x, y, $<HTMLSelectElement>('#erase-level').value as DecorLevel);
       break;
     case 'decor':
       if (!selection) return setStatus(t('editor.pickFirst'), true);

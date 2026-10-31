@@ -5,7 +5,8 @@ import { SupabaseStore } from './store.ts';
 import { decorImage, loadDecorSheets } from './decor.ts';
 import { toMapEdit, type EditOp, type MapEdit, type PlaceOp } from './edit-ops.ts';
 import { EditLog, bakedObjectAt, placeCells, replaceMapContents } from './live-model.ts';
-import { cellBlocks } from './editor-model.ts';
+import { cellBlocks, hasDecorLevel } from './editor-model.ts';
+import type { DecorLevel } from '@byte_grounds/shared/ground';
 import { decorLayer, tileAt } from '@byte_grounds/shared/map';
 import { t } from './i18n.ts';
 
@@ -184,10 +185,22 @@ export class LiveMap {
   }
 
   /** Remove the live placement covering tile (x, y); with none there, the admin erases the top cell. */
-  async removeAt(x: number, y: number): Promise<void> {
-    const e = this.log?.placementAt(x, y);
-    if (e) await this.remove(e);
-    else if (this.opts.isAdmin) await this.send({ kind: 'erase', x, y });
+  /**
+   * Erase the furniture or the floor on (x, y): the latest live placement of that level, else (the
+   * admin) the map's own piece. The `erase` op takes the furniture first, so the map's own floor
+   * under furniture can only go once the furniture is gone.
+   */
+  async removeAt(x: number, y: number, level: DecorLevel = 'furniture'): Promise<void> {
+    const e = this.log?.placementAt(x, y, level);
+    if (e) {
+      await this.remove(e);
+      return;
+    }
+    const map = this.log?.map ?? this.target;
+    if (!this.opts.isAdmin) return;
+    if (!hasDecorLevel(map, x, y, level)) return this.emitError(t(level === 'ground' ? 'live.noFloor' : 'live.noFurniture'));
+    if (level === 'ground' && hasDecorLevel(map, x, y, 'furniture')) return this.emitError(t('live.floorUnderFurniture'));
+    await this.send({ kind: 'erase', x, y });
   }
 
   private remove(e: MapEdit): Promise<boolean> {

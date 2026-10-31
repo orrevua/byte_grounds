@@ -21,9 +21,9 @@ import { INVITE_MS, askRoomPassword, closeInviteCard, inviteCardOpen, openInvite
 import type { GrantsFeed } from './grants.ts';
 import type { LiveMap, MoveSource } from './live-map.ts';
 import { BuildPanel } from './build-panel.ts';
-import { brushCells, cellBlocks } from './editor-model.ts';
+import { brushCells } from './editor-model.ts';
 import { placeOp } from './edit-ops.ts';
-import { blockedByWall, placeCells } from './live-model.ts';
+import { placeCells, refusedByWall } from './live-model.ts';
 import {
   appearanceReady,
   directionFromDelta,
@@ -989,7 +989,7 @@ export class Game {
       cells = brushCells(x, y, s.selection, s.t, s.mode);
       mode = s.mode;
     }
-    const blocked = cells.filter((c) => cellBlocks(c, mode) && this.inMap(c.x, c.y) && blockedByWall(this.map, c.x, c.y));
+    const blocked = cells.filter((c) => this.inMap(c.x, c.y) && refusedByWall(this.map, c, mode));
     return { cells, blocked };
   }
 
@@ -1019,7 +1019,7 @@ export class Game {
         return;
       }
       case 'erase':
-        void live.removeAt(x, y);
+        void live.removeAt(x, y, panel.eraseLevel);
         return;
       case 'block':
       case 'walk':

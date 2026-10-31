@@ -1,5 +1,5 @@
-import { MAX_MAP_SIZE, type DecorCell, type Facing, type OfficeMap, type Seat, type Tile } from '@byte_grounds/shared/map';
-import { isGroundCell } from '@byte_grounds/shared/ground';
+import { MAX_MAP_SIZE, decorLayer, type DecorCell, type Facing, type OfficeMap, type Seat, type Tile } from '@byte_grounds/shared/map';
+import { decorLevel, isGroundCell, type DecorLevel } from '@byte_grounds/shared/ground';
 import { IDENTITY, footprint, transformFields, transformOffset, type DecorTransform } from './decor-transform.ts';
 
 /** A rectangle of cells picked from a decor sheet (in 32px cells). */
@@ -133,16 +133,27 @@ export function stampDecor(
   }
 }
 
-/** Remove the topmost decoration on a tile; true if one was removed. */
-export function eraseDecor(m: OfficeMap, x: number, y: number): boolean {
+/**
+ * Remove the topmost decoration of a level on a tile (`furniture` or `ground`); without a level,
+ * the topmost furniture, or the floor when no furniture stands there. When the last object-layer
+ * piece leaves a tile it blocked, the tile becomes walkable again (furniture never stands on a wall
+ * tile in the built-in maps; the Block tool can make it a wall again). True if one was removed.
+ */
+export function eraseDecor(m: OfficeMap, x: number, y: number, level?: DecorLevel): boolean {
   const decor = m.decor ?? [];
-  for (let i = decor.length - 1; i >= 0; i--) {
-    if (decor[i]!.x === x && decor[i]!.y === y) {
-      decor.splice(i, 1);
-      return true;
-    }
-  }
-  return false;
+  const here = decor.flatMap((d, i) => (d.x === x && d.y === y ? [i] : []));
+  const of = (l: DecorLevel) => here.filter((i) => decorLevel(decor[i]!) === l).at(-1);
+  const i = level ? of(level) : (of('furniture') ?? of('ground'));
+  if (i === undefined) return false;
+  const wasObject = decorLayer(m, decor[i]!) === 'object';
+  decor.splice(i, 1);
+  if (wasObject && !decor.some((d) => d.x === x && d.y === y && decorLayer(m, d) === 'object')) setBlocked(m, x, y, false);
+  return true;
+}
+
+/** Whether a tile has decoration of a level. */
+export function hasDecorLevel(m: OfficeMap, x: number, y: number, level: DecorLevel): boolean {
+  return (m.decor ?? []).some((d) => d.x === x && d.y === y && decorLevel(d) === level);
 }
 
 /**
