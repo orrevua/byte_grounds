@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { DEFAULT_ROOM } from '@byte_grounds/shared/protocol';
+import { DEFAULT_ROOM, normalizeChat, normalizeStatusFields } from '@byte_grounds/shared/protocol';
 import type {
   ClientToServer,
   PeerId,
@@ -74,6 +74,7 @@ wss.on('connection', (ws) => {
           x: Number.isFinite(msg.x) ? msg.x! : DEFAULT_MAP.spawn.x,
           y: Number.isFinite(msg.y) ? msg.y! : DEFAULT_MAP.spawn.y,
           ...(typeof msg.uid === 'string' ? { uid: msg.uid } : {}),
+          ...normalizeStatusFields(msg),
         };
         room.add(peer);
         send(ws, { type: 'welcome', selfId, room: roomId });
@@ -92,6 +93,19 @@ wss.on('connection', (ws) => {
             dir: msg.dir,
           });
         }
+        break;
+      }
+      case 'status': {
+        const fields = normalizeStatusFields(msg);
+        if (rooms.get(roomOf.get(selfId) ?? '')?.updateStatus(selfId, fields)) {
+          broadcast(selfId, { type: 'peer-status', id: selfId, ...fields });
+        }
+        break;
+      }
+      case 'chat': {
+        const text = normalizeChat(msg.text);
+        const me = rooms.get(roomOf.get(selfId) ?? '')?.get(selfId);
+        if (text && me) broadcast(selfId, { type: 'chat', from: selfId, name: me.name, text, at: Date.now() });
         break;
       }
       case 'offer': {

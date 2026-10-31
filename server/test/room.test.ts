@@ -41,6 +41,14 @@ describe('Room', () => {
     expect(r.list()[0]).toMatchObject({ pose: 'dance', dir: 'down' });
   });
 
+  it('stores status fields only for known peers', () => {
+    const r = new Room();
+    r.add(peer('a'));
+    expect(r.updateStatus('a', { status: 'Shipping', busy: true, sharing: false })).toBe(true);
+    expect(r.get('a')).toMatchObject({ status: 'Shipping', busy: true, sharing: false });
+    expect(r.updateStatus('missing', { status: '', busy: false, sharing: false })).toBe(false);
+  });
+
   it('removes peers', () => {
     const r = new Room();
     r.add(peer('a'));

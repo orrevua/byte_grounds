@@ -1,4 +1,4 @@
-import type { Facing, PeerId, PeerState, Pose } from '@byte_grounds/shared/protocol';
+import type { Facing, PeerId, PeerState, Pose, StatusFields } from '@byte_grounds/shared/protocol';
 
 /** In-memory presence for a single room. State is lost on restart (by design). */
 export class Room {
@@ -20,6 +20,17 @@ export class Room {
     peer.pose = pose;
     peer.dir = dir;
     return true;
+  }
+
+  updateStatus(id: PeerId, fields: StatusFields): boolean {
+    const peer = this.peers.get(id);
+    if (!peer) return false;
+    Object.assign(peer, fields);
+    return true;
+  }
+
+  get(id: PeerId): PeerState | undefined {
+    return this.peers.get(id);
   }
 
   has(id: PeerId): boolean {

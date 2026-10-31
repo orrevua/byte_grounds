@@ -191,6 +191,33 @@ describe('SupabaseNet', () => {
     expect(alice).toMatchObject({ x: 7, y: 5 });
   });
 
+  it('relays status changes and keeps them in presence for late joiners', async () => {
+    const a = await joinAs('alice');
+    const b = await joinAs('bob');
+    b.inbox.length = 0;
+    a.net.send({ type: 'status', status: 'Shipping', busy: true, sharing: false });
+    expect(b.inbox.filter((m) => m.type === 'peer-status')).toEqual([
+      { type: 'peer-status', id: a.id, status: 'Shipping', busy: true, sharing: false },
+    ]);
+
+    const late = await joinAs('carol');
+    const peers = late.inbox.flatMap((m) =>
+      m.type === 'peer-joined' ? [m.peer] : m.type === 'presence-snapshot' ? m.peers : [],
+    );
+    expect(peers.find((p) => p.id === a.id)).toMatchObject({ status: 'Shipping', busy: true });
+  });
+
+  it('relays chat lines with the sender name, not back to the sender', async () => {
+    const a = await joinAs('alice');
+    const b = await joinAs('bob');
+    a.inbox.length = 0;
+    b.inbox.length = 0;
+    a.net.send({ type: 'chat', text: '  hello  ' });
+    a.net.send({ type: 'chat', text: '   ' });
+    expect(b.inbox).toEqual([{ type: 'chat', from: a.id, name: 'alice', text: 'hello', at: expect.any(Number) }]);
+    expect(a.inbox).toEqual([]);
+  });
+
   it('delivers signaling only to the addressee, stamped with the sender', async () => {
     const a = await joinAs('alice');
     const b = await joinAs('bob');

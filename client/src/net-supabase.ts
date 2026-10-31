@@ -1,5 +1,5 @@
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
-import { DEFAULT_ROOM } from '@byte_grounds/shared/protocol';
+import { DEFAULT_ROOM, normalizeChat, normalizeStatusFields } from '@byte_grounds/shared/protocol';
 import type {
   ClientToServer,
   JoinMsg,
@@ -68,6 +68,8 @@ export class SupabaseNet implements Net {
   private seq = 0;
   private trackedSeq = -1;
   private readonly seen = new Map<PeerId, number>();
+  /** Last status fields announced per peer (serialized), so presence refreshes don't repeat them. */
+  private readonly statusSeen = new Map<PeerId, string>();
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private lastPresenceAt = 0;
 
@@ -88,6 +90,7 @@ export class SupabaseNet implements Net {
       x: join.x ?? DEFAULT_MAP.spawn.x,
       y: join.y ?? DEFAULT_MAP.spawn.y,
       ...(join.uid ? { uid: join.uid } : {}),
+      ...normalizeStatusFields(join),
     };
     handlers.onStatus?.('connecting');
     void getSupabase(this.url, this.key).then((client) => {
@@ -117,6 +120,22 @@ export class SupabaseNet implements Net {
           this.emit({ type: 'peer-moved', id, x, y, pose, dir });
         }
       })
+      .on('broadcast', { event: 'status' }, ({ payload }) => {
+        const id = (payload as { id: PeerId }).id;
+        if (this.known.has(id)) this.emitStatus(id, payload);
+      })
+      .on('broadcast', { event: 'chat' }, ({ payload }) => {
+        const { id, name, text, at } = payload as { id: PeerId; name: unknown; text: unknown; at: unknown };
+        const clean = normalizeChat(text);
+        if (!this.known.has(id) || !clean) return;
+        this.emit({
+          type: 'chat',
+          from: id,
+          name: typeof name === 'string' ? name : '',
+          text: clean,
+          at: typeof at === 'number' ? at : Date.now(),
+        });
+      })
       .on('broadcast', { event: 'bye' }, ({ payload }) => {
         this.dropPeer((payload as { id: PeerId }).id);
       })
@@ -133,9 +152,11 @@ export class SupabaseNet implements Net {
           if (this.isNewer(key, peer.seq)) {
             this.emit({ type: 'peer-moved', id: key, x: peer.x, y: peer.y, pose: peer.pose, dir: peer.dir });
           }
+          this.emitStatus(key, peer);
         } else {
           this.known.add(key);
           this.isNewer(key, peer.seq);
+          this.statusSeen.set(key, JSON.stringify(normalizeStatusFields(peer)));
           this.emit({ type: 'peer-joined', peer: toPeer(peer) });
         }
       })
@@ -196,6 +217,7 @@ export class SupabaseNet implements Net {
       if (key === this.selfId || !meta || this.known.has(key)) continue;
       this.known.add(key);
       this.isNewer(key, (meta as { seq?: number }).seq);
+      this.statusSeen.set(key, JSON.stringify(normalizeStatusFields(meta)));
       peers.push(toPeer(meta));
     }
     if (!this.welcomed) {
@@ -232,6 +254,26 @@ export class SupabaseNet implements Net {
         this.seq += 1;
         this.pendingPos = true;
         return;
+      case 'status': {
+        const fields = normalizeStatusFields(msg);
+        Object.assign(this.self, fields);
+        if (this.channel && this.subscribed) {
+          void this.channel.send({ type: 'broadcast', event: 'status', payload: { id: this.selfId, ...fields } });
+          this.trackPresence();
+        }
+        // Otherwise the next SUBSCRIBED tracks presence with these fields.
+        return;
+      }
+      case 'chat': {
+        const text = normalizeChat(msg.text);
+        if (!text || !this.channel || !this.subscribed) return;
+        void this.channel.send({
+          type: 'broadcast',
+          event: 'chat',
+          payload: { id: this.selfId, name: this.self.name, text, at: Date.now() },
+        });
+        return;
+      }
       case 'offer':
       case 'answer':
         this.signal(msg.to, { type: msg.type, from: this.selfId, sdp: msg.sdp, sid: msg.sid });
@@ -303,6 +345,15 @@ export class SupabaseNet implements Net {
     }
   }
 
+  /** Announce a peer's status fields when they differ from the last ones announced. */
+  private emitStatus(id: PeerId, raw: unknown): void {
+    const fields = normalizeStatusFields(raw);
+    const key = JSON.stringify(fields);
+    if (this.statusSeen.get(id) === key) return;
+    this.statusSeen.set(id, key);
+    this.emit({ type: 'peer-status', id, ...fields });
+  }
+
   private cancelLeave(id: PeerId): void {
     const t = this.leaving.get(id);
     if (t) clearTimeout(t);
@@ -313,6 +364,7 @@ export class SupabaseNet implements Net {
     this.cancelLeave(id);
     if (!this.known.delete(id)) return;
     this.seen.delete(id);
+    this.statusSeen.delete(id);
     this.emit({ type: 'peer-left', id });
   }
 
@@ -338,5 +390,16 @@ export class SupabaseNet implements Net {
 /** Strip Supabase's presence bookkeeping (`presence_ref`) back down to a `PeerState`. */
 function toPeer(meta: PeerState): PeerState {
   const { id, name, color, appearance, x, y, pose, dir, uid } = meta;
-  return { id, name, color, appearance, x, y, pose, dir, ...(typeof uid === 'string' ? { uid } : {}) };
+  return {
+    id,
+    name,
+    color,
+    appearance,
+    x,
+    y,
+    pose,
+    dir,
+    ...(typeof uid === 'string' ? { uid } : {}),
+    ...normalizeStatusFields(meta),
+  };
 }
