@@ -22,6 +22,42 @@ export const DECOR_SHEETS: string[] = Object.keys(SHEET_URLS)
   .sort();
 
 /**
+ * Add (or replace) a sheet at runtime: Sheet Studio's custom sheets, by id, with an image URL
+ * (a PNG data URL). It joins the picker list and drops any cached image/objects of the old version.
+ */
+export function registerSheet(id: string, url: string): void {
+  if (SHEET_URLS[id] === url) return;
+  SHEET_URLS[id] = url;
+  images.delete(id);
+  objects.delete(id);
+  if (!DECOR_SHEETS.includes(id)) {
+    DECOR_SHEETS.push(id);
+    DECOR_SHEETS.sort();
+  }
+}
+
+/** Remove a runtime sheet from the picker (its cells on maps stop drawing). */
+export function unregisterSheet(id: string): void {
+  delete SHEET_URLS[id];
+  images.delete(id);
+  objects.delete(id);
+  const i = DECOR_SHEETS.indexOf(id);
+  if (i >= 0) DECOR_SHEETS.splice(i, 1);
+}
+
+/** Register every saved custom sheet (a failure only means no custom art: logged, not thrown). */
+export async function loadCustomSheets(store: { listSheets(): Promise<{ id: string; png: string }[]> }): Promise<string[]> {
+  try {
+    const sheets = await store.listSheets();
+    for (const s of sheets) registerSheet(s.id, s.png);
+    return sheets.map((s) => s.id);
+  } catch (err) {
+    console.warn('[sheets] custom sheets unavailable:', err);
+    return [];
+  }
+}
+
+/**
  * Wall/floor sets whose pieces are drawn to join across cells: "the object under the click"
  * means nothing there, so a picker click selects just the clicked cell.
  */

@@ -3,7 +3,7 @@ import { createBlankMap, mapIdFromName, tileAt, zoneAt, type Facing, type Office
 import { DEFAULT_MAP } from '@byte_grounds/shared/maps';
 import { effectiveSeats } from '@byte_grounds/shared/seats';
 import { drawDecorCellAt, drawMap, drawObjectDecorFlat, drawZones, mapPixelSize } from './render.ts';
-import { decorImage, loadDecorSheets } from './decor.ts';
+import { decorImage, loadCustomSheets, loadDecorSheets } from './decor.ts';
 import { IDENTITY, footprint, transformFacing, type DecorTransform } from './decor-transform.ts';
 import { mountDecorPicker, transformForKey } from './decor-picker.ts';
 import {
@@ -90,7 +90,7 @@ let canSave = !hasSupabase;
 
 root.innerHTML = `
   <aside>
-    <h1>Map editor <a href="index.html">← Play</a></h1>
+    <h1>Map editor <span><a href="sheets.html">Sheet Studio</a> · <a href="index.html">← Play</a></span></h1>
     <section>
       <h2>Map</h2>
       <div class="row">
@@ -813,7 +813,10 @@ const picker = mountDecorPicker($<HTMLDivElement>('#decor-body'), (s) => {
   else setTool('decor');
 });
 const wanted = new URLSearchParams(location.search).get('map') ?? DEFAULT_MAP.id;
-refreshMaps(wanted)
+// Custom Sheet Studio sheets first: maps may use them, and the picker should list them.
+loadCustomSheets(store)
+  .then(() => picker.refreshSheets())
+  .then(() => refreshMaps(wanted))
   .then(() => openMap(maps.some((m) => m.id === wanted) ? wanted : maps[0]!.id))
   .catch((err) => {
     showError(err);

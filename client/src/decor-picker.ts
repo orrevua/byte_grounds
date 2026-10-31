@@ -51,7 +51,7 @@ export function transformForKey(e: KeyboardEvent): TransformOp | null {
 export function mountDecorPicker(
   body: HTMLElement,
   onChange: (s: PickerState) => void,
-): { state(): PickerState; setTransform(t: DecorTransform): void } {
+): { state(): PickerState; setTransform(t: DecorTransform): void; refreshSheets(): void } {
   let selection: DecorSelection | null = null;
   let mode: BlockMode = 'base';
   let brushT: DecorTransform = IDENTITY;
@@ -65,7 +65,7 @@ export function mountDecorPicker(
   if (DECOR_SHEETS.length === 0) {
     body.innerHTML = `<p class="hint">No decoration art yet. Add LPC sheet PNGs to
       <code>client/src/assets/decor/</code> and redeploy; they show up here automatically.</p>`;
-    return { state, setTransform };
+    return { state, setTransform, refreshSheets: () => {} };
   }
   body.innerHTML = `
     <div class="row" style="margin-bottom:6px">
@@ -221,5 +221,13 @@ export function mountDecorPicker(
     drawSheet();
   });
   drawSheet();
-  return { state, setTransform };
+  /** Re-list the sheets (custom sheets registered after mounting), keeping the current one. */
+  const refreshSheets = () => {
+    sheetSelect.replaceChildren(...DECOR_SHEETS.map((s) => new Option(s, s, false, s === sheet)));
+    if (!DECOR_SHEETS.includes(sheet)) {
+      sheet = DECOR_SHEETS[0]!;
+      drawSheet();
+    }
+  };
+  return { state, setTransform, refreshSheets };
 }

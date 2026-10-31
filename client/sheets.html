@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <title>ByteGrounds Sheet Studio</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: #14161a; color: #e6e8eb;
+        font-family: system-ui, sans-serif; font-size: 13px; }
+      #studio { display: grid; grid-template-columns: 300px 1fr 260px; height: 100%; }
+      aside { background: #1e2228; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+      aside.right { border-left: 1px solid #2c323b; }
+      main { display: flex; flex-direction: column; min-width: 0; }
+      .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 12px;
+        background: #1a1d22; border-bottom: 1px solid #2c323b; }
+      #canvas-wrap { flex: 1; overflow: auto; padding: 16px; }
+      #art { display: block; image-rendering: pixelated; cursor: crosshair; touch-action: none; }
+      h1 { font-size: 16px; margin: 0; display: flex; justify-content: space-between; align-items: center; }
+      h1 a { color: #8fb4ff; font-size: 12px; font-weight: 400; }
+      h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #9aa3ad; margin: 0 0 6px; }
+      .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+      input, select, button, textarea { font: inherit; color: #e6e8eb; background: #14161a;
+        border: 1px solid #333a44; border-radius: 6px; padding: 5px 8px; }
+      input[type=number] { width: 58px; }
+      input[type=color] { padding: 0; width: 36px; height: 30px; }
+      input[type=range] { padding: 0; }
+      button { cursor: pointer; background: #2a2f37; }
+      button:hover { background: #343a44; }
+      button.primary { background: #4f8cff; border-color: #4f8cff; color: #fff; font-weight: 600; }
+      button.danger { background: #5a2a2a; border-color: #7a3a3a; }
+      .tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+      .tools button.active { background: #4f8cff; border-color: #4f8cff; color: #fff; }
+      .swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+      .swatches button { height: 22px; padding: 0; border-radius: 4px; border: 1px solid #0006; }
+      .swatches button.on { outline: 2px solid #fff; }
+      #current { width: 44px; height: 30px; border-radius: 6px; border: 1px solid #333a44;
+        background-image: repeating-conic-gradient(#555 0 25%, #333 0 50%); background-size: 8px 8px; position: relative; }
+      #current span { position: absolute; inset: 0; border-radius: 5px; }
+      .hint { color: #9aa3ad; font-size: 12px; line-height: 1.45; margin: 0; }
+      .status { font-size: 12px; color: #9aa3ad; min-height: 1em; }
+      .status.error { color: #ffb4b4; white-space: pre-wrap; }
+      #preview { image-rendering: pixelated; border-radius: 6px; border: 1px solid #333a44; max-width: 100%; }
+      #decor-body #sheet-wrap { max-height: 260px; overflow: auto; background: #0d0f12; border-radius: 6px; }
+      #decor-body #sheet { max-width: none; cursor: crosshair; image-rendering: pixelated; }
+      #decor-body .hint { display: none; }
+      code, pre { background: #0d0f12; border-radius: 4px; font-size: 11px; }
+      pre { padding: 8px; white-space: pre-wrap; margin: 0; }
+      #dialog { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center;
+        justify-content: center; z-index: 50; }
+      #dialog .box { background: #1e2228; border: 1px solid #333a44; border-radius: 10px; padding: 16px;
+        width: min(720px, 92vw); display: flex; flex-direction: column; gap: 10px; }
+      #dialog textarea { width: 100%; height: 340px; font: 12px ui-monospace, monospace; }
+      #gate { position: fixed; inset: 0; background: #14161a; display: flex; align-items: center; justify-content: center; z-index: 60; }
+      #gate .gate-box { background: #1e2228; border: 1px solid #333a44; border-radius: 10px; padding: 24px; max-width: 420px; }
+      #gate a { color: #8fb4ff; }
+      .hidden { display: none !important; }
+      @media (max-width: 1100px) { #studio { grid-template-columns: 280px 1fr; } aside.right { display: none; } }
+    </style>
+  </head>
+  <body>
+    <div id="studio"></div>
+    <script type="module" src="/src/sheet-studio.ts"></script>
+  </body>
+</html>

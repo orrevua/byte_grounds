@@ -16,7 +16,7 @@ import type { Appearance, PeerId } from '@byte_grounds/shared/protocol';
 import { startPosition, type OfficeMap } from '@byte_grounds/shared/map';
 import { DEFAULT_MAP } from '@byte_grounds/shared/maps';
 import { createStore, type MapSummary } from './store.ts';
-import { loadDecorSheets } from './decor.ts';
+import { loadCustomSheets, loadDecorSheets } from './decor.ts';
 import { hasSupabase } from './supabase.ts';
 import { adminEmail, checkIsAdmin, ensureSession, signInAdmin, signOutAdmin } from './auth.ts';
 import { GrantsFeed } from './grants.ts';
@@ -104,6 +104,7 @@ function renderJoin(): void {
         <div id="join-error" class="join-error"></div>
         <div id="admin-box" class="admin-box"></div>
         <a class="editor-link" href="editor.html">Map editor →</a>
+        <a class="editor-link studio-link hidden" href="sheets.html">Sheet Studio (admin) →</a>
       </div>
     </div>`;
 
@@ -114,6 +115,7 @@ function renderJoin(): void {
   const go = app!.querySelector<HTMLButtonElement>('#go')!;
   const adminBox = app!.querySelector<HTMLDivElement>('#admin-box')!;
   if (hasSupabase) renderAdminBox(adminBox);
+  else app!.querySelector('.studio-link')!.classList.remove('hidden'); // local dev: no gate
   void store
     .listMaps()
     .then((maps) => fillMapSelect(mapEl, maps, localStorage.getItem(MAP_KEY)))
@@ -197,6 +199,7 @@ function renderAdminBox(box: HTMLDivElement): void {
 
 /** Email sign-ups are open, so a signed-in account is only labelled admin when `is_admin()` says so. */
 function showSignedIn(box: HTMLDivElement, email: string, isAdmin: boolean): void {
+  document.querySelector('.studio-link')?.classList.toggle('hidden', !isAdmin);
   box.innerHTML = `<div><span class="admin-email"></span> · <button type="button" class="link">Sign out</button></div>
     <div class="join-error"></div>`;
   box.querySelector('.admin-email')!.textContent = isAdmin ? `Admin: ${email}` : `Signed in: ${email} (not admin)`;
@@ -254,6 +257,8 @@ async function join(name: string, appearance: Appearance, mapId: string): Promis
   localStorage.setItem(STORAGE_KEY, serializeAppearance(appearance));
   localStorage.setItem(NAME_KEY, name);
   localStorage.setItem(MAP_KEY, mapId);
+  // Sheet Studio sheets before the map, so cells drawn with them are known (and loadable).
+  await loadCustomSheets(store);
   const [map, saved, uid] = await Promise.all([
     store.loadMap(mapId).then((m) => m ?? DEFAULT_MAP),
     store.loadPosition(mapId, name).catch(() => null),

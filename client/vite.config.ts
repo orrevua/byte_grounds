@@ -22,10 +22,11 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      // Two pages: the game and the map editor (/editor on Vercel via cleanUrls).
+      // Three pages: the game, the map editor and Sheet Studio (/editor, /sheets on Vercel via cleanUrls).
       input: {
         main: resolve(import.meta.dirname, 'index.html'),
         editor: resolve(import.meta.dirname, 'editor.html'),
+        sheets: resolve(import.meta.dirname, 'sheets.html'),
       },
     },
   },

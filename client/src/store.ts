@@ -25,6 +25,24 @@ export interface Store {
   loadEdits(mapId: string, after: number): Promise<MapEdit[]>;
   loadPosition(mapId: string, player: string): Promise<{ x: number; y: number } | null>;
   savePosition(mapId: string, player: string, x: number, y: number): Promise<void>;
+  /** Custom decoration sheets from Sheet Studio (everyone reads; admins write). */
+  listSheets(): Promise<CustomSheet[]>;
+  saveSheet(sheet: CustomSheet): Promise<void>;
+  deleteSheet(id: string): Promise<void>;
+}
+
+/** A Sheet Studio sheet: id `custom_<slug>`, the image as a PNG data URL, its size in cells. */
+export interface CustomSheet {
+  id: string;
+  name: string;
+  png: string;
+  cols: number;
+  rows: number;
+}
+
+/** The id a sheet named `slug` is stored under (kept apart from the built-in art's names). */
+export function customSheetId(slug: string): string {
+  return `custom_${slug}`;
 }
 
 /** A save refused because live edits landed after the ones the editor merged (`bake_map` 'stale'). */
@@ -172,6 +190,25 @@ export class SupabaseStore implements Store {
     }
   }
 
+  async listSheets(): Promise<CustomSheet[]> {
+    const db = await getSupabase();
+    const { data, error } = await db.from('decor_sheets').select('id, name, png, cols, rows').order('name');
+    if (error) throw error;
+    return (data ?? []) as CustomSheet[];
+  }
+
+  async saveSheet(sheet: CustomSheet): Promise<void> {
+    const db = await getSupabase();
+    const { error } = await db.from('decor_sheets').upsert({ ...sheet, updated_at: new Date().toISOString() });
+    if (error) throw error;
+  }
+
+  async deleteSheet(id: string): Promise<void> {
+    const db = await getSupabase();
+    const { error } = await db.from('decor_sheets').delete().eq('id', id);
+    if (error) throw error;
+  }
+
   /** Through `delete_map`: also drops the map's live edits and saved player spots. */
   async deleteMap(id: string): Promise<void> {
     const db = await getSupabase();
@@ -206,6 +243,7 @@ export class SupabaseStore implements Store {
 
 const MAPS_KEY = 'byte_grounds.maps';
 const POS_KEY = 'byte_grounds.positions';
+const SHEETS_KEY = 'byte_grounds.sheets';
 
 /** Browser-only fallback for local dev without Supabase (localStorage). */
 export class LocalStore implements Store {
@@ -262,6 +300,20 @@ export class LocalStore implements Store {
 
   async savePosition(mapId: string, player: string, x: number, y: number): Promise<void> {
     this.write(POS_KEY, { ...this.read(POS_KEY), [`${mapId}/${playerKey(player)}`]: { x, y } });
+  }
+
+  async listSheets(): Promise<CustomSheet[]> {
+    return Object.values(this.read<CustomSheet>(SHEETS_KEY)).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async saveSheet(sheet: CustomSheet): Promise<void> {
+    this.write(SHEETS_KEY, { ...this.read(SHEETS_KEY), [sheet.id]: sheet });
+  }
+
+  async deleteSheet(id: string): Promise<void> {
+    const sheets = this.read(SHEETS_KEY);
+    delete sheets[id];
+    this.write(SHEETS_KEY, sheets);
   }
 }
 

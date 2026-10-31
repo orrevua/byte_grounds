@@ -58,6 +58,10 @@ the room, broadcast carries positions and WebRTC signaling (`client/src/net-supa
    From then on only the admin and people the admin allows (click an avatar in the game) can
    save maps. Re-run `admin.sql` whenever you re-run `schema.sql`.
 
+5. **Sheet Studio (custom art):** run [`supabase/sheets.sql`](supabase/sheets.sql) in the SQL
+   Editor. The admin can then draw sheets at `/sheets` and place their pieces in the editor and
+   the Build panel. Guide for humans and agents: [`docs/sheet-studio.md`](docs/sheet-studio.md).
+
 When both variables are set the client uses Supabase; otherwise it falls back to the ws server at
 `VITE_WS_URL`. To try Supabase locally, put the two variables in `client/.env.local`
 (see `client/.env.example`) and run `npm run dev:client`.
