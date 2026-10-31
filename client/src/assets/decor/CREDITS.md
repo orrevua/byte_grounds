@@ -197,3 +197,9 @@ under the original's license (CC-BY-SA share-alike included).
 - Generated with Google Gemini (via `tools/gemini_mcp.py`) for the project owner, in the style of the
   earlier Gemini sheets; converted with `tools/pixelate_image.py` and repacked with
   `tools/repack_decor.py`. Floors: six seamless textures shrunk to 3x3-cell blocks.
+
+### gemini_building.png, gemini_office2.png, gemini_home.png (+ their _grid repacks)
+
+- Generated with Google Gemini (via `tools/gemini_mcp.py`) in the Gemini Studio style (walls, doors,
+  windows, reception; desks, office equipment; beds, bathroom, kitchen, living room), converted with
+  `tools/pixelate_image.py` and repacked with `tools/repack_decor.py`.

@@ -218,6 +218,16 @@
     { "sheet": "gemini_studio_grid", "x": 5, "y": 5, "kind": "sit", "dir": "down" },
     { "sheet": "gemini_studio_grid", "x": 8, "y": 5, "kind": "sit", "dir": "down" },
 
+    { "sheet": "gemini_office2_grid", "x": 0, "y": 5, "kind": "sit", "dir": "down" },
+    { "sheet": "gemini_office2_grid", "x": 10, "y": 3, "kind": "sit", "dir": "up" },
+    { "sheet": "gemini_office2_grid", "x": 1, "y": 4, "kind": "sit", "dir": "down" },
+
+    { "sheet": "gemini_home_grid", "x": 0, "y": 0, "kind": "lie", "dir": "down" },
+    { "sheet": "gemini_home_grid", "x": 2, "y": 0, "kind": "lie", "dir": "down" },
+    { "sheet": "gemini_home_grid", "x": 3, "y": 0, "kind": "lie", "dir": "down" },
+    { "sheet": "gemini_home_grid", "x": 5, "y": 3, "kind": "sit", "dir": "down" },
+    { "sheet": "gemini_home_grid", "x": 0, "y": 7, "kind": "sit", "dir": "down" },
+
     { "sheet": "beds_grid", "x": 2, "y": 2, "kind": "lie", "dir": "up", "fallback": true },
     { "sheet": "beds_grid", "x": 3, "y": 2, "kind": "lie", "dir": "up", "fallback": true },
     { "sheet": "beds_grid", "x": 4, "y": 2, "kind": "lie", "dir": "up", "fallback": true },

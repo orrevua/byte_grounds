@@ -208,6 +208,14 @@ def main() -> None:
     lab, n = ndimage.label(shadowish)
     sizes = ndimage.sum(shadowish, lab, range(1, n + 1)) if n else np.array([])
     shadow = np.isin(lab, np.nonzero(sizes >= args.min_shadow)[0] + 1)
+    # A shadow touching no art (painted under a wall item, floating below it) would become an empty
+    # piece in the picker: drop it.
+    near_art = ndimage.binary_dilation(~clear & ~shadowish, iterations=2)
+    for i in np.nonzero(sizes >= args.min_shadow)[0] + 1:
+        blob = lab == i
+        if not (blob & near_art).any():
+            shadow &= ~blob
+            clear |= blob
     # One opacity per shadow (its median): smooth, and grid lines crossing it don't show.
     raw = np.clip((1 - lum / bg_lum) * 255 * 1.25, 40, 160)
     shade = np.zeros(lum.shape, np.uint8)
