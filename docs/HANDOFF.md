@@ -1,7 +1,16 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-31 (Gemini Studio map)
+**Last updated:** 2026-10-31 (more Gemini sheets + wardrobe colors)
 **Branch:** `master` (user asked: work on master directly, no more PRs)
+
+## More Gemini sheets + wardrobe colors — DONE, PUSHED (2026-10-31)
+- `gemini_building_grid` (walls, doors, windows, partition, reception, wall decor, stairs, railing…),
+  `gemini_office2_grid` (desks front/back, copier, lockers, phone booth, charcoal chairs, stool, water
+  dispenser…), `gemini_home_grid` (beds, bathroom, kitchen, dining, fireplace, piano…). Scale 3.54 from
+  `art/gemini/studio_{building,office2,home}.png`. Seat/bed rules + water dispenser. Single bed and
+  mustard armchair were shifted 14px left in the grid sheet to sit on a cell center.
+- `tools/recolor_layers.py`: gradient-map recolors → tops (7 casual, 4 business), pants (5), hair (4);
+  sit sheets regenerated; 4 presets. Not checked in a browser (tests cover file existence + model).
 
 ## Gemini Studio map + Gemini MCP — DONE, PUSHED (2026-10-31)
 - `tools/gemini_mcp.py` (registered as MCP `gemini`; needs GEMINI_API_KEY where Claude Code starts):
