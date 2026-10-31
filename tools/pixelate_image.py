@@ -14,7 +14,10 @@ real pixels so the game (32px cells, LPC-sized characters) can use them:
    darken whatever floor the piece stands on;
 5. near-identical colors (JPEG wobble, within `--merge`) merge into the most common of them, while
    rare distinct colors (leaf greens, highlights) survive;
-6. specks smaller than `--min-blob` pixels are dropped (stray legs, crumbs).
+6. background- or shadow-colored pixels enclosed by a piece (grey seats, screens), and shadow-colored
+   ones with art above and below them, stay opaque art; only what connects to the open background is
+   see-through (`--keep-holes` turns this off);
+7. specks smaller than `--min-blob` pixels are dropped (stray legs, crumbs).
 
 Pick `--scale` so one of the image's grid cells (or one chair) becomes 32px. Then
 `python tools/repack_decor.py <name>` gives every piece whole cells (`<name>_grid.png`, which the
@@ -88,6 +91,38 @@ def shifted(mask: np.ndarray, dy: int, dx: int) -> np.ndarray:
     return out
 
 
+def enclosed(art: np.ndarray) -> np.ndarray:
+    """Non-art pixels that the art encloses, bridging 1-2px gaps in its outlines."""
+    closed = ndimage.binary_closing(np.pad(art, 2), np.ones((3, 3)))[2:-2, 2:-2]
+    lab, _ = ndimage.label(~closed)
+    border = np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))
+    outside = ndimage.binary_dilation(np.isin(lab, border[border > 0]), np.ones((3, 3)))
+    return ~art & ~outside
+
+
+def _before_after(piece: np.ndarray, reach: int) -> tuple[np.ndarray, np.ndarray]:
+    """Per pixel: any piece pixel within `reach` before it / after it along axis 0."""
+    c = np.vstack([np.zeros((1, piece.shape[1]), np.int32), np.cumsum(piece, 0, dtype=np.int32)])
+    y = np.arange(piece.shape[0])
+    before = c[y] - c[np.maximum(y - reach, 0)] > 0
+    after = c[np.minimum(y + 1 + reach, piece.shape[0])] - c[y + 1] > 0
+    return before, after
+
+
+def sandwiched(art: np.ndarray, reach: int = 16) -> np.ndarray:
+    """Pixels inside a piece's outline by column: art of one piece (8-connected, so a piece in the
+    next row of the sheet doesn't count) below them within `reach` px, and above them or on both
+    sides of them (a seat between armrests). Cast shadows have nothing of their piece below."""
+    out = np.zeros_like(art)
+    lab, _ = ndimage.label(art, structure=np.ones((3, 3)))
+    for i, sl in enumerate(ndimage.find_objects(lab), 1):
+        piece = lab[sl] == i
+        above, below = _before_after(piece, reach)
+        left, right = (m.T for m in _before_after(piece.T, reach))
+        out[sl] |= below & (above | (left & right)) & ~piece
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("input")
@@ -101,6 +136,7 @@ def main() -> None:
     ap.add_argument("--min-shadow", type=int, default=40, help="min size (px) of a dark background-hue blob to make a shadow")
     ap.add_argument("--merge", type=int, default=18, help="merge colors closer than this (|dr|+|dg|+|db|)")
     ap.add_argument("--min-blob", type=int, default=60)
+    ap.add_argument("--keep-holes", action="store_true", help="leave background-colored pixels enclosed by art transparent")
     ap.add_argument("--preview")
     ap.add_argument("--debug", action="store_true")
     args = ap.parse_args()
@@ -223,8 +259,22 @@ def main() -> None:
         blob = lab == i
         shade[blob] = int(np.median(raw[blob]))
 
-    # Flat colors on the opaque art.
+    # Holes: background- or shadow-colored pixels enclosed by a piece (a grey seat or monitor on a
+    # grey background, a screen the background's hue) are the art's own colors, not see-through. Only
+    # what connects to the open background (4-connected, so 1px diagonal outlines still enclose) stays
+    # transparent / shadow. Outlines often have 1-2px gaps, so enclosure is judged on the art closed
+    # by one pixel; the open background then grows back by one pixel, so notches stay see-through.
     art = ~clear & ~shadow
+    if not args.keep_holes:
+        # ...and shadow-colored pixels with art above and below them are the piece's own (an
+        # unoutlined grey cushion, a JPEG fringe): cast shadows lie under a piece, not inside it.
+        holes = enclosed(art) | (shadow & sandwiched(art))
+        art |= holes
+        clear &= ~holes
+        shadow &= ~holes
+        print(f"{int(holes.sum())} enclosed hole px filled")
+
+    # Flat colors on the opaque art.
     colors, counts = np.unique(small[art].reshape(-1, 3), axis=0, return_counts=True)
     centers: list[np.ndarray] = []
     lookup: dict[tuple, np.ndarray] = {}

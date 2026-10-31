@@ -1,7 +1,16 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-31 (Portuguese version + fewer presets)
+**Last updated:** 2026-10-31 (see-through Gemini furniture fixed)
 **Branch:** `master` (user asked: work on master directly, no more PRs)
+
+## See-through Gemini furniture — DONE, PUSHED (2026-10-31)
+- Grey/dark parts of pieces (monitors, PC towers, chair seats/backs) matched the image background
+  (or its darker "shadow" hue) and were keyed transparent/translucent. `tools/pixelate_image.py` now
+  keeps as opaque art: pixels enclosed by a piece (outline gaps of 1-2px bridged) and shadow-colored
+  pixels with art of the same piece below and above / on both sides (`--keep-holes` = old behavior).
+- The six Gemini furniture sheets were patched in place (raw + `_grid`): only the filled pixels were
+  copied into each grid piece (located by exact match in the old raw sheet), so cell positions, the
+  manual 14px shifts, seat rules and maps are unchanged. Floor shadows are still translucent.
 
 ## Portuguese version + fewer presets — DONE, PUSHED (2026-10-31)
 - Spec: `docs/specs/i18n-pt.md`. `client/src/i18n.ts`: `t(key, vars)`, en + pt tables (pt typed as
