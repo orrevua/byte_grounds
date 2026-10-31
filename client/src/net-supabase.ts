@@ -91,6 +91,7 @@ export class SupabaseNet implements Net {
       y: join.y ?? DEFAULT_MAP.spawn.y,
       ...(join.uid ? { uid: join.uid } : {}),
       ...normalizeStatusFields(join),
+      ...(join.admin === true ? { admin: true } : {}),
     };
     handlers.onStatus?.('connecting');
     void getSupabase(this.url, this.key).then((client) => {
@@ -389,7 +390,7 @@ export class SupabaseNet implements Net {
 
 /** Strip Supabase's presence bookkeeping (`presence_ref`) back down to a `PeerState`. */
 function toPeer(meta: PeerState): PeerState {
-  const { id, name, color, appearance, x, y, pose, dir, uid } = meta;
+  const { id, name, color, appearance, x, y, pose, dir, uid, admin } = meta;
   return {
     id,
     name,
@@ -401,5 +402,6 @@ function toPeer(meta: PeerState): PeerState {
     dir,
     ...(typeof uid === 'string' ? { uid } : {}),
     ...normalizeStatusFields(meta),
+    ...(admin === true ? { admin: true } : {}),
   };
 }

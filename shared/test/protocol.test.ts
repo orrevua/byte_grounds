@@ -27,11 +27,13 @@ describe('status / chat text', () => {
   });
 
   it('normalizes status fields, defaulting to off', () => {
-    expect(normalizeStatusFields({ status: ' hi ', busy: true, sharing: 'yes' })).toEqual({
+    expect(normalizeStatusFields({ status: ' hi ', busy: true, sharing: 'yes', item: 'coffee' })).toEqual({
       status: 'hi',
       busy: true,
       sharing: false,
+      item: 'coffee',
     });
-    expect(normalizeStatusFields(null)).toEqual({ status: '', busy: false, sharing: false });
+    expect(normalizeStatusFields({ item: 'beer' }).item).toBe('');
+    expect(normalizeStatusFields(null)).toEqual({ status: '', busy: false, sharing: false, item: '' });
   });
 });

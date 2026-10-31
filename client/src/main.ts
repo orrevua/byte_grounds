@@ -266,7 +266,7 @@ async function join(name: string, appearance: Appearance, mapId: string): Promis
   const self: SelfInfo = { name, color: DEFAULT_COLOR, appearance, isAdmin, status, ...(uid ? { uid } : {}) };
   net = createNet();
   net.connect(
-    { name, color: DEFAULT_COLOR, appearance, room: map.id, ...start, status, ...(uid ? { uid } : {}) },
+    { name, color: DEFAULT_COLOR, appearance, room: map.id, ...start, status, ...(uid ? { uid } : {}), ...(isAdmin ? { admin: true } : {}) },
     {
       onStatus: setStatus,
       onMessage: (msg) => {

@@ -47,7 +47,15 @@ export interface PeerState {
   busy?: boolean;
   /** Sharing their screen (the outgoing video is the screen, shown big to nearby peers). */
   sharing?: boolean;
+  /** What they hold (a drink from a machine); absent/'' = nothing. */
+  item?: HeldItem;
+  /** Signed in as the admin: shown as an [ADM] tag. Cosmetic only (RLS enforces real powers). */
+  admin?: boolean;
 }
+
+/** Things an avatar can hold. */
+export const HELD_ITEMS = ['coffee', 'water'] as const;
+export type HeldItem = (typeof HELD_ITEMS)[number] | '';
 
 /** Longest status line / chat message kept (longer input is clipped). */
 export const STATUS_MAX = 80;
@@ -72,12 +80,14 @@ export interface StatusFields {
   status: string;
   busy: boolean;
   sharing: boolean;
+  item: HeldItem;
 }
 
 /** Coerce incoming status fields (missing/invalid → empty / false). */
 export function normalizeStatusFields(x: unknown): StatusFields {
   const o = (x ?? {}) as Partial<Record<keyof StatusFields, unknown>>;
-  return { status: normalizeStatus(o.status), busy: o.busy === true, sharing: o.sharing === true };
+  const item = HELD_ITEMS.includes(o.item as (typeof HELD_ITEMS)[number]) ? (o.item as HeldItem) : '';
+  return { status: normalizeStatus(o.status), busy: o.busy === true, sharing: o.sharing === true, item };
 }
 
 export interface Position {
@@ -100,6 +110,8 @@ export interface JoinMsg {
   status?: string;
   busy?: boolean;
   sharing?: boolean;
+  item?: HeldItem;
+  admin?: boolean;
 }
 /** Replace our status fields (status line, busy, sharing). */
 export interface StatusMsg extends StatusFields {

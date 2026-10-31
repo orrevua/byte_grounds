@@ -191,13 +191,26 @@ describe('SupabaseNet', () => {
     expect(alice).toMatchObject({ x: 7, y: 5 });
   });
 
+  it('passes the admin tag through presence only when set', async () => {
+    const inboxA: ServerToClient[] = [];
+    const admin = new SupabaseNet('https://x.supabase.co', 'anon');
+    admin.connect({ name: 'boss', color: '#fff', appearance, admin: true }, { onMessage: (m) => inboxA.push(m) });
+    await vi.dynamicImportSettled();
+    await Promise.resolve();
+    const b = await joinAs('bob');
+    const peers = b.inbox.flatMap((m) => (m.type === 'peer-joined' ? [m.peer] : m.type === 'presence-snapshot' ? m.peers : []));
+    expect(peers.find((p) => p.name === 'boss')).toMatchObject({ admin: true });
+    const bobSeen = inboxA.flatMap((m) => (m.type === 'peer-joined' ? [m.peer] : m.type === 'presence-snapshot' ? m.peers : []));
+    expect(bobSeen.find((p) => p.name === 'bob')).not.toHaveProperty('admin');
+  });
+
   it('relays status changes and keeps them in presence for late joiners', async () => {
     const a = await joinAs('alice');
     const b = await joinAs('bob');
     b.inbox.length = 0;
-    a.net.send({ type: 'status', status: 'Shipping', busy: true, sharing: false });
+    a.net.send({ type: 'status', status: 'Shipping', busy: true, sharing: false, item: 'coffee' });
     expect(b.inbox.filter((m) => m.type === 'peer-status')).toEqual([
-      { type: 'peer-status', id: a.id, status: 'Shipping', busy: true, sharing: false },
+      { type: 'peer-status', id: a.id, status: 'Shipping', busy: true, sharing: false, item: 'coffee' },
     ]);
 
     const late = await joinAs('carol');

@@ -16,7 +16,7 @@ import {
 } from './sprites.ts';
 import { drawDecorCell } from './decor.ts';
 import type { Direction } from './sprites.ts';
-import type { Appearance, Pose } from '@byte_grounds/shared/protocol';
+import type { Appearance, HeldItem, Pose } from '@byte_grounds/shared/protocol';
 
 /** Drop the 64px frame so the character's feet sit on the tile point. */
 const FOOT_OFFSET = 16;
@@ -179,6 +179,8 @@ export function labelLift(pose: Pose): number {
 /** What is drawn over an avatar, stacked upward from above its head. */
 export interface AvatarTags {
   name: string;
+  /** Prefix the name with a yellow [ADM] tag. */
+  admin?: boolean;
   status?: string;
   busy?: boolean;
 }
@@ -255,7 +257,18 @@ export function drawAvatarTags(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
   ctx.font = NAME_FONT;
-  outlinedText(ctx, tags.name, px, top, '#e6e8eb');
+  if (tags.admin) {
+    // "[ADM] name" centred as one line: yellow tag, then the name.
+    const tag = '[ADM] ';
+    const tagW = ctx.measureText(tag).width;
+    const left = px - (tagW + ctx.measureText(tags.name).width) / 2;
+    ctx.textAlign = 'left';
+    outlinedText(ctx, tag, left, top, '#ffd84a');
+    outlinedText(ctx, tags.name, left + tagW, top, '#e6e8eb');
+    ctx.textAlign = 'center';
+  } else {
+    outlinedText(ctx, tags.name, px, top, '#e6e8eb');
+  }
   top -= 13;
   if (tags.status) {
     ctx.font = STATUS_FONT;
@@ -406,4 +419,77 @@ function drawZoneArea(ctx: CanvasRenderingContext2D, x: number, y: number, w: nu
 /** A per-bed phase so neighbours don't breathe in unison. */
 function seedOf(x: number, y: number): number {
   return Math.floor(x * 7919 + y * 104729) % 3600;
+}
+
+/** Every SIP_MS the cup goes up to the mouth for SIP_LEN_MS. */
+const SIP_MS = 7000;
+const SIP_LEN_MS = 900;
+
+/** Where the hand holding a cup is, from the feet point (world px), per facing; null = hidden. */
+function handOffset(pose: Pose, dir: Direction): { dx: number; dy: number } | null {
+  if (pose === 'lie') return null;
+  // Hands hang at frame rows ~44-46 (the frame's top is 48px above the feet point); seated, the
+  // torso drops a little onto the lap.
+  const y = pose === 'sit' ? -1 : -3;
+  switch (dir) {
+    case 'down':
+      return { dx: 9, dy: y };
+    case 'up':
+      return { dx: -9, dy: y };
+    case 'left':
+      return { dx: -8, dy: y };
+    case 'right':
+      return { dx: 8, dy: y };
+  }
+}
+
+/**
+ * A held drink by the avatar's hand: a white mug of coffee with steam, or a paper cup of water.
+ * Now and then it goes up to the mouth for a sip. Pixel-drawn (whole px) so it matches the sprites.
+ */
+export function drawHeldItem(
+  ctx: CanvasRenderingContext2D,
+  item: HeldItem,
+  pose: Pose,
+  dir: Direction,
+  x: number,
+  y: number,
+  nowMs: number,
+  seed = 0,
+): void {
+  const hand = item ? handOffset(pose, dir) : null;
+  if (!hand) return;
+  const sipping = (nowMs + seed) % SIP_MS < SIP_LEN_MS && dir !== 'up';
+  // A sip brings the cup up to the mouth (~15px above the hands) and toward the face.
+  const lift = sipping ? { dx: dir === 'down' ? -6 : dir === 'left' ? 3 : -3, dy: -15 } : { dx: 0, dy: 0 };
+  const cx = Math.round(x * TILE_SIZE + hand.dx + lift.dx);
+  const cy = Math.round(y * TILE_SIZE + hand.dy + lift.dy);
+  const px = (dx: number, dy: number, w: number, h: number, color: string) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(cx + dx, cy + dy, w, h);
+  };
+  ctx.save();
+  if (item === 'coffee') {
+    px(-3, -3, 7, 7, '#2a1d17'); // outline
+    px(-2, -2, 5, 5, '#f4f1ea'); // mug
+    px(-2, -2, 5, 1, '#6b3f24'); // coffee
+    px(4, -1, 2, 3, '#2a1d17'); // handle
+    px(4, 0, 1, 1, '#f4f1ea');
+    px(-2, 2, 5, 1, '#cfc8ba'); // shade
+    if (!sipping) {
+      // Steam: two wisps drifting up and fading.
+      for (let i = 0; i < 2; i++) {
+        const t = ((nowMs + seed) / 1400 + i / 2) % 1;
+        ctx.globalAlpha = 0.55 * (1 - t);
+        const sx = Math.round(Math.sin((t + i) * Math.PI * 2) * 1.5) + (i ? 1 : -1);
+        px(sx, -5 - Math.round(t * 7), 1, 2, '#ffffff');
+      }
+    }
+  } else {
+    px(-3, -4, 6, 8, '#2f4a5e'); // outline
+    px(-2, -3, 4, 6, '#e8f4fb'); // paper cup
+    px(-2, -1, 4, 3, '#7cc4ec'); // water
+    px(-2, -1, 4, 1, '#b9e3f8'); // surface
+  }
+  ctx.restore();
 }
