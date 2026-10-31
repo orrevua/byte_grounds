@@ -279,6 +279,12 @@ export class SupabaseNet implements Net {
       case 'answer':
         this.signal(msg.to, { type: msg.type, from: this.selfId, sdp: msg.sdp, sid: msg.sid });
         return;
+      case 'invite':
+        this.signal(msg.to, { type: 'invite', from: this.selfId, zone: String(msg.zone).slice(0, 40), locked: msg.locked === true });
+        return;
+      case 'invite-reply':
+        this.signal(msg.to, { type: 'invite-reply', from: this.selfId, zone: String(msg.zone).slice(0, 40), accept: msg.accept === true });
+        return;
       case 'ice-candidate':
         this.signal(msg.to, {
           type: 'ice-candidate',

@@ -1,7 +1,7 @@
 import { decorLayer, seatsNearIn, stepOutOf, zoneAt, zoneKey, type DecorCell, type OfficeMap, type Seat, type Zone } from '@byte_grounds/shared/map';
-import { POSITION_TICK_MS, TILE_SIZE, normalizeChat, normalizePose, normalizeStatus } from '@byte_grounds/shared/protocol';
+import { POSITION_TICK_MS, TILE_SIZE, normalizeChat, normalizeLock, normalizePose, normalizeStatus } from '@byte_grounds/shared/protocol';
 import { effectiveSeats, seatSpot } from '@byte_grounds/shared/seats';
-import type { Appearance, HeldItem, PeerId, PeerState, Pose, ServerToClient, StatusFields } from '@byte_grounds/shared/protocol';
+import type { Appearance, HeldItem, PeerId, PeerState, Pose, RoomLock, ServerToClient, StatusFields } from '@byte_grounds/shared/protocol';
 import { balloonHeight, drawAvatar, drawAvatarTags, drawChatBalloon, drawDecorCellAt, drawFrameSprite, drawHeldItem, drawZones, sipStep, tagsTop, drawMap, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
 import { avatarAnchorY, sortRenderables, stackedDecorAnchors } from './depth.ts';
 import { ZOOM_STEPS, cameraOffset, clampZoom, stepZoom, viewportSize } from './camera.ts';
@@ -15,7 +15,9 @@ import { MediaManager, ScreenStage, VideoBubbles, hasLiveVideo, volumeForDistanc
 import { WebrtcMesh } from './webrtc.ts';
 import { VoiceMeter } from './voice.ts';
 import { avatarAt, screenToWorld } from './hit.ts';
-import { AvatarMenu } from './avatar-menu.ts';
+import { AvatarMenu, type MenuTarget } from './avatar-menu.ts';
+import { canEnter, hashPassword, lockOn, teleportSpots, unlockKey, zoneByKey, type ActiveLock } from './meeting-lock.ts';
+import { INVITE_MS, askRoomPassword, closeInviteCard, inviteCardOpen, openInviteForm, showInvitePrompt, type RoomChoice } from './invite.ts';
 import type { GrantsFeed } from './grants.ts';
 import type { LiveMap, MoveSource } from './live-map.ts';
 import { BuildPanel } from './build-panel.ts';
@@ -60,6 +62,8 @@ interface Avatar {
   sharing: boolean;
   /** Mic off (or refused): a mic-off icon by the name. */
   muted: boolean;
+  /** A meeting room they closed with a password. */
+  lock: RoomLock | null;
   /** A drink in hand ('' = none). */
   item: HeldItem;
   /** Signed in as the admin: an [ADM] tag before the name. */
@@ -97,6 +101,8 @@ const FEET: Record<Direction, { dx: number; dy: number }> = {
 };
 
 const ZOOM_KEY = 'byte_grounds.zoom';
+/** A peer moving farther than this in one update teleported: snap instead of gliding. */
+const TELEPORT_TILES = 3;
 /** Our own key in the voice meter (peer ids never collide with it). */
 const SELF_VOICE = 'self';
 
@@ -143,7 +149,12 @@ export class Game {
   private readonly self: Avatar;
   private readonly isAdmin: boolean;
   private readonly uid: string | undefined;
-  private menu: AvatarMenu | null = null;
+  private readonly menu = new AvatarMenu();
+  /** Our invite waiting for an answer (`hash` = the room's password hash, when locking). */
+  private pendingInvite: { to: PeerId; zone: string; hash: string | null; until: number } | null = null;
+  /** Locked rooms we typed the password for (`unlockKey`). */
+  private readonly unlocked = new Set<string>();
+  private lastLockPrompt = 0;
   private grants: GrantsFeed | null = null;
   /** Live building (Supabase only): the room's edit log, the drawer, and its toggle button. */
   private live: LiveMap | null = null;
@@ -197,8 +208,6 @@ export class Game {
   private readonly zoomCtl: HTMLDivElement;
   /** Two-finger pinch: the finger distance and zoom when it started. */
   private pinch: { dist: number; zoom: number } | null = null;
-  /** Called when a remote avatar is clicked (client coords of the click). */
-  onAvatarClick: ((id: PeerId, clientX: number, clientY: number) => void) | null = null;
   /** A chat line arrived (or we sent one: `self` true). */
   onChat: ((name: string, text: string, self: boolean) => void) | null = null;
   /** Our status fields changed (e.g. walking ended busy), for the HUD. */
@@ -239,6 +248,7 @@ export class Game {
       sharing: false,
       muted: false,
       item: '',
+      lock: null,
       admin: self.isAdmin,
     };
 
@@ -323,6 +333,8 @@ export class Game {
       leaveRoom: () => this.leaveZone(),
     });
     this.meeting.onClose = () => this.updatePill();
+    this.menu.onInvite = (target) => this.startInvite(target);
+    this.menu.canInvite = () => this.inviteRooms().length > 0;
     this.media.onChange = () => {
       this.meeting.sync();
       this.syncMuted();
@@ -372,7 +384,8 @@ export class Game {
     this.ctx.canvas.removeEventListener('pointerdown', this.onPointerDown);
     this.ctx.canvas.removeEventListener('pointermove', this.onPointerMove);
     this.ctx.canvas.removeEventListener('pointerleave', this.onPointerLeave);
-    this.menu?.close();
+    this.menu.close();
+    closeInviteCard();
     this.panel?.dispose();
     this.buildBtn?.remove();
     this.toastEl?.remove();
@@ -392,12 +405,7 @@ export class Game {
   attachGrants(feed: GrantsFeed): void {
     this.grants = feed;
     feed.onChange(() => this.updateBuildAccess());
-    if (!this.isAdmin) return;
-    const menu = (this.menu = new AvatarMenu(feed));
-    this.onAvatarClick = (id, clientX, clientY) => {
-      const r = this.remotes.get(id);
-      if (r) menu.open({ name: r.name, uid: r.uid }, clientX, clientY);
-    };
+    if (this.isAdmin) this.menu.setFeed(feed);
   }
 
   /**
@@ -415,7 +423,7 @@ export class Game {
     btn.addEventListener('click', () => {
       if (panel.isOpen) panel.close();
       else {
-        this.menu?.close();
+        this.menu.close();
         panel.open();
       }
     });
@@ -469,8 +477,109 @@ export class Game {
 
   /** Our status fields as sent to others. */
   get statusFields(): StatusFields {
-    const { status, busy, sharing, muted, item } = this.self;
-    return { status, busy, sharing, muted, item };
+    const { status, busy, sharing, muted, item, lock } = this.self;
+    return { status, busy, sharing, muted, item, lock };
+  }
+
+  // --- Meeting invites + locked rooms ---
+
+  /** Who carries which lock (us included): a room is locked while its owner is here. */
+  private lockHolders(): { id: PeerId; lock: RoomLock | null }[] {
+    return [{ id: this.selfId, lock: this.self.lock }, ...[...this.remotes].map(([id, r]) => ({ id, lock: r.lock }))];
+  }
+
+  private lockOnZone(key: string | null): ActiveLock | null {
+    return lockOn(key, this.lockHolders());
+  }
+
+  /** Keys of the rooms closed right now (drawn with a lock). */
+  private lockedZones(): Set<string> {
+    return new Set(this.lockHolders().flatMap((h) => (h.lock ? [h.lock.zone] : [])));
+  }
+
+  /** Rooms we may invite into: not locked by someone else; the one we stand in first. */
+  private inviteRooms(): RoomChoice[] {
+    const here = zoneKey(this.zone);
+    return (this.map.zones ?? [])
+      .filter((z) => {
+        const a = this.lockOnZone(zoneKey(z));
+        return !a || a.owner === this.selfId;
+      })
+      .map((z) => ({ key: zoneKey(z)!, name: z.name }))
+      .sort((a, b) => Number(b.key === here) - Number(a.key === here));
+  }
+
+  private startInvite(target: MenuTarget): void {
+    const rooms = this.inviteRooms();
+    if (rooms.length === 0) return this.toast(t('invite.noRoom'));
+    openInviteForm(target.name, rooms, (room, password) => void this.sendInvite(target, room, password));
+  }
+
+  private async sendInvite(target: MenuTarget, zone: string, password: string): Promise<void> {
+    const hash = password ? await hashPassword(zone, password) : null;
+    this.pendingInvite = { to: target.id, zone, hash, until: Date.now() + INVITE_MS + 15_000 };
+    this.net.send({ type: 'invite', to: target.id, zone, locked: hash !== null });
+    this.toast(t('invite.sent', { name: target.name }), 'info');
+  }
+
+  /** Someone invites us: ask; accepting answers and takes us into the room. */
+  private onInvite(from: PeerId, zoneKeyStr: string, locked: boolean): void {
+    const r = this.remotes.get(from);
+    const zone = zoneByKey(this.map, zoneKeyStr);
+    const reply = (accept: boolean) => this.net.send({ type: 'invite-reply', to: from, zone: zoneKeyStr, accept });
+    if (!r || !zone) return reply(false);
+    showInvitePrompt(r.name, zone.name, locked, (accept) => {
+      reply(accept && this.remotes.has(from));
+      if (accept && this.remotes.has(from)) this.teleportInto(zone, 0, from);
+    });
+  }
+
+  /** The answer to our invite: on yes, we go in too and close the door when a password was set. */
+  private onInviteReply(from: PeerId, zoneKeyStr: string, accept: boolean): void {
+    const p = this.pendingInvite;
+    if (!p || p.to !== from || p.zone !== zoneKeyStr || Date.now() > p.until) return;
+    this.pendingInvite = null;
+    const name = this.remotes.get(from)?.name ?? '';
+    if (!accept) return this.toast(t('invite.declined', { name }), 'info');
+    const zone = zoneByKey(this.map, p.zone);
+    if (!zone) return;
+    this.teleportInto(zone, 1, from);
+    if (p.hash) {
+      const keep = this.self.lock?.zone === p.zone && this.self.lock.hash === p.hash ? this.self.lock.allow : [];
+      this.self.lock = { zone: p.zone, hash: p.hash, allow: [...new Set([...keep, from])] };
+      this.sendStatus();
+    }
+    this.toast(t(p.hash ? 'invite.acceptedLocked' : 'invite.accepted', { name }), 'info');
+  }
+
+  /**
+   * Jump into a room: the invitee takes the free spot nearest its centre (`index` 0), the inviter the
+   * next one (1), so they don't land on each other. `partner` may still be on its way: not in the way.
+   */
+  private teleportInto(zone: Zone, index: number, partner: PeerId): void {
+    const taken = [...this.remotes].filter(([id]) => id !== partner).map(([, r]) => r);
+    const spots = teleportSpots(this.map, zone, taken);
+    const spot = spots[index] ?? spots[0];
+    if (!spot) return this.toast(t('invite.noSpace'));
+    this.standUp();
+    this.self.pose = 'stand';
+    this.self.x = spot.x;
+    this.self.y = spot.y;
+    this.self.dir = 'down';
+    this.followSelf();
+    this.updateZone();
+  }
+
+  /** A step from outside into a room closed to us: ask for its password (not more than every 3 s). */
+  private promptLocked(a: ActiveLock, zone: Zone): void {
+    const now = Date.now();
+    if (inviteCardOpen() || now - this.lastLockPrompt < 3000) return;
+    this.lastLockPrompt = now;
+    askRoomPassword(zone.name, async (password) => {
+      if ((await hashPassword(a.lock.zone, password)) !== a.lock.hash) return false;
+      this.unlocked.add(unlockKey(a));
+      return true;
+    });
   }
 
   /** Tell the room when our mic goes off / on (or turns out to be refused). */
@@ -605,6 +714,7 @@ export class Game {
       busy: p.busy === true,
       sharing: p.sharing === true,
       muted: p.muted === true,
+      lock: normalizeLock(p.lock),
       item: p.item === 'coffee' || p.item === 'water' ? p.item : '',
       admin: p.admin === true,
       ...(typeof p.uid === 'string' ? { uid: p.uid } : {}),
@@ -633,6 +743,11 @@ export class Game {
           r.tx = msg.x;
           r.ty = msg.y;
           const pose = normalizePose(msg.pose);
+          if (Math.hypot(msg.x - r.x, msg.y - r.y) > TELEPORT_TILES) {
+            // A teleport (an accepted invite): jump instead of gliding across the map.
+            r.x = msg.x;
+            r.y = msg.y;
+          }
           if (pose !== r.pose) {
             // Jump onto / off the seat instead of gliding through the furniture.
             r.x = msg.x;
@@ -650,6 +765,7 @@ export class Game {
           r.busy = msg.busy === true;
           r.sharing = msg.sharing === true;
           r.muted = msg.muted === true;
+          r.lock = normalizeLock(msg.lock);
           r.item = msg.item === 'coffee' || msg.item === 'water' ? msg.item : '';
           this.onPeersChanged?.();
         }
@@ -663,6 +779,12 @@ export class Game {
         this.onChat?.(r?.name ?? msg.name, text, false);
         break;
       }
+      case 'invite':
+        this.onInvite(msg.from, msg.zone, msg.locked === true);
+        break;
+      case 'invite-reply':
+        this.onInviteReply(msg.from, msg.zone, msg.accept === true);
+        break;
       case 'peer-left':
         this.remotes.delete(msg.id);
         this.prox.delete(msg.id);
@@ -692,7 +814,16 @@ export class Game {
     if (!this.seat) {
       const prevX = this.self.x;
       const prevY = this.self.y;
-      const next = stepMovement(this.map, this.self.x, this.self.y, input, dt);
+      let next = stepMovement(this.map, this.self.x, this.self.y, input, dt);
+      const into = zoneAt(this.map, next.x, next.y);
+      const key = zoneKey(into);
+      if (into && key !== zoneKey(zoneAt(this.map, prevX, prevY))) {
+        const a = this.lockOnZone(key);
+        if (!canEnter(a, this.selfId, this.unlocked)) {
+          next = { x: prevX, y: prevY };
+          this.promptLocked(a!, into);
+        }
+      }
       this.self.x = next.x;
       this.self.y = next.y;
       this.animate(this.self, this.self.x - prevX, this.self.y - prevY, dt);
@@ -821,9 +952,9 @@ export class Game {
   private readonly onPointerDown = (e: PointerEvent): void => {
     const { px, py } = this.worldPoint(e);
     if (this.panel?.isOpen) return this.buildAt(Math.floor(px / TILE_SIZE), Math.floor(py / TILE_SIZE));
-    if (!this.onAvatarClick) return;
     const id = avatarAt(this.remotes, px, py);
-    if (id) this.onAvatarClick(id, e.clientX, e.clientY);
+    const r = id ? this.remotes.get(id) : undefined;
+    if (id && r) this.menu.open({ id, name: r.name, uid: r.uid }, e.clientX, e.clientY);
   };
 
   private readonly onPointerMove = (e: PointerEvent): void => {
@@ -993,6 +1124,11 @@ export class Game {
     const z = zoneAt(this.map, this.self.x, this.self.y);
     if (zoneKey(z) === zoneKey(this.zone)) return;
     this.zone = z;
+    if (this.self.lock && this.self.lock.zone !== zoneKey(z)) {
+      // We left the room we locked: its door opens.
+      this.self.lock = null;
+      this.sendStatus();
+    }
     this.media.setScreenAllowed(!!z);
     if (!z) this.meeting.close();
     this.updatePill();
@@ -1096,7 +1232,8 @@ export class Game {
     // Whole device pixels for the scroll, so tile edges stay crisp at fractional zooms.
     ctx.setTransform(z, 0, 0, z, -Math.round(camX * z), -Math.round(camY * z));
     drawMap(ctx, map);
-    drawZones(ctx, map, this.zone, 'area');
+    const locked = this.lockedZones();
+    drawZones(ctx, map, this.zone, 'area', locked);
 
     // One y-sorted pass over object-layer furniture + every avatar, drawn back-to-front so
     // near furniture occludes avatars behind it (and avatars occlude furniture behind them).
@@ -1133,7 +1270,7 @@ export class Game {
 
     // Final pass on top of all furniture: name tags, and remote bubble placement + volume.
     const now = Date.now();
-    drawZones(ctx, map, this.zone, 'label');
+    drawZones(ctx, map, this.zone, 'label', locked);
     for (const r of this.remotes.values()) this.drawTags(r, now);
     this.drawTags(this.self, now);
     this.drawBalloons(now);

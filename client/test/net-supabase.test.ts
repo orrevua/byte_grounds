@@ -208,9 +208,9 @@ describe('SupabaseNet', () => {
     const a = await joinAs('alice');
     const b = await joinAs('bob');
     b.inbox.length = 0;
-    a.net.send({ type: 'status', status: 'Shipping', busy: true, sharing: false, muted: false, item: 'coffee' });
+    a.net.send({ type: 'status', status: 'Shipping', busy: true, sharing: false, muted: false, item: 'coffee', lock: null });
     expect(b.inbox.filter((m) => m.type === 'peer-status')).toEqual([
-      { type: 'peer-status', id: a.id, status: 'Shipping', busy: true, sharing: false, muted: false, item: 'coffee' },
+      { type: 'peer-status', id: a.id, status: 'Shipping', busy: true, sharing: false, muted: false, item: 'coffee', lock: null },
     ]);
 
     const late = await joinAs('carol');

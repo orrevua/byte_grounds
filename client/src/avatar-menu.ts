@@ -1,9 +1,11 @@
 import { shortId } from './auth.ts';
+import type { PeerId } from '@byte_grounds/shared/protocol';
 import type { GrantsFeed, Perm } from './grants.ts';
 import { t, type MsgKey } from './i18n.ts';
 
-/** Someone the admin clicked: their display name and (when their client sent it) auth uid. */
+/** Someone clicked: their peer id, display name and (when their client sent it) auth uid. */
 export interface MenuTarget {
+  id: PeerId;
   name: string;
   uid?: string;
 }
@@ -14,17 +16,24 @@ const TOGGLES: { perm: Perm; label: MsgKey }[] = [
 ];
 
 /**
- * The admin's popup at a clicked avatar: who it is (name + short id) and one on/off toggle per
- * permission. Closes on an outside click or Esc. The database rejects grants from non-admins,
- * so a failure is shown inline rather than trusted away.
+ * The popup at a clicked avatar: who it is, "Invite to a meeting room" (when the map has a free
+ * one), and for the admin (`setFeed`) the short id and one on/off toggle per permission. Closes on
+ * an outside click or Esc. The database rejects grants from non-admins, so a failure is shown
+ * inline rather than trusted away.
  */
 export class AvatarMenu {
   private el: HTMLDivElement | null = null;
   private target: MenuTarget | null = null;
   private busy = false;
   private error = '';
+  private feed: GrantsFeed | null = null;
+  /** Invite the target into a meeting room; offered while `canInvite()` says so. */
+  onInvite: ((target: MenuTarget) => void) | null = null;
+  canInvite: () => boolean = () => false;
 
-  constructor(private readonly feed: GrantsFeed) {
+  /** The admin's grants: adds the permission toggles. */
+  setFeed(feed: GrantsFeed): void {
+    this.feed = feed;
     feed.onChange(() => this.render());
   }
 
@@ -67,6 +76,18 @@ export class AvatarMenu {
     who.className = 'who';
     who.textContent = target.name;
     el.replaceChildren(who);
+    if (this.onInvite && this.canInvite()) {
+      const invite = document.createElement('button');
+      invite.type = 'button';
+      invite.textContent = t('invite.menu');
+      invite.addEventListener('click', () => {
+        this.close();
+        this.onInvite?.(target);
+      });
+      el.append(invite);
+    }
+    const { feed } = this;
+    if (!feed) return;
     const { uid } = target;
     if (!uid) {
       // No uid: their silent anonymous sign-in failed (usually anonymous sign-ins are off in
@@ -85,7 +106,7 @@ export class AvatarMenu {
     sid.textContent = ` ${shortId(uid)}`;
     who.append(sid);
     for (const { perm, label } of TOGGLES) {
-      const on = this.feed.has(uid, perm);
+      const on = feed.has(uid, perm);
       const b = document.createElement('button');
       b.type = 'button';
       b.className = on ? 'on' : '';
@@ -102,7 +123,7 @@ export class AvatarMenu {
     this.error = '';
     this.render();
     try {
-      await (on ? this.feed.revoke(uid, perm) : this.feed.grant(uid, perm));
+      await (on ? this.feed!.revoke(uid, perm) : this.feed!.grant(uid, perm));
     } catch (err) {
       this.error = t('menu.saveFailed', { msg: (err as { message?: string })?.message ?? String(err) });
     } finally {

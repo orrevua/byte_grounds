@@ -431,6 +431,8 @@ export function drawZones(
   map: OfficeMap,
   highlight: Zone | null = null,
   part: 'area' | 'label' | 'both' = 'both',
+  /** Keys (`zoneKey`) of rooms closed with a password: a lock on the label, an amber border. */
+  locked: ReadonlySet<string> = new Set(),
 ): void {
   ctx.save();
   for (const z of map.zones ?? []) {
@@ -439,12 +441,13 @@ export function drawZones(
     const w = z.w * TILE_SIZE;
     const h = z.h * TILE_SIZE;
     const on = !!highlight && zoneKey(z) === zoneKey(highlight);
-    if (part !== 'label') drawZoneArea(ctx, x, y, w, h, on);
+    const shut = locked.has(zoneKey(z)!);
+    if (part !== 'label') drawZoneArea(ctx, x, y, w, h, on, shut);
     if (part === 'area') continue;
     ctx.font = '600 11px system-ui, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    const label = `▣ ${z.name}`;
+    const label = `${shut ? '🔒' : '▣'} ${z.name}`;
     const tw = ctx.measureText(label).width;
     ctx.fillStyle = 'rgba(20, 22, 26, 0.75)';
     ctx.fillRect(x + 4, y + 4, tw + 10, 17);
@@ -454,12 +457,12 @@ export function drawZones(
   ctx.restore();
 }
 
-function drawZoneArea(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, on: boolean): void {
+function drawZoneArea(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, on: boolean, shut = false): void {
   ctx.fillStyle = on ? 'rgba(79, 140, 255, 0.10)' : 'rgba(79, 140, 255, 0.05)';
   ctx.fillRect(x, y, w, h);
   ctx.setLineDash([6, 4]);
   ctx.lineWidth = 2;
-  ctx.strokeStyle = on ? 'rgba(120, 170, 255, 0.9)' : 'rgba(120, 170, 255, 0.5)';
+  ctx.strokeStyle = shut ? 'rgba(255, 190, 80, 0.9)' : on ? 'rgba(120, 170, 255, 0.9)' : 'rgba(120, 170, 255, 0.5)';
   ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
   ctx.setLineDash([]);
 }

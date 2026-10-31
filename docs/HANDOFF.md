@@ -1,7 +1,19 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-31 (mute + speaking indicators, mic noise suppression)
+**Last updated:** 2026-10-31 (meeting invites + password-locked rooms)
 **Branch:** `master` (user asked: work on master directly, no more PRs)
+
+## Meeting invites + password-locked rooms — DONE, PUSHED (2026-10-31)
+- Spec: `docs/specs/meeting-invites.md`. Clicking a player opens the menu for everyone now
+  ("Invite to a meeting room"; the admin also gets the grant toggles via `AvatarMenu.setFeed`).
+- `invite` / `invite-reply` messages (protocol; ws server relays same-room; Supabase via the signal
+  path). Invitee gets Accept/Decline (auto-decline 60 s); on accept both teleport into the room
+  (`teleportSpots`: invitee spot 0, inviter spot 1); remotes snap on moves > 3 tiles.
+- `StatusFields.lock = { zone, hash, allow }` (SHA-256 of zoneKey + password; the password never
+  leaves the inviter). Walking into a locked room is blocked unless owner / invitee / password
+  typed (`meeting-lock.ts` `canEnter`); a blocked step asks for the password. The lock clears when
+  the owner leaves the room or disconnects. Locked rooms draw an amber border + 🔒 label.
+- Client-side enforcement (same trust model as presence). Verified with 3 Playwright players.
 
 ## Mute + speaking indicators, clearer mic — DONE, PUSHED (2026-10-31)
 - Spec: `docs/specs/voice-indicators.md`. `StatusFields.muted` (protocol, normalize; rides the status

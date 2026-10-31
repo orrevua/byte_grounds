@@ -119,6 +119,20 @@ wss.on('connection', (ws) => {
         if (target) send(target, { type: 'answer', from: selfId, sdp: msg.sdp, sid: msg.sid });
         break;
       }
+      case 'invite': {
+        const target = sameRoom(selfId, msg.to) ? sockets.get(msg.to) : undefined;
+        if (target && typeof msg.zone === 'string' && msg.zone.length <= 40) {
+          send(target, { type: 'invite', from: selfId, zone: msg.zone, locked: msg.locked === true });
+        }
+        break;
+      }
+      case 'invite-reply': {
+        const target = sameRoom(selfId, msg.to) ? sockets.get(msg.to) : undefined;
+        if (target && typeof msg.zone === 'string' && msg.zone.length <= 40) {
+          send(target, { type: 'invite-reply', from: selfId, zone: msg.zone, accept: msg.accept === true });
+        }
+        break;
+      }
       case 'ice-candidate': {
         const target = sameRoom(selfId, msg.to) ? sockets.get(msg.to) : undefined;
         if (target) {

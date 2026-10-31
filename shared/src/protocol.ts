@@ -57,6 +57,8 @@ export interface PeerState {
   sharing?: boolean;
   /** Their mic is off (or was denied): a mic-off icon by their name. */
   muted?: boolean;
+  /** A meeting room they locked with a password (see `RoomLock`). */
+  lock?: RoomLock | null;
   /** What they hold (a drink from a machine); absent/'' = nothing. */
   item?: HeldItem;
   /** Signed in as the admin: shown as an [ADM] tag. Cosmetic only (RLS enforces real powers). */
@@ -85,6 +87,32 @@ export function normalizeChat(x: unknown): string {
   return clipText(x, CHAT_MAX);
 }
 
+/**
+ * A meeting room closed with a password by its owner (the peer carrying it). `zone` = the room's
+ * `zoneKey`; `hash` = SHA-256 hex of `zone + "
+" + password` (the password stays with the owner);
+ * `allow` = invitees who accepted (they may walk in without it).
+ */
+export interface RoomLock {
+  zone: string;
+  hash: string;
+  allow: PeerId[];
+}
+
+export const LOCK_ALLOW_MAX = 16;
+
+/** Coerce an incoming lock; anything malformed → null (unlocked). */
+export function normalizeLock(x: unknown): RoomLock | null {
+  const o = (x ?? null) as Partial<Record<keyof RoomLock, unknown>> | null;
+  if (!o || typeof o !== 'object') return null;
+  if (typeof o.zone !== 'string' || !o.zone || o.zone.length > 40) return null;
+  if (typeof o.hash !== 'string' || !/^[0-9a-f]{64}$/.test(o.hash)) return null;
+  const allow = Array.isArray(o.allow)
+    ? o.allow.filter((id): id is string => typeof id === 'string' && id.length > 0 && id.length <= 64).slice(0, LOCK_ALLOW_MAX)
+    : [];
+  return { zone: o.zone, hash: o.hash, allow };
+}
+
 /** The status fields every peer carries, as sent in a `status` message. */
 export interface StatusFields {
   status: string;
@@ -92,13 +120,21 @@ export interface StatusFields {
   sharing: boolean;
   muted: boolean;
   item: HeldItem;
+  lock: RoomLock | null;
 }
 
 /** Coerce incoming status fields (missing/invalid → empty / false). */
 export function normalizeStatusFields(x: unknown): StatusFields {
   const o = (x ?? {}) as Partial<Record<keyof StatusFields, unknown>>;
   const item = HELD_ITEMS.includes(o.item as (typeof HELD_ITEMS)[number]) ? (o.item as HeldItem) : '';
-  return { status: normalizeStatus(o.status), busy: o.busy === true, sharing: o.sharing === true, muted: o.muted === true, item };
+  return {
+    status: normalizeStatus(o.status),
+    busy: o.busy === true,
+    sharing: o.sharing === true,
+    muted: o.muted === true,
+    item,
+    lock: normalizeLock(o.lock),
+  };
 }
 
 export interface Position {
@@ -123,6 +159,7 @@ export interface JoinMsg {
   sharing?: boolean;
   muted?: boolean;
   item?: HeldItem;
+  lock?: RoomLock | null;
   admin?: boolean;
 }
 /** Replace our status fields (status line, busy, sharing, muted, held item). */
@@ -161,6 +198,21 @@ export interface IceMsg {
   candidate: RTCIceCandidateInit;
   /** Sender's call id: changes when it starts a fresh RTCPeerConnection. */
   sid?: string;
+}
+
+/** Invite a peer into a meeting room (`zone` = its zoneKey; `locked` = a password will close it). */
+export interface InviteMsg {
+  type: 'invite';
+  to: PeerId;
+  zone: string;
+  locked: boolean;
+}
+/** Accept / decline an invite. */
+export interface InviteReplyMsg {
+  type: 'invite-reply';
+  to: PeerId;
+  zone: string;
+  accept: boolean;
 }
 
 // --- Server -> Client ---
@@ -224,7 +276,29 @@ export interface RelayIceMsg {
   sid?: string;
 }
 
-export type ClientToServer = JoinMsg | PositionMsg | OfferMsg | AnswerMsg | IceMsg | StatusMsg | ChatMsg;
+export interface RelayInviteMsg {
+  type: 'invite';
+  from: PeerId;
+  zone: string;
+  locked: boolean;
+}
+export interface RelayInviteReplyMsg {
+  type: 'invite-reply';
+  from: PeerId;
+  zone: string;
+  accept: boolean;
+}
+
+export type ClientToServer =
+  | JoinMsg
+  | PositionMsg
+  | OfferMsg
+  | AnswerMsg
+  | IceMsg
+  | StatusMsg
+  | ChatMsg
+  | InviteMsg
+  | InviteReplyMsg;
 export type ServerToClient =
   | WelcomeMsg
   | PresenceSnapshotMsg
@@ -235,4 +309,6 @@ export type ServerToClient =
   | ChatRelayMsg
   | RelayOfferMsg
   | RelayAnswerMsg
-  | RelayIceMsg;
+  | RelayIceMsg
+  | RelayInviteMsg
+  | RelayInviteReplyMsg;
