@@ -7,7 +7,8 @@
     "./protocol": "./src/protocol.ts",
     "./map": "./src/map.ts",
     "./maps": "./src/maps.ts",
-    "./seats": "./src/seats.ts"
+    "./seats": "./src/seats.ts",
+    "./ground": "./src/ground.ts"
   },
   "scripts": {
     "build": "tsc --noEmit"

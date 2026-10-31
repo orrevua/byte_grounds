@@ -1,7 +1,16 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-31 (meeting invites + password-locked rooms)
+**Last updated:** 2026-10-31 (decor hierarchy: floors replace floors only)
 **Branch:** `master` (user asked: work on master directly, no more PRs)
+
+## Decor hierarchy — DONE, PUSHED (2026-10-31)
+- Spec: `docs/specs/decor-hierarchy.md`. `shared/src/ground.ts` + `ground-cells.json` (written by
+  `tools/gen_ground_cells.py`: cells of the tile sheets + `gemini_floors` painting >= 95% of the cell).
+- `stampDecor` (editor + live): a ground cell replaces only the tile's ground, in place, under the
+  furniture (live: `keepGround` puts it over the old floor so undo shows it again); furniture still
+  stacks. Ground cells are always floor-layer and block only with Whole piece. Re-run the generator
+  after adding/changing a tile sheet. Existing floors stamped before as blocking objects get fixed
+  when repainted (the ground under them is recognized and replaced).
 
 ## Meeting invites + password-locked rooms — DONE, PUSHED (2026-10-31)
 - Spec: `docs/specs/meeting-invites.md`. Clicking a player opens the menu for everyone now

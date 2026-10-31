@@ -1,4 +1,5 @@
 import { MAX_MAP_SIZE, type DecorCell, type Facing, type OfficeMap, type Seat, type Tile } from '@byte_grounds/shared/map';
+import { isGroundCell } from '@byte_grounds/shared/ground';
 import { IDENTITY, footprint, transformFields, transformOffset, type DecorTransform } from './decor-transform.ts';
 
 /** A rectangle of cells picked from a decor sheet (in 32px cells). */
@@ -31,15 +32,20 @@ export function setBlocked(m: OfficeMap, x: number, y: number, blocked: boolean)
  */
 export type BlockMode = 'none' | 'base' | 'all';
 
-/** Whether stamping `cell` in `mode` makes its tile not walkable. */
+/**
+ * Whether stamping `cell` in `mode` makes its tile not walkable. A ground cell (a floor or wall
+ * tile) only blocks with `all` (Whole piece): `base` is for furniture.
+ */
 export function cellBlocks(cell: DecorCell, mode: BlockMode): boolean {
+  if (isGroundCell(cell)) return mode === 'all';
   return mode === 'all' || (mode === 'base' && (cell.baseDy ?? 0) === 0);
 }
 
 /**
  * The cells a brush puts down with the top-left of its transformed footprint on tile (x, y):
  * each source cell moves to its transformed offset and carries the transform. With a `mode`,
- * cells get its layer and, in `base`, the rows down to the footprint's bottom row. No bounds check.
+ * cells get its layer and, in `base`, the rows down to the footprint's bottom row; ground cells
+ * (floor / wall tiles) always lie on the floor layer. No bounds check.
  */
 export function brushCells(
   x: number,
@@ -54,19 +60,45 @@ export function brushCells(
     for (let dx = 0; dx < sel.w; dx++) {
       const o = transformOffset(dx, dy, sel.w, sel.h, t);
       const cell: DecorCell = { x: x + o.dx, y: y + o.dy, sheet: sel.sheet, sx: sel.sx + dx, sy: sel.sy + dy };
-      if (mode) cell.layer = mode === 'none' ? 'floor' : 'object';
-      if (mode === 'base' && fh - 1 - o.dy > 0) cell.baseDy = fh - 1 - o.dy;
+      const ground = isGroundCell(cell);
+      if (mode) cell.layer = mode === 'none' || ground ? 'floor' : 'object';
+      if (mode === 'base' && !ground && fh - 1 - o.dy > 0) cell.baseDy = fh - 1 - o.dy;
       cells.push({ ...cell, ...transformFields(t) });
     }
   }
   return cells;
 }
 
+const sameArt = (a: DecorCell, b: DecorCell) => a.sheet === b.sheet && a.sx === b.sx && a.sy === b.sy;
+
 /**
- * Stamp a sheet selection, turned/mirrored by `t`, with its top-left on tile (x, y), on top of
- * what's there. Tiles blocked by `mode` (see `cellBlocks`) become not walkable; stamping never
- * unblocks. Re-stamping an identical cell on the same tile takes the brush's layer, base row and
- * transform instead of adding a copy.
+ * Put a ground cell on its tile, under the furniture there: it replaces the tile's ground (in the
+ * same place in the stack), or with `keep` goes just above it, so removing it shows the old floor
+ * again (live undo). With no ground yet it goes under everything on the tile.
+ */
+function placeGround(decor: DecorCell[], cell: DecorCell, keep: boolean): void {
+  const here = decor.flatMap((d, i) => (d.x === cell.x && d.y === cell.y ? [i] : []));
+  const grounds = here.filter((i) => isGroundCell(decor[i]!));
+  const top = grounds.at(-1);
+  if (top !== undefined && keep && sameArt(decor[top]!, cell)) {
+    decor[top] = cell;
+    return;
+  }
+  let at = here[0] ?? decor.length;
+  if (grounds.length) {
+    at = keep ? top! + 1 : grounds[0]!;
+    if (!keep) for (const i of [...grounds].reverse()) decor.splice(i, 1);
+  }
+  decor.splice(at, 0, cell);
+}
+
+/**
+ * Stamp a sheet selection, turned/mirrored by `t`, with its top-left on tile (x, y). Furniture goes
+ * on top of what's there; a ground cell (floor / wall tile) replaces only the tile's ground and stays
+ * under the furniture (`keepGround`: it goes over the old ground instead of removing it). Tiles
+ * blocked by `mode` (see `cellBlocks`) become not walkable; stamping never unblocks. Re-stamping
+ * an identical cell on the same tile takes the brush's layer, base row and transform instead of
+ * adding a copy.
  */
 export function stampDecor(
   m: OfficeMap,
@@ -75,10 +107,16 @@ export function stampDecor(
   sel: DecorSelection,
   mode: BlockMode,
   t: DecorTransform = IDENTITY,
+  { keepGround = false }: { keepGround?: boolean } = {},
 ): void {
   m.decor ??= [];
   for (const cell of brushCells(x, y, sel, t, mode)) {
     if (!inBounds(m, cell.x, cell.y)) continue;
+    if (isGroundCell(cell)) {
+      placeGround(m.decor, cell, keepGround);
+      if (cellBlocks(cell, mode)) setBlocked(m, cell.x, cell.y, true);
+      continue;
+    }
     const dup = m.decor.find(
       (d) => d.x === cell.x && d.y === cell.y && d.sheet === cell.sheet && d.sx === cell.sx && d.sy === cell.sy,
     );

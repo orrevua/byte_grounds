@@ -118,7 +118,8 @@ function applyPlace(m: OfficeMap, op: PlaceOp, knownSheet: (s: string) => boolea
   const cells = placeCells(op).filter((c) => inBounds(m, c.x, c.y));
   if (cells.length === 0) return false;
   if (cells.some((c) => cellBlocks(c, op.mode) && blockedByWall(m, c.x, c.y))) return false;
-  stampDecor(m, op.x, op.y, op, op.mode, { rot: op.rot, flipX: op.flipX });
+  // Live undo removes the cells again: a new floor goes over the old one, which then shows again.
+  stampDecor(m, op.x, op.y, op, op.mode, { rot: op.rot, flipX: op.flipX }, { keepGround: true });
   return true;
 }
 
