@@ -29,6 +29,7 @@ describe('drink machines', () => {
     const items = (id: string) => new Set(machinesIn(builtInMap(id)!).map((k) => k.item));
     expect(items('lounge').has('coffee')).toBe(true);
     expect(items('office')).toEqual(new Set(['coffee', 'water']));
+    expect(items('studio')).toEqual(new Set(['coffee', 'water']));
   });
 
   it('a drink lasts 30 s, 1 min or 5 min', () => {

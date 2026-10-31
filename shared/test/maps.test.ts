@@ -6,7 +6,7 @@ import { BUILT_IN_MAPS, DEFAULT_MAP, builtInMap, builtInRev } from '../src/maps.
 import { DEFAULT_ROOM } from '../src/protocol.ts';
 import { effectiveSeats } from '../src/seats.ts';
 
-const SEAT_COUNTS: Record<string, number> = { office: 76, lounge: 78, home: 32 };
+const SEAT_COUNTS: Record<string, number> = { studio: 34, office: 76, lounge: 78, home: 32 };
 
 const DECOR_DIR = resolve(import.meta.dirname, '../../client/src/assets/decor');
 
@@ -38,8 +38,8 @@ function reachable(m: OfficeMap): Set<string> {
 }
 
 describe('built-in maps', () => {
-  it('ships the lounge (the default), office and home with unique ids', () => {
-    expect(BUILT_IN_MAPS.map((m) => m.id)).toEqual(['lounge', 'office', 'home']);
+  it('ships the lounge (the default), office, home and the Gemini studio with unique ids', () => {
+    expect(BUILT_IN_MAPS.map((m) => m.id)).toEqual(['lounge', 'office', 'home', 'studio']);
     expect(DEFAULT_MAP.id).toBe('lounge');
     expect(DEFAULT_ROOM).toBe(DEFAULT_MAP.id);
     expect(builtInMap('home')?.name).toBe('Home');

@@ -27,6 +27,7 @@ describe('LocalStore', () => {
       { id: 'lounge', name: 'Lounge & Café' },
       { id: 'office', name: 'Office' },
       { id: 'home', name: 'Home' },
+      { id: 'studio', name: 'Gemini Studio' },
     ]);
     expect(await store.loadMap('office')).toEqual(OFFICE);
     expect(await store.loadMap('nope')).toBeNull();
@@ -50,7 +51,7 @@ describe('LocalStore', () => {
     const store = new LocalStore(storage);
     expect(await store.loadMap('office')).toEqual(OFFICE);
     expect(await store.loadMap('home')).toEqual(builtInMap('home'));
-    expect((await store.listMaps()).map((m) => m.name)).toEqual(['Lounge & Café', 'Office', 'Home']);
+    expect((await store.listMaps()).map((m) => m.name)).toEqual(['Lounge & Café', 'Office', 'Home', 'Gemini Studio']);
     expect(JSON.parse(storage.getItem('byte_grounds.maps')!).office).toEqual(stale);
   });
 
@@ -68,7 +69,7 @@ describe('LocalStore', () => {
     const store = new LocalStore(memoryStorage());
     const m = createBlankMap('Café', 5, 4);
     await store.saveMap(m);
-    expect((await store.listMaps()).map((x) => x.id)).toEqual(['lounge', 'office', 'home', 'cafe']);
+    expect((await store.listMaps()).map((x) => x.id)).toEqual(['lounge', 'office', 'home', 'studio', 'cafe']);
     expect(await store.loadMap('cafe')).toEqual(m);
     await store.deleteMap('cafe');
     expect(await store.loadMap('cafe')).toBeNull();

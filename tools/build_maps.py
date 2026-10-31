@@ -101,6 +101,33 @@ def ottoman(color):
     return Obj("ottomans", COLORS.index(color), 4, 1, 1, "free")
 
 
+# Gemini Studio pieces (client/src/assets/decor/gemini_studio_grid.png, made with Gemini; see
+# tools/pixelate_image.py). Chairs are 1x2: the seat is the lower cell.
+G = "gemini_studio_grid"
+GEMINI = {
+    "g_round_table": Obj(G, 0, 0, 2, 2),
+    "g_tv": Obj(G, 2, 0, 2, 2),
+    "g_conf_table": Obj(G, 4, 0, 5, 2),
+    "g_whiteboard": Obj(G, 9, 0, 2, 2),
+    "g_chair_down": Obj(G, 0, 2, 1, 2, "free"),
+    "g_chair_up": Obj(G, 1, 2, 1, 2, "free"),
+    "g_chair_right": Obj(G, 2, 2, 1, 2, "free"),
+    "g_water": Obj(G, 4, 2, 1, 2),
+    "g_vending": Obj(G, 5, 2, 2, 2),
+    "g_bookshelf": Obj(G, 7, 2, 2, 2),
+    "g_monstera": Obj(G, 9, 2, 2, 2),
+    "g_coffee_bar": Obj(G, 0, 4, 2, 2),
+    "g_cactus": Obj(G, 2, 4, 1, 2),
+    "g_sofa": Obj(G, 3, 4, 2, 2),
+    "g_armchair": Obj(G, 5, 4, 2, 2),
+    "g_lamp": Obj(G, 7, 4, 1, 2),
+    "g_beanbag": Obj(G, 8, 4, 2, 2),
+    "g_coffee_table": Obj(G, 0, 6, 2, 1, "all"),
+    "g_rug": Obj(G, 2, 6, 2, 1, "none"),
+}
+# Gemini floor textures (gemini_floors.png): 3x3-cell seamless blocks, in this order.
+GEMINI_FLOORS = ["oak", "lavender", "grey", "stone", "teal", "walnut"]
+
 CAT = {
     # office.png
     "desk_south": Obj("office", 10, 8, 3, 2),  # knee hole + drawers face the viewer: sit south, face up
@@ -247,6 +274,21 @@ class MapBuilder:
                 if not self.tiles[y][x]:
                     self.floor_decor.append({"x": x, "y": y, "sheet": sheet, "sx": sx, "sy": sy, "layer": "floor"})
 
+    def floor3(self, x0, y0, x1, y1, kind):
+        """A Gemini floor texture: its 3x3-cell block repeats with the map grid, so it tiles."""
+        i = GEMINI_FLOORS.index(kind)
+        bx, by = (i % 3) * 3, (i // 3) * 3
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                if not self.tiles[y][x]:
+                    self.floor_decor.append({"x": x, "y": y, "sheet": "gemini_floors", "sx": bx + x % 3, "sy": by + y % 3, "layer": "floor"})
+
+    def gchair(self, x, y, facing, tuck=False, over=False):
+        """A Gemini chair with its top-left on (x, y); the seat is the lower cell. `tuck`: the seat
+        slides under a table's walkable top row; `over`: the top cell overlaps a table's front edge."""
+        self.put({"down": "g_chair_down", "up": "g_chair_up", "right": "g_chair_right"}[facing], x, y, tuck=tuck, over=over)
+        self.seat(x, y + 1, facing)
+
     def room(self, name, x, y):
         """A named point inside a room; the build checks each one is reachable from spawn."""
         self.rooms[name] = (x, y)
@@ -256,11 +298,12 @@ class MapBuilder:
         self.zones.append({"name": name, "x": x, "y": y, "w": w, "h": h})
 
     # objects
-    def put(self, name, x, y, on=None, tuck=False):
+    def put(self, name, x, y, on=None, tuck=False, over=False):
         """Stamp a whole catalog object with its top-left on tile (x, y). `on` = a table-top
         item: it sits over an object cell and copies that object's base row. `tuck` = a chair
-        pushed under the walkable top row of a desk (it may share that tile)."""
-        o = CAT[name] if isinstance(name, str) else name
+        pushed under the walkable top row of a desk (it may share that tile). `over` = a chair whose
+        top cell overlaps the front edge of a table (drawing only; it blocks nothing)."""
+        o = (GEMINI.get(name) or CAT[name]) if isinstance(name, str) else name
         label = name if isinstance(name, str) else f"{o.sheet}:{o.sx},{o.sy}"
         cells = []
         for dy in range(o.h):
@@ -285,6 +328,8 @@ class MapBuilder:
                 if o.block == "none" and self.tiles[c["y"]][c["x"]]:
                     continue  # wall art: the part hanging on a wall tile
                 if tuck and key in self.occupied and not self.tiles[c["y"]][c["x"]]:
+                    continue
+                if over and key in self.occupied and c is cells[0]:
                     continue
                 if key in self.occupied:
                     raise ValueError(f"{self.id}: {label} at ({x},{y}) overlaps {self.occupied[key]} on {key}")
@@ -787,8 +832,94 @@ def build_home():
     return m
 
 
+def build_studio():
+    """Gemini Studio: a small office furnished only with the Gemini-made sheets."""
+    m = MapBuilder("studio", "Gemini Studio", 1, 32, 22, "#4a4f5c")
+    # Walls: meeting room (top right), kitchenette (top left), lounge (bottom left).
+    m.vwall(18, 1, 10, gaps=(8, 9))
+    m.hwall(10, 19, 30, gaps=())
+    m.vwall(9, 1, 7, gaps=(5, 6))
+    m.hwall(12, 1, 11, gaps=(9, 10))
+    m.floor3(19, 1, 30, 9, "lavender")
+    m.floor3(1, 1, 8, 7, "stone")
+    m.floor3(1, 13, 11, 20, "teal")
+    m.floor3(10, 1, 17, 11, "oak")
+    m.floor3(1, 8, 9, 11, "oak")
+    m.floor3(12, 12, 30, 20, "grey")
+    m.floor3(19, 11, 30, 11, "grey")
+
+    # Meeting room: conference table for 11, TV and whiteboard on the north wall.
+    m.zone("Meeting room", 19, 1, 12, 9)
+    m.put("g_tv", 23, 1)
+    m.put("g_whiteboard", 27, 1)
+    m.put("g_monstera", 19, 1)
+    m.put("g_conf_table", 22, 5)
+    for x in range(22, 27):
+        m.gchair(x, 4, "down", tuck=True)
+        m.gchair(x, 6, "up", over=True)
+    m.gchair(21, 4, "right")
+    m.put("g_water", 30, 7)
+
+    # Kitchenette: coffee bar, vending machine, water, a round table for four.
+    m.put("g_coffee_bar", 1, 1)
+    m.put("g_vending", 4, 1)
+    m.put("g_water", 7, 1)
+    m.put("g_round_table", 3, 5)
+    m.gchair(3, 4, "down", tuck=True)
+    m.gchair(4, 4, "down", tuck=True)
+    m.gchair(3, 6, "up", over=True)
+    m.gchair(4, 6, "up", over=True)
+    m.put("g_cactus", 7, 5)
+
+    # Work corner (oak): two round tables with chairs, shelves and plants.
+    m.put("g_bookshelf", 10, 1)
+    m.put("g_bookshelf", 12, 1)
+    m.put("g_monstera", 16, 1)
+    for tx in (11, 15):
+        m.put("g_round_table", tx, 6)
+        m.gchair(tx, 5, "down", tuck=True)
+        m.gchair(tx + 1, 5, "down", tuck=True)
+        m.gchair(tx, 7, "up", over=True)
+        m.gchair(tx + 1, 7, "up", over=True)
+    m.put("g_lamp", 17, 4)
+
+    # Lounge (teal): sofa, armchair, coffee table, bean bags, rug, lamp, shelf, cactus.
+    m.put("g_lamp", 1, 13)
+    m.put("g_sofa", 3, 13)
+    m.seat(3, 14, "down"); m.seat(4, 14, "down")
+    m.put("g_armchair", 6, 13)
+    m.seat(6, 14, "down")
+    m.put("g_bookshelf", 9, 13)
+    m.put("g_cactus", 11, 13)
+    m.put("g_coffee_table", 4, 16)
+    m.put("g_rug", 7, 17)
+    m.put("g_beanbag", 1, 17)
+    m.seat(1, 18, "down")
+    m.put("g_beanbag", 9, 17)
+    m.seat(9, 18, "down")
+
+    # Open area (grey): a meeting corner with bean bags and plants by the entrance.
+    m.put("g_round_table", 22, 14)
+    m.gchair(22, 13, "down", tuck=True)
+    m.gchair(23, 13, "down", tuck=True)
+    m.gchair(22, 15, "up", over=True)
+    m.gchair(23, 15, "up", over=True)
+    m.put("g_beanbag", 27, 13)
+    m.seat(27, 14, "down")
+    m.put("g_beanbag", 27, 17)
+    m.seat(27, 18, "down")
+    m.put("g_monstera", 13, 13)
+    m.put("g_monstera", 29, 19)
+    m.put("g_lamp", 18, 13)
+
+    m.spawn = (16.5, 19.5)
+    for name, p in {"meeting": (20, 8), "kitchen": (6, 6), "work": (13, 10), "lounge": (6, 19), "open": (20, 18)}.items():
+        m.room(name, *p)
+    return m
+
+
 if __name__ == "__main__":
-    for build in (build_office, build_lounge, build_home):
+    for build in (build_office, build_lounge, build_home, build_studio):
         write(build())
 
 

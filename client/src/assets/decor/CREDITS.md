@@ -191,3 +191,9 @@ under the original's license (CC-BY-SA share-alike included).
 - Generated with Google Gemini for the project owner, then converted to real 32px-grid pixel art with
   `tools/pixelate_image.py` (shrink, background / grid-line removal, translucent shadows) and
   repacked with `tools/repack_decor.py`. Sources: `Gemini_Generated_Image_*.jpg` (not committed).
+
+### gemini_studio.png (+ _grid), gemini_floors.png
+
+- Generated with Google Gemini (via `tools/gemini_mcp.py`) for the project owner, in the style of the
+  earlier Gemini sheets; converted with `tools/pixelate_image.py` and repacked with
+  `tools/repack_decor.py`. Floors: six seamless textures shrunk to 3x3-cell blocks.

@@ -6,6 +6,10 @@ const MACHINES: { sheet: string; sx: number; sy: number; item: Exclude<HeldItem,
   { sheet: 'office', sx: 10, sy: 0, item: 'coffee' }, // coffee maker
   { sheet: 'office', sx: 10, sy: 20, item: 'water' }, // water cooler (top)
   { sheet: 'office', sx: 10, sy: 21, item: 'water' }, // water cooler (base)
+  { sheet: 'gemini_studio_grid', sx: 0, sy: 4, item: 'coffee' }, // Gemini coffee bar (machine)
+  { sheet: 'gemini_studio_grid', sx: 1, sy: 4, item: 'coffee' },
+  { sheet: 'gemini_studio_grid', sx: 4, sy: 2, item: 'water' }, // Gemini water cooler
+  { sheet: 'gemini_studio_grid', sx: 4, sy: 3, item: 'water' },
 ];
 
 /** How close (tiles, to a machine cell's center) you must stand to use it; counters sit in between. */
