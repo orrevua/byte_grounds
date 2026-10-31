@@ -361,8 +361,8 @@ describe('shuffleAppearance', () => {
 });
 
 describe('PRESETS / DEFAULT_APPEARANCE integrity', () => {
-  it('has 17 presets with unique, non-empty ids', () => {
-    expect(PRESETS.length).toBe(17);
+  it('has 21 presets with unique, non-empty ids', () => {
+    expect(PRESETS.length).toBe(21);
     const ids = PRESETS.map((p) => p.id);
     expect(ids.every((id) => id.length > 0)).toBe(true);
     expect(new Set(ids).size).toBe(ids.length);

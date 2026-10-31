@@ -126,3 +126,19 @@ layer: the Universal LPC Spritesheet contributors (`LICENSE/AUTHORS.txt`), Jaidy
 (tunics), Marcel van de Steeg (orc), Johannes Sjölund (skeleton), Thane Brimhall (formal shirt/vest/tie and sash dress) and Lanea Zimmerman (AKA
 Sharm) (underdress), as credited in the tables above. Regenerate with
 `python tools/gen_pose_sheets.py` (needs Pillow).
+
+## More colors (recolored derivatives, `tools/recolor_layers.py`)
+
+Gradient-map recolors (CC-BY-SA 3.0 derivatives; shading, outlines and frames unchanged) of the
+layers above, same authors as their sources:
+
+| Files | Recolored from |
+| --- | --- |
+| `lpc/torso/{black,blue,red,yellow,purple,orange,grey}_longsleeve_male.png` | `white_longsleeve_male.png` |
+| `lpc/torso/{black,blue,red,yellow,purple,orange,grey}_tunic_female.png` | `white_tunic_female.png` (JaidynReiman) |
+| `lpc/torso/{navy,black,grey,burgundy}_formal_male.png` | `green_formal_male.png` (Thane Brimhall) |
+| `lpc/torso/{navy,black,grey,burgundy}_formal_female.png` | `green_formal_female.png` (Lanea Zimmerman, Thane Brimhall) |
+| `lpc/legs/{black,brown,grey,green,khaki}_pants_{male,female}.png` | `white_pants_{male,female}.png` |
+| `lpc/hair/{red,white,pink,blue}_{male,female}.png` | `blonde_{male,female}.png` |
+
+Their seated versions under `lpc/sit/` come from `tools/gen_pose_sheets.py`.

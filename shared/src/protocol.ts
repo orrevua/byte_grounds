@@ -22,10 +22,12 @@ export type Facing = 'up' | 'down' | 'left' | 'right';
 /** Structured, typed character descriptor (replaces the old `variant` id). */
 export interface Appearance {
   body: 'male' | 'female'; // sex: keys every legs/torso/hair file
-  hair: 'brown' | 'black' | 'blonde' | 'none'; // 'none' = omit the hair layer
+  hair: 'brown' | 'black' | 'blonde' | 'red' | 'white' | 'pink' | 'blue' | 'none'; // 'none' = omit the hair layer
   outfit: 'casual' | 'business' | 'none'; // garment family (casual longsleeve/tunic vs formal); 'none' = bare (creatures only)
-  torso: 'teal' | 'maroon' | 'brown' | 'white' | 'pink' | 'green'; // top color (clamped to the outfit's palette)
-  legs: 'teal' | 'red' | 'white' | 'navy' | 'pink'; // pants color
+  torso:
+    | 'teal' | 'maroon' | 'brown' | 'white' | 'pink' | 'green'
+    | 'black' | 'blue' | 'red' | 'yellow' | 'purple' | 'orange' | 'grey' | 'navy' | 'burgundy'; // top color (clamped to the outfit's palette)
+  legs: 'teal' | 'red' | 'white' | 'navy' | 'pink' | 'black' | 'brown' | 'grey' | 'green' | 'khaki'; // pants color
   skin: 'light' | 'olive' | 'tan' | 'brown' | 'dark' | 'orc' | 'skeleton'; // body sheet (human tones, then creatures)
 }
 

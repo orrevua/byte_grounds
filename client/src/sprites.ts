@@ -44,14 +44,14 @@ export const BODY = ['male', 'female'] as const;
 export const SKIN = ['light', 'olive', 'tan', 'brown', 'dark', 'orc', 'skeleton'] as const;
 /** Creature skins (the only ones that may go without clothes). */
 export const CREATURES: readonly Appearance['skin'][] = ['orc', 'skeleton'];
-export const HAIR = ['brown', 'black', 'blonde', 'none'] as const;
+export const HAIR = ['brown', 'black', 'blonde', 'red', 'white', 'pink', 'blue', 'none'] as const;
 export const OUTFIT = ['casual', 'business', 'none'] as const;
 /** Top colors available per outfit (a torso color only exists for one family). */
-export const CASUAL_TORSO = ['teal', 'maroon', 'brown', 'white', 'pink'] as const;
-export const BUSINESS_TORSO = ['green', 'pink'] as const; // green = the base LPC formal color; pink = recolor
+export const CASUAL_TORSO = ['teal', 'maroon', 'brown', 'white', 'pink', 'black', 'blue', 'red', 'yellow', 'purple', 'orange', 'grey'] as const;
+export const BUSINESS_TORSO = ['green', 'pink', 'navy', 'black', 'grey', 'burgundy'] as const; // green = the base LPC formal color; the rest are recolors
 /** Full torso union (type + normalize): CASUAL_TORSO ∪ BUSINESS_TORSO. */
-export const TORSO = ['teal', 'maroon', 'brown', 'white', 'pink', 'green'] as const;
-export const LEGS = ['teal', 'red', 'white', 'navy', 'pink'] as const;
+export const TORSO = ['teal', 'maroon', 'brown', 'white', 'pink', 'green', 'black', 'blue', 'red', 'yellow', 'purple', 'orange', 'grey', 'navy', 'burgundy'] as const;
+export const LEGS = ['teal', 'red', 'white', 'navy', 'pink', 'black', 'brown', 'grey', 'green', 'khaki'] as const;
 
 /** Top colors offered for a given outfit (business palette; casual otherwise, also for bare). */
 export function outfitTorso(outfit: Appearance['outfit']): readonly string[] {
@@ -211,6 +211,10 @@ export const PRESETS: { id: string; label: string; appearance: Appearance }[] = 
   { id: 'm4', label: 'Brown (M)', appearance: { body: 'male', hair: 'black', outfit: 'casual', torso: 'white', legs: 'navy', skin: 'brown' } },
   { id: 'forc', label: 'Orc (F)', appearance: { body: 'female', hair: 'black', outfit: 'casual', torso: 'maroon', legs: 'red', skin: 'orc' } },
   { id: 'fskel', label: 'Skeleton (F)', appearance: { body: 'female', hair: 'blonde', outfit: 'business', torso: 'green', legs: 'navy', skin: 'skeleton' } },
+  { id: 'm5', label: 'Navy suit (M)', appearance: { body: 'male', hair: 'white', outfit: 'business', torso: 'navy', legs: 'grey', skin: 'brown' } },
+  { id: 'f7', label: 'Red top (F)', appearance: { body: 'female', hair: 'red', outfit: 'casual', torso: 'red', legs: 'black', skin: 'light' } },
+  { id: 'm6', label: 'Yellow (M)', appearance: { body: 'male', hair: 'blue', outfit: 'casual', torso: 'yellow', legs: 'khaki', skin: 'tan' } },
+  { id: 'f8', label: 'Burgundy (F)', appearance: { body: 'female', hair: 'pink', outfit: 'business', torso: 'burgundy', legs: 'black', skin: 'dark' } },
 ];
 
 export const DEFAULT_APPEARANCE: Appearance = PRESETS[0].appearance;
