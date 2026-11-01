@@ -203,3 +203,6 @@ under the original's license (CC-BY-SA share-alike included).
 - Generated with Google Gemini (via `tools/gemini_mcp.py`) in the Gemini Studio style (walls, doors,
   windows, reception; desks, office equipment; beds, bathroom, kitchen, living room), converted with
   `tools/pixelate_image.py` and repacked with `tools/repack_decor.py`.
+- Meeting tables (long, vertical, oval) appended below `gemini_office2(_grid)`: generated from
+  `art/gemini/meeting_tables3.png` (chairs removed by a Gemini edit), converted at scale 3.54,
+  repacked separately and stacked under the existing rows so no earlier piece moved.

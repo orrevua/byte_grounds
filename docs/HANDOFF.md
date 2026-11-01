@@ -1,7 +1,14 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-31 (erase furniture or floor; floors never refused)
+**Last updated:** 2026-10-31 (Gemini meeting tables)
 **Branch:** `master` (user asked: work on master directly, no more PRs)
+
+## Gemini meeting tables — DONE, PUSHED (2026-10-31)
+- Three big meeting tables in the Gemini style appended to `gemini_office2_grid` (352x224 → 352x448)
+  and `gemini_office2`: long 7x2 cells at (0-6, 7-8), vertical 2x4 at (7-8, 7-10), oval 5x3 at
+  (0-4, 11-13). Made with the Gemini MCP (`art/gemini/meeting_tables*.png`, git-ignored), the
+  reference chair blanked, `pixelate_image.py --scale 3.54`, 1px outline bumps stripped, repacked
+  alone and stacked below, so existing cells / seat rules / maps are unchanged. Not placed in a map.
 
 ## Erase furniture or floor; no red squares for floors — DONE, PUSHED (2026-10-31)
 - Build panel Erase (admin) + map editor Erase have a Furniture / Floor choice.
