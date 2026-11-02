@@ -1,5 +1,5 @@
 import { decorLayer, seatsNearIn, stepOutOf, zoneAt, zoneKey, type DecorCell, type OfficeMap, type Seat, type Zone } from '@byte_grounds/shared/map';
-import { POSITION_TICK_MS, TILE_SIZE, normalizeChat, normalizeLock, normalizeMusic, normalizePose, normalizeStatus } from '@byte_grounds/shared/protocol';
+import { POSITION_TICK_MS, TILE_SIZE, isDancePose, normalizeChat, normalizeLock, normalizeMusic, normalizePose, normalizeStatus } from '@byte_grounds/shared/protocol';
 import { effectiveSeats, seatSpot } from '@byte_grounds/shared/seats';
 import type { Appearance, HeldItem, PeerId, PeerState, Pose, RoomLock, ServerToClient, StatusFields } from '@byte_grounds/shared/protocol';
 import { balloonHeight, drawAvatar, drawAvatarTags, drawChatBalloon, drawDecorCellAt, drawFrameSprite, drawHeldItem, drawZones, sipStep, tagsTop, drawMap, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
@@ -616,7 +616,7 @@ export class Game {
   /** Busy / away on or off: a zzZ over the avatar; it stops a dance. Walking ends it. */
   toggleBusy(): void {
     this.self.busy = !this.self.busy;
-    if (this.self.busy && this.self.pose === 'dance') this.self.pose = 'stand';
+    if (this.self.busy && isDancePose(this.self.pose)) this.self.pose = 'stand';
     this.sendStatus();
   }
 
@@ -638,7 +638,7 @@ export class Game {
     const ms = drinkDuration(Math.random());
     this.self.item = k.item;
     this.itemUntil = Date.now() + ms;
-    if (this.self.pose === 'dance') this.self.pose = 'stand';
+    if (isDancePose(this.self.pose)) this.self.pose = 'stand';
     this.sendStatus();
     this.toast(t(k.item === 'coffee' ? 'game.coffeeInHand' : 'game.waterInHand', { time: formatDuration(ms) }), 'info');
   }
@@ -819,7 +819,7 @@ export class Game {
     const input = this.moveInput();
     const moveHeld = input.up || input.down || input.left || input.right;
     if (moveHeld && this.lookAt) this.followSelf();
-    if (moveHeld && this.self.pose === 'dance') this.self.pose = 'stand';
+    if (moveHeld && isDancePose(this.self.pose)) this.self.pose = 'stand';
     if (moveHeld && this.self.busy && !this.seat) this.toggleBusy();
     if (this.self.item && Date.now() >= this.itemUntil) this.dropDrink();
     this.updateZone();
@@ -1052,7 +1052,7 @@ export class Game {
   }
 
   toggleSeat(): void {
-    if (this.self.pose === 'dance') return;
+    if (isDancePose(this.self.pose)) return;
     if (this.seat) return this.standUp();
     const st = this.freeSeatNearby();
     if (!st) return;
@@ -1064,10 +1064,10 @@ export class Game {
     this.self.moving = false;
   }
 
-  /** Start / stop dancing in place; not while seated. */
+  /** Q / the dance button: the classic dance, then "Maggots for Brains", then stop; not while seated. */
   toggleDance(): void {
     if (this.seat) return;
-    this.self.pose = this.self.pose === 'dance' ? 'stand' : 'dance';
+    this.self.pose = this.self.pose === 'stand' ? 'dance' : this.self.pose === 'dance' ? 'maggots' : 'stand';
   }
 
   private standUp(): void {
@@ -1087,8 +1087,14 @@ export class Game {
       const label = this.panel.isOpen ? t('game.doneBuilding') : t('game.build');
       if (this.buildBtn.textContent !== label) this.buildBtn.textContent = label;
     }
-    const dancing = this.self.pose === 'dance';
-    const danceLabel = this.seat ? '' : dancing ? t('game.stopDancing') : t('game.dance');
+    const dancing = isDancePose(this.self.pose);
+    const danceLabel = this.seat
+      ? ''
+      : this.self.pose === 'dance'
+        ? t('game.danceMaggots')
+        : dancing
+          ? t('game.stopDancing')
+          : t('game.dance');
     if (this.danceBtn.textContent !== danceLabel) this.danceBtn.textContent = danceLabel;
     this.danceBtn.className = danceLabel ? '' : 'hidden';
 

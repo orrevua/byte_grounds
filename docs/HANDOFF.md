@@ -1,7 +1,18 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-11-02 (mobile HUD layout, Enter-to-chat)
+**Last updated:** 2026-11-02 ("Maggots for Brains" dance)
 **Branch:** `master` (user asked: work on master directly, no more PRs)
+
+## "Maggots for Brains" dance — DONE, PUSHED (2026-11-02)
+- From the owner's description (no video available to me): new pose `maggots` (protocol `POSES`,
+  `DANCE_POSES`, `isDancePose`; old clients show it as standing). `MAGGOTS_STEPS` in sprites.ts, 38
+  steps x 230 ms (~130 bpm half beats): open arms + alternating leg lifts; both hands up; hands
+  down one at a time (mirrored slash frame); hands down→up; hand to heart (thrust col 2) + same-side
+  foot tap; hands down/mid/up; hands up + alternating front kicks.
+- New `DanceStep.legs` (body below `LEG_SPLIT` = 42 from another frame) and `flip` (mirrored);
+  walk col 3 lifts the left foot, col 7 the right. The men's suit top lacks thrust rows →
+  `withFallback` uses cast col 2 (hands on chest). All other 396 layers draw every frame used.
+- Q / dance button cycles: Dance → "Next: Maggots for Brains" → Stop dancing.
 
 ## Mobile HUD + Enter-to-chat — DONE, PUSHED (2026-11-02)
 - Every device: HUD buttons one per row top-left; the chat panel bottom-right with the minimap moved

@@ -9,9 +9,18 @@ export const DEFAULT_ROOM = 'lounge'; // = DEFAULT_MAP.id (shared/src/maps.ts)
 
 export type PeerId = string;
 
-/** What an avatar is doing: walking/standing, sitting on a seat, lying on a bed, or dancing. */
-export const POSES = ['stand', 'sit', 'lie', 'dance'] as const;
+/**
+ * What an avatar is doing: walking/standing, sitting on a seat, lying on a bed, or one of the
+ * dances (`dance` = the classic one, `maggots` = "Maggots for Brains").
+ */
+export const POSES = ['stand', 'sit', 'lie', 'dance', 'maggots'] as const;
 export type Pose = (typeof POSES)[number];
+export const DANCE_POSES = ['dance', 'maggots'] as const;
+export type DancePose = (typeof DANCE_POSES)[number];
+
+export function isDancePose(p: Pose): p is DancePose {
+  return (DANCE_POSES as readonly Pose[]).includes(p);
+}
 
 /** Coerce an incoming pose: unknown/missing values stand (a future pose must not render lying). */
 export function normalizePose(x: unknown): Pose {

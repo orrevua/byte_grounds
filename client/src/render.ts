@@ -1,4 +1,4 @@
-import { TILE_SIZE } from '@byte_grounds/shared/protocol';
+import { TILE_SIZE, isDancePose } from '@byte_grounds/shared/protocol';
 import { decorLayer, tileColor, zoneKey } from '@byte_grounds/shared/map';
 import type { DecorCell, OfficeMap, Zone } from '@byte_grounds/shared/map';
 import {
@@ -149,8 +149,8 @@ export function drawPosedSprite(
     drawSitAppearance(ctx, a, dir, px - FRAME_SIZE / 2, py - FRAME_SIZE + FOOT_OFFSET);
     return;
   }
-  if (pose === 'dance') {
-    drawDanceAppearance(ctx, a, nowMs, px - FRAME_SIZE / 2, py - FRAME_SIZE + FOOT_OFFSET);
+  if (isDancePose(pose)) {
+    drawDanceAppearance(ctx, a, nowMs, px - FRAME_SIZE / 2, py - FRAME_SIZE + FOOT_OFFSET, pose);
     return;
   }
   if (lieMode(dir) === 'tucked') {
@@ -541,7 +541,7 @@ export function sipStep(item: HeldItem, pose: Pose, dir: Direction, moving: bool
  * hides it), lying down, or dancing (the arms are busy). Seated, it rests on the lap.
  */
 export function cupRest(pose: Pose, dir: Direction): { dx: number; dy: number } | null {
-  if (dir === 'up' || pose === 'lie' || pose === 'dance') return null;
+  if (dir === 'up' || pose === 'lie' || isDancePose(pose)) return null;
   // The left hand, the one that sips: facing down it hangs at frame (40, 48), on the viewer's right
   // (the frame's top is 48px above the feet point); sideways, the front hand.
   if (pose === 'sit') return dir === 'down' ? { dx: 8, dy: -2 } : { dx: dir === 'left' ? -6 : 6, dy: -3 };
