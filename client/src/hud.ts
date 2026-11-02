@@ -125,9 +125,11 @@ export class Hud {
     this.chatBtn.textContent = this.unread ? t('hud.chatUnread', { n: this.unread }) : t('hud.chat');
   }
 
+  /** Enter in the chat box: send (or run the command), then leave the box so the keys move again. */
   private submit(): void {
     const cmd = parseChatInput(this.input.value);
     this.input.value = '';
+    this.input.blur();
     switch (cmd.kind) {
       case 'say':
         return this.actions.sendChat(cmd.text);

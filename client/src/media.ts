@@ -243,7 +243,8 @@ export class MediaManager {
     this.preview.style.display = 'none';
 
     const bar = document.createElement('div');
-    bar.style.cssText = 'display:flex;gap:6px;';
+    // Mic / Cam / Share stacked: a narrow column in the corner, not a row across the screen.
+    bar.style.cssText = 'display:flex;flex-direction:column;align-items:stretch;gap:6px;';
     this.micBtn = this.makeButton(t('media.micOn'), () => this.toggleMic());
     this.camBtn = this.makeButton(t('media.camOff'), () => void this.toggleCam());
     this.screenBtn = this.makeButton(t('media.share'), () => void this.toggleScreen());
@@ -427,7 +428,7 @@ export class MediaManager {
     const b = document.createElement('button');
     b.textContent = label;
     b.style.cssText =
-      'flex:1;padding:6px 8px;border:0;border-radius:6px;background:#2a2f37;color:#e6e8eb;cursor:pointer;white-space:nowrap;';
+      'padding:6px 10px;border:0;border-radius:6px;background:#2a2f37;color:#e6e8eb;cursor:pointer;white-space:nowrap;text-align:left;';
     b.addEventListener('click', onClick);
     return b;
   }
