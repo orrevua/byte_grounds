@@ -22,6 +22,8 @@ import { adminEmail, checkIsAdmin, ensureSession, signInAdmin, signOutAdmin } fr
 import { GrantsFeed } from './grants.ts';
 import { LiveMap } from './live-map.ts';
 import { Hud } from './hud.ts';
+import { SpotifyLink } from './spotify.ts';
+import { MusicButton } from './music-button.ts';
 import { dayKey, loadDailyStatus, saveDailyStatus } from './chat.ts';
 import { isTouchDevice } from './input.ts';
 import { applyDocLang, langSwitch, t, type MsgKey } from './i18n.ts';
@@ -332,6 +334,19 @@ function attachHud(g: Game, savePosition: () => Promise<void>): void {
   );
   g.onSelfStatus = (fields) => hud.setSelfStatus(fields);
   g.onChat = (name, text, self) => hud.addChat(name, text, self);
+  attachSpotify(g);
+}
+
+/** Spotify "now playing" (when the build has a Client ID): a HUD button; what plays goes to our status. */
+function attachSpotify(g: Game): void {
+  const link = new SpotifyLink();
+  const bar = document.querySelector<HTMLElement>('#hud .hud-bar');
+  if (!link.enabled || !bar) return;
+  const button = new MusicButton(link, bar);
+  link.onChange = () => {
+    g.setMusic(link.shared);
+    button.render();
+  };
 }
 
 /** Remember where we are on this map, so we come back to the same spot next time. Returns a save-now. */

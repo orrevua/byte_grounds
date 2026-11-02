@@ -1,7 +1,20 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-10-31 (Gemini meeting tables)
+**Last updated:** 2026-11-02 (Spotify now playing)
 **Branch:** `master` (user asked: work on master directly, no more PRs)
+
+## Spotify "now playing" — DONE, PUSHED (2026-11-02); needs the owner's Spotify app to go live
+- Spec: `docs/specs/spotify-now-playing.md`. `client/src/spotify.ts` (PKCE helpers + `SpotifyLink`:
+  popup connect, token refresh, `currently-playing` every 30 s, 429/401/403 handling),
+  `spotify-callback.html` (4th Vite page: state check, code → tokens in localStorage, closes; the game
+  picks them up via the `storage` event), `music-button.ts` (HUD "♪" button + popover: sharing
+  on/off, disconnect). `StatusFields.music` (`normalizeMusic`, ≤ 100 chars) rides the status path.
+  Green "♪ …" line above the status in the map; under the name in the meeting view.
+- **Owner TODO:** create the app on developer.spotify.com, add redirect URIs (README step 6), set
+  `VITE_SPOTIFY_CLIENT_ID` in Vercel (+ client/.env.local), add friends under User Management.
+  Hidden while the Client ID is unset. Local dev must use http://127.0.0.1:5173 (not localhost).
+- Verified end to end with Playwright standing in for Spotify (consent redirect, token exchange
+  body incl. PKCE verifier, currently-playing): HUD, map tag, meeting line, pause removes it.
 
 ## Gemini meeting tables — DONE, PUSHED (2026-10-31)
 - Three big meeting tables in the Gemini style appended to `gemini_office2_grid` (352x224 → 352x448)

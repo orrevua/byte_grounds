@@ -62,6 +62,15 @@ the room, broadcast carries positions and WebRTC signaling (`client/src/net-supa
    Editor. The admin can then draw sheets at `/sheets` and place their pieces in the editor and
    the Build panel. Guide for humans and agents: [`docs/sheet-studio.md`](docs/sheet-studio.md).
 
+6. **Spotify "now playing" (optional):** at [developer.spotify.com](https://developer.spotify.com/dashboard)
+   create an app (API: **Web API**) and add the redirect URIs
+   `https://<your-site>/spotify-callback.html` and, for local dev,
+   `http://127.0.0.1:5173/spotify-callback.html` (Spotify doesn't accept `localhost`: open the dev
+   site at `http://127.0.0.1:5173`). Put its **Client ID** in `VITE_SPOTIFY_CLIENT_ID` (Vercel and
+   `client/.env.local`) and redeploy. A new app is in development mode: add each friend's Spotify
+   email under **User Management**. Players then get a "♪ Connect Spotify" button in the HUD. No
+   secret is needed (the browser uses PKCE); without the Client ID the button doesn't show.
+
 When both variables are set the client uses Supabase; otherwise it falls back to the ws server at
 `VITE_WS_URL`. To try Supabase locally, put the two variables in `client/.env.local`
 (see `client/.env.example`) and run `npm run dev:client`.

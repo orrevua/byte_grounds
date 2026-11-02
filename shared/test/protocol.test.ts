@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CHAT_MAX, POSES, STATUS_MAX, normalizeChat, normalizePose, normalizeStatus, normalizeStatusFields, normalizeLock, LOCK_ALLOW_MAX } from '../src/protocol.ts';
+import { CHAT_MAX, POSES, STATUS_MAX, normalizeChat, normalizePose, normalizeStatus, normalizeStatusFields, normalizeLock, LOCK_ALLOW_MAX, normalizeMusic, MUSIC_MAX } from '../src/protocol.ts';
 
 describe('normalizePose', () => {
   it('keeps every known pose', () => {
@@ -34,8 +34,16 @@ describe('status / chat text', () => {
       muted: true,
       item: 'coffee',
       lock: null,
+      music: '',
     });
     expect(normalizeStatusFields({ item: 'beer' }).item).toBe('');
+  });
+
+  it('normalizes a now-playing line', () => {
+    expect(normalizeMusic('  Song\n —  Artist ')).toBe('Song — Artist');
+    expect(normalizeMusic(42)).toBe('');
+    expect(normalizeMusic('x'.repeat(300))).toHaveLength(MUSIC_MAX);
+    expect(normalizeStatusFields({ music: 'A — B' }).music).toBe('A — B');
   });
 
   it('keeps a well-formed room lock and drops a malformed one', () => {
@@ -46,6 +54,6 @@ describe('status / chat text', () => {
     expect(normalizeLock('x')).toBeNull();
     expect(normalizeLock({ zone: 'z', hash, allow: Array.from({ length: 40 }, (_, i) => `p${i}`) })!.allow).toHaveLength(LOCK_ALLOW_MAX);
     expect(normalizeStatusFields({ lock: { zone: 'z', hash } }).lock).toEqual({ zone: 'z', hash, allow: [] });
-    expect(normalizeStatusFields(null)).toEqual({ status: '', busy: false, sharing: false, muted: false, item: '', lock: null });
+    expect(normalizeStatusFields(null)).toEqual({ status: '', busy: false, sharing: false, muted: false, item: '', lock: null, music: '' });
   });
 });

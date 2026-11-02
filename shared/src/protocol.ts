@@ -59,6 +59,8 @@ export interface PeerState {
   muted?: boolean;
   /** A meeting room they locked with a password (see `RoomLock`). */
   lock?: RoomLock | null;
+  /** What they're listening to on Spotify ("Song — Artist"), when they share it. */
+  music?: string;
   /** What they hold (a drink from a machine); absent/'' = nothing. */
   item?: HeldItem;
   /** Signed in as the admin: shown as an [ADM] tag. Cosmetic only (RLS enforces real powers). */
@@ -121,6 +123,15 @@ export interface StatusFields {
   muted: boolean;
   item: HeldItem;
   lock: RoomLock | null;
+  music: string;
+}
+
+export const MUSIC_MAX = 100;
+
+/** Coerce a "now playing" line: a string, control characters out, trimmed, at most `MUSIC_MAX`. */
+export function normalizeMusic(x: unknown): string {
+  if (typeof x !== 'string') return '';
+  return x.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MUSIC_MAX);
 }
 
 /** Coerce incoming status fields (missing/invalid → empty / false). */
@@ -134,6 +145,7 @@ export function normalizeStatusFields(x: unknown): StatusFields {
     muted: o.muted === true,
     item,
     lock: normalizeLock(o.lock),
+    music: normalizeMusic(o.music),
   };
 }
 
@@ -160,6 +172,7 @@ export interface JoinMsg {
   muted?: boolean;
   item?: HeldItem;
   lock?: RoomLock | null;
+  music?: string;
   admin?: boolean;
 }
 /** Replace our status fields (status line, busy, sharing, muted, held item). */

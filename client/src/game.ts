@@ -1,5 +1,5 @@
 import { decorLayer, seatsNearIn, stepOutOf, zoneAt, zoneKey, type DecorCell, type OfficeMap, type Seat, type Zone } from '@byte_grounds/shared/map';
-import { POSITION_TICK_MS, TILE_SIZE, normalizeChat, normalizeLock, normalizePose, normalizeStatus } from '@byte_grounds/shared/protocol';
+import { POSITION_TICK_MS, TILE_SIZE, normalizeChat, normalizeLock, normalizeMusic, normalizePose, normalizeStatus } from '@byte_grounds/shared/protocol';
 import { effectiveSeats, seatSpot } from '@byte_grounds/shared/seats';
 import type { Appearance, HeldItem, PeerId, PeerState, Pose, RoomLock, ServerToClient, StatusFields } from '@byte_grounds/shared/protocol';
 import { balloonHeight, drawAvatar, drawAvatarTags, drawChatBalloon, drawDecorCellAt, drawFrameSprite, drawHeldItem, drawZones, sipStep, tagsTop, drawMap, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
@@ -64,6 +64,8 @@ interface Avatar {
   muted: boolean;
   /** A meeting room they closed with a password. */
   lock: RoomLock | null;
+  /** What they're listening to on Spotify ('' = nothing shared). */
+  music: string;
   /** A drink in hand ('' = none). */
   item: HeldItem;
   /** Signed in as the admin: an [ADM] tag before the name. */
@@ -249,6 +251,7 @@ export class Game {
       muted: false,
       item: '',
       lock: null,
+      music: '',
       admin: self.isAdmin,
     };
 
@@ -477,8 +480,16 @@ export class Game {
 
   /** Our status fields as sent to others. */
   get statusFields(): StatusFields {
-    const { status, busy, sharing, muted, item, lock } = this.self;
-    return { status, busy, sharing, muted, item, lock };
+    const { status, busy, sharing, muted, item, lock, music } = this.self;
+    return { status, busy, sharing, muted, item, lock, music };
+  }
+
+  /** Share what we're listening to ('' = nothing); sent only when it changes. */
+  setMusic(text: string): void {
+    const music = normalizeMusic(text);
+    if (music === this.self.music) return;
+    this.self.music = music;
+    this.sendStatus();
   }
 
   // --- Meeting invites + locked rooms ---
@@ -715,6 +726,7 @@ export class Game {
       sharing: p.sharing === true,
       muted: p.muted === true,
       lock: normalizeLock(p.lock),
+      music: normalizeMusic(p.music),
       item: p.item === 'coffee' || p.item === 'water' ? p.item : '',
       admin: p.admin === true,
       ...(typeof p.uid === 'string' ? { uid: p.uid } : {}),
@@ -766,6 +778,7 @@ export class Game {
           r.sharing = msg.sharing === true;
           r.muted = msg.muted === true;
           r.lock = normalizeLock(msg.lock);
+          r.music = normalizeMusic(msg.music);
           r.item = msg.item === 'coffee' || msg.item === 'water' ? msg.item : '';
           this.onPeersChanged?.();
         }
@@ -1155,6 +1168,7 @@ export class Game {
       presenting: this.self.sharing,
       busy: this.self.busy,
       muted: this.self.muted,
+      music: this.self.music,
     };
     const others = [...this.remotes]
       .filter(([id, r]) => this.prox.get(id) === 'near' && this.sameRoom(r))
@@ -1169,6 +1183,7 @@ export class Game {
           presenting: r.sharing,
           busy: r.busy,
           muted: r.muted,
+          music: r.music,
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -1379,7 +1394,7 @@ export class Game {
 
   /** Name, status, zzZ and chat bubble above an avatar, drawn in the top pass so furniture can't cover them. */
   private drawTags(a: Avatar, now: number): void {
-    drawAvatarTags(this.ctx, a.x, a.y, a.pose, { name: a.name, status: a.status, busy: a.busy, admin: a.admin, muted: a.muted }, now);
+    drawAvatarTags(this.ctx, a.x, a.y, a.pose, { name: a.name, status: a.status, busy: a.busy, admin: a.admin, muted: a.muted, music: a.music }, now);
   }
 
   /**

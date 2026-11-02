@@ -186,6 +186,17 @@ export interface AvatarTags {
   busy?: boolean;
   /** Mic off: a small red mic-off icon after the name. */
   muted?: boolean;
+  /** Spotify now playing: a green "♪ …" line above the status. */
+  music?: string;
+}
+
+const MUSIC_COLOR = '#1ed760';
+/** Longest now-playing line drawn over a head (the rest is cut with "…"). */
+const MUSIC_TAG_MAX = 34;
+
+/** The now-playing line as drawn over a head. */
+export function musicTag(music: string): string {
+  return `♪ ${music.length > MUSIC_TAG_MAX ? `${music.slice(0, MUSIC_TAG_MAX - 1)}…` : music}`;
 }
 
 const NAME_FONT = '600 12px system-ui, sans-serif';
@@ -276,6 +287,11 @@ export function drawAvatarTags(
     if (tags.muted) drawMicOff(ctx, px + nameW / 2 + 3, top);
   }
   top -= 13;
+  if (tags.music) {
+    ctx.font = STATUS_FONT;
+    outlinedText(ctx, musicTag(tags.music), px, top, MUSIC_COLOR);
+    top -= 11;
+  }
   if (tags.status) {
     ctx.font = STATUS_FONT;
     outlinedText(ctx, tags.status, px, top, '#9fd0ff');
@@ -290,7 +306,7 @@ export function drawAvatarTags(
 
 /** Where a new chat balloon's tail points (world px): just above the sender's tags. */
 export function tagsTop(y: number, pose: Pose, tags: AvatarTags): number {
-  return y * TILE_SIZE - labelLift(pose) - 13 - (tags.status ? 11 : 0) - (tags.busy ? 18 : 0);
+  return y * TILE_SIZE - labelLift(pose) - 13 - (tags.music ? 11 : 0) - (tags.status ? 11 : 0) - (tags.busy ? 18 : 0);
 }
 
 /** A 9x12 px mic with a red slash, its left edge at `x` and its bottom on the text baseline `bottom`. */

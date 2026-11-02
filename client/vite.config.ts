@@ -22,11 +22,13 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      // Three pages: the game, the map editor and Sheet Studio (/editor, /sheets on Vercel via cleanUrls).
+      // Pages: the game, the map editor, Sheet Studio (/editor, /sheets on Vercel via cleanUrls) and
+      // the Spotify connect popup's landing page.
       input: {
         main: resolve(import.meta.dirname, 'index.html'),
         editor: resolve(import.meta.dirname, 'editor.html'),
         sheets: resolve(import.meta.dirname, 'sheets.html'),
+        spotify: resolve(import.meta.dirname, 'spotify-callback.html'),
       },
     },
   },

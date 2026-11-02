@@ -44,9 +44,9 @@ describe('Room', () => {
   it('stores status fields only for known peers', () => {
     const r = new Room();
     r.add(peer('a'));
-    expect(r.updateStatus('a', { status: 'Shipping', busy: true, sharing: false, muted: true, item: 'water', lock: null })).toBe(true);
+    expect(r.updateStatus('a', { status: 'Shipping', busy: true, sharing: false, muted: true, item: 'water', lock: null, music: '' })).toBe(true);
     expect(r.get('a')).toMatchObject({ status: 'Shipping', busy: true, sharing: false, muted: true, item: 'water' });
-    expect(r.updateStatus('missing', { status: '', busy: false, sharing: false, muted: false, item: '', lock: null })).toBe(false);
+    expect(r.updateStatus('missing', { status: '', busy: false, sharing: false, muted: false, item: '', lock: null, music: '' })).toBe(false);
   });
 
   it('removes peers', () => {

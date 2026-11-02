@@ -13,6 +13,8 @@ export interface Participant {
   busy: boolean;
   /** Mic off: a mic-off badge on their tile. */
   muted: boolean;
+  /** Spotify now playing ('' = nothing shared): a line under the name. */
+  music: string;
 }
 
 /** What the meeting view reads from and drives (the game + media). */
@@ -76,6 +78,7 @@ interface Tile {
   face: HTMLCanvasElement;
   label: HTMLSpanElement;
   muted: HTMLSpanElement;
+  music: HTMLSpanElement;
 }
 
 /**
@@ -192,6 +195,7 @@ export class MeetingView {
       tile.root.classList.toggle('has-video', !!cam);
       tile.root.classList.toggle('self', p.self);
       tile.root.classList.toggle('muted', p.muted);
+      tile.music.textContent = p.music ? `♪ ${p.music}` : '';
       tile.label.textContent = (p.self ? t('meet.you', { name: p.name }) : p.name) + (p.busy ? ' · zzZ' : '');
       tile.face.style.background = avatarColor(p.name);
       drawFace(tile.face, p.appearance);
@@ -243,9 +247,11 @@ export class MeetingView {
     muted.className = 'meet-muted';
     muted.title = t('meet.muted');
     muted.innerHTML = icon(ICON.mic, true);
-    root.append(face, video, label, muted);
+    const music = document.createElement('span');
+    music.className = 'meet-music';
+    root.append(face, video, label, muted, music);
     grid.appendChild(root);
-    const tile = { root, video, face, label, muted };
+    const tile = { root, video, face, label, muted, music };
     this.tiles.set(id, tile);
     return tile;
   }
