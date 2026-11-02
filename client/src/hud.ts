@@ -101,6 +101,7 @@ export class Hud {
 
   dispose(): void {
     removeEventListener('keydown', this.onKey);
+    document.body.classList.remove('chat-open');
     this.root.remove();
   }
 
@@ -113,6 +114,8 @@ export class Hud {
 
   private setChatOpen(open: boolean): void {
     this.panel.classList.toggle('hidden', !open);
+    // The minimap moves up out of the chat's way (CSS: body.chat-open).
+    document.body.classList.toggle('chat-open', open);
     this.chatBtn.classList.toggle('on', open);
     if (open) {
       this.unread = 0;

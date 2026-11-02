@@ -4,10 +4,12 @@
 **Branch:** `master` (user asked: work on master directly, no more PRs)
 
 ## Mobile HUD + Enter-to-chat — DONE, PUSHED (2026-11-02)
-- Touch (`pointer: coarse`, CSS in client/index.html): HUD buttons one per row (narrow column, never
-  reaching Build); smaller Sit/Dance/Drink + meeting pill on the left (portrait: above the mic/cam
-  column; landscape: right of it); chat panel bottom-right above the D-pad (portrait) or left of it
-  (landscape), the minimap moves above the open chat (`body:has(.hud-panel:not(.hidden))`).
+- Every device: HUD buttons one per row top-left; the chat panel bottom-right with the minimap moved
+  above it while open (`body.chat-open`, set by `Hud.setChatOpen`).
+- Touch (`body.touch-ui`, set in main.ts from `isTouchDevice()` = coarse pointer or no hover, the same
+  test that shows the D-pad): smaller buttons; Sit/Dance/Drink + meeting pill on the left (portrait:
+  above the mic/cam column; landscape: right of it); chat above the D-pad (portrait) or left of it
+  (landscape), minimap above the chat.
 - Mic / Cam / Share are a column on every device (`media.ts`).
 - Chat: Enter opens + focuses; Enter in the box sends and blurs (keys move again until next Enter).
 - Checked with Playwright: iPhone 13 portrait + landscape, desktop.

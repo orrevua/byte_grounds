@@ -29,6 +29,8 @@ import { isTouchDevice } from './input.ts';
 import { applyDocLang, langSwitch, t, type MsgKey } from './i18n.ts';
 
 applyDocLang();
+// Phone / tablet layout (CSS `.touch-ui`), decided by the same test that shows the D-pad.
+document.body.classList.toggle('touch-ui', isTouchDevice());
 
 /** Color is vestigial now (the sprite appearance drives the look); keep a stable default. */
 const DEFAULT_COLOR = '#4f8cff';

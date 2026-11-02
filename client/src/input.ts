@@ -59,8 +59,9 @@ export class Keyboard {
 }
 
 /** True on touch-first devices (phones/tablets), where the on-screen pad is shown. */
+/** A phone or tablet: a coarse main pointer, or no hover at all (some phones report a fine pointer). */
 export function isTouchDevice(): boolean {
-  return typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  return typeof matchMedia === 'function' && matchMedia('(pointer: coarse), (hover: none)').matches;
 }
 
 const PAD_BUTTONS: { dir: keyof MoveInput; label: string; area: string }[] = [

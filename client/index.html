@@ -73,19 +73,18 @@
         box-shadow: 0 4px 14px rgba(0,0,0,.35); }
       #dance-btn { bottom: 64px; }
       #drink-btn { bottom: 112px; background: #8a5a2b; }
-      /* Touch: small action buttons on the left, stacked above the mic / cam column (portrait), or
-         right of it (landscape); the chat sits bottom-right by the D-pad, the minimap above it. */
-      @media (pointer: coarse) {
-        #seat-btn, #dance-btn, #drink-btn { left: 16px; transform: none; padding: 7px 13px; font-size: 13px; }
-        #seat-btn { bottom: 270px; }
-        #dance-btn { bottom: 312px; }
-        #drink-btn { bottom: 354px; }
-      }
-      @media (pointer: coarse) and (orientation: landscape) {
-        #seat-btn, #dance-btn, #drink-btn { left: 192px; }
-        #seat-btn { bottom: 16px; }
-        #dance-btn { bottom: 58px; }
-        #drink-btn { bottom: 100px; }
+      /* Touch (body.touch-ui, set with the D-pad): small action buttons on the left, stacked above the
+         mic / cam column (portrait), or right of it (landscape). */
+      .touch-ui #seat-btn, .touch-ui #dance-btn, .touch-ui #drink-btn { left: 16px; transform: none;
+        padding: 7px 13px; font-size: 13px; }
+      .touch-ui #seat-btn { bottom: 270px; }
+      .touch-ui #dance-btn { bottom: 312px; }
+      .touch-ui #drink-btn { bottom: 354px; }
+      @media (orientation: landscape) {
+        .touch-ui #seat-btn, .touch-ui #dance-btn, .touch-ui #drink-btn { left: 192px; }
+        .touch-ui #seat-btn { bottom: 16px; }
+        .touch-ui #dance-btn { bottom: 58px; }
+        .touch-ui #drink-btn { bottom: 100px; }
       }
       .panel select { background: #14161a; color: #e6e8eb; border: 1px solid #333a44;
         border-radius: 6px; padding: 6px 8px; max-width: 170px; }
@@ -153,10 +152,13 @@
       @media (max-width: 720px) {
         #build-panel { top: auto; left: 0; width: auto; height: 45vh; box-shadow: 0 -6px 18px rgba(0,0,0,.45); }
       }
+      /* Top-left: one button per row (Leave, status, Busy, Chat, Spotify). The chat panel itself
+         sits in the bottom-right corner, under the minimap (which moves up while it is open). */
       #hud { position: fixed; top: 12px; left: 12px; z-index: 16; display: flex; flex-direction: column;
-        gap: 8px; width: min(320px, calc(100vw - 24px)); pointer-events: none; }
+        gap: 8px; max-width: min(320px, calc(50vw - 12px)); pointer-events: none; }
       #hud > * { pointer-events: auto; }
-      .hud-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+      .hud-bar { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+      .hud-bar button { max-width: 100%; }
       .hud-bar button, .hud-status-input { padding: 6px 12px; border: 0; border-radius: 999px;
         background: #2a2f37; color: #e6e8eb; font: 600 13px system-ui, sans-serif; cursor: pointer;
         box-shadow: 0 4px 14px rgba(0,0,0,.35); }
@@ -179,24 +181,23 @@
         font-weight: 400; color: #9fd0ff; font-style: italic; }
       .hud-bar .hud-status.empty { color: #9aa3ad; }
       .hud-status-input { flex: 1; min-width: 160px; cursor: text; font-weight: 400; outline: 2px solid #4f8cff; }
-      @media (pointer: coarse) {
-        /* One button per row: the column stays narrow and never reaches the Build button. */
-        #hud { width: auto; max-width: calc(50vw - 12px); }
-        .hud-bar { flex-direction: column; align-items: flex-start; flex-wrap: nowrap; gap: 5px; }
-        .hud-bar button, .hud-status-input { padding: 5px 11px; font-size: 12px; max-width: 100%; }
-        .hud-bar .hud-status, .hud-bar .hud-music { max-width: 100%; }
-        .hud-status-input { min-width: 0; width: min(220px, calc(100vw - 24px)); }
-        /* The chat: bottom-right, just above the D-pad (portrait) or left of it (landscape). */
-        .hud-panel { position: fixed; right: 16px; bottom: 206px; width: min(220px, calc(100vw - 32px));
-          height: 150px; min-height: 0; max-height: none; }
-        .chat-log { font-size: 12px; }
-        #media button { padding: 5px 10px !important; font-size: 12px; }
-        body:has(.hud-panel:not(.hidden)) #minimap.touch { bottom: 364px; }
-      }
-      @media (pointer: coarse) and (orientation: landscape) {
-        .hud-panel { right: 208px; bottom: 16px; width: 200px; height: 160px; }
-        #minimap.touch { right: 208px; bottom: 16px; }
-        body:has(.hud-panel:not(.hidden)) #minimap.touch { bottom: 184px; }
+      .hud-bar .hud-status, .hud-bar .hud-music { max-width: 100%; }
+      .hud-status-input { min-width: 0; width: min(240px, calc(100vw - 24px)); }
+      .hud-panel { position: fixed; right: 12px; bottom: 12px; width: min(320px, calc(100vw - 24px));
+        height: 220px; min-height: 0; max-height: none; }
+      body.chat-open #minimap { bottom: 240px; }
+      /* Touch: smaller, and the chat clears the D-pad: just above it (portrait) or left of it
+         (landscape); the minimap stays above the chat. */
+      .touch-ui .hud-bar { gap: 5px; }
+      .touch-ui .hud-bar button, .touch-ui .hud-status-input { padding: 5px 11px; font-size: 12px; }
+      .touch-ui .hud-panel { right: 16px; bottom: 206px; width: min(220px, calc(100vw - 32px)); height: 150px; }
+      .touch-ui .chat-log { font-size: 12px; }
+      .touch-ui #media button { padding: 5px 10px !important; font-size: 12px; }
+      body.touch-ui.chat-open #minimap.touch { bottom: 364px; }
+      @media (orientation: landscape) {
+        .touch-ui .hud-panel { right: 208px; bottom: 16px; width: 200px; height: 160px; }
+        body.touch-ui #minimap.touch { right: 208px; bottom: 16px; }
+        body.touch-ui.chat-open #minimap.touch { bottom: 184px; }
       }
       .hud-panel { display: flex; flex-direction: column; background: rgba(30, 34, 40, .92);
         border: 1px solid #2c323b; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.45);
@@ -230,10 +231,8 @@
         white-space: nowrap; animation: pill-in .25s ease-out; }
       #meet-pill:hover { background: #1b66c9; }
       @keyframes pill-in { from { opacity: 0; transform: translate(-50%, 8px); } }
-      @media (pointer: coarse) {
-        #meet-pill { left: 16px; transform: none; bottom: 396px; padding: 7px 13px; font-size: 13px; }
-      }
-      @media (pointer: coarse) and (orientation: landscape) { #meet-pill { left: 192px; bottom: 142px; } }
+      .touch-ui #meet-pill { left: 16px; transform: none; bottom: 396px; padding: 7px 13px; font-size: 13px; }
+      @media (orientation: landscape) { .touch-ui #meet-pill { left: 192px; bottom: 142px; } }
       #meeting { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column;
         background: #202124; color: #e8eaed; font-family: 'Google Sans', Roboto, system-ui, sans-serif; }
       .meet-main { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 16px 16px 0; }
