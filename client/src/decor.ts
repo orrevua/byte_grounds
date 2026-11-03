@@ -14,13 +14,26 @@ const SHEET_URLS: Record<string, string> = Object.fromEntries(
 );
 
 /**
+ * Castle / medieval / tavern sets: not offered in the pickers (everyday furniture only), but they
+ * still load and draw where a map already uses them.
+ */
+export const HIDDEN_SHEETS: ReadonlySet<string> = new Set([
+  'castle', 'thrones', 'tavern_decor', 'tavern_furniture', 'tavern_kitchen', 'chests',
+  'wooden_furniture', 'upholstery', 'stairs', 'sofas_formal', 'paintings', 'interior',
+]);
+
+/** Picker order: the Gemini sheets first, then the rest, each alphabetical. */
+const pickerOrder = (a: string, b: string) =>
+  Number(b.startsWith('gemini_')) - Number(a.startsWith('gemini_')) || a.localeCompare(b);
+
+/**
  * Sheets offered in the editor picker. A sheet with a `<name>_grid` repack (same art moved onto
- * whole cells by `tools/repack_decor.py`) is hidden in favour of it, but still loads and draws:
- * saved maps reference its cells.
+ * whole cells by `tools/repack_decor.py`) is hidden in favour of it, and `HIDDEN_SHEETS` (and
+ * their repacks) are left out; both still load and draw: saved maps reference their cells.
  */
 export const DECOR_SHEETS: string[] = Object.keys(SHEET_URLS)
-  .filter((s) => !(`${s}_grid` in SHEET_URLS))
-  .sort();
+  .filter((s) => !(`${s}_grid` in SHEET_URLS) && !HIDDEN_SHEETS.has(s.replace(/_grid$/, '')))
+  .sort(pickerOrder);
 
 /**
  * Add (or replace) a sheet at runtime: Sheet Studio's custom sheets, by id, with an image URL
@@ -33,7 +46,7 @@ export function registerSheet(id: string, url: string): void {
   objects.delete(id);
   if (!DECOR_SHEETS.includes(id)) {
     DECOR_SHEETS.push(id);
-    DECOR_SHEETS.sort();
+    DECOR_SHEETS.sort(pickerOrder);
   }
 }
 

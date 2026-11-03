@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { TILE_SIZE } from '@byte_grounds/shared/protocol';
-import { DECOR_SHEETS } from '../src/decor.ts';
+import { DECOR_SHEETS, HIDDEN_SHEETS } from '../src/decor.ts';
 
 const dir = resolve(dirname(fileURLToPath(import.meta.url)), '../src/assets/decor');
 const sheets = readdirSync(dir)
@@ -20,14 +20,17 @@ describe('decor sheets', () => {
     }
   });
 
-  it('the picker offers each _grid repack in place of its original', () => {
+  it('the picker offers each _grid repack in place of its original, without the castle sets', () => {
+    const hidden = (s: string) => HIDDEN_SHEETS.has(s.replace(/_grid$/, ''));
     const repacked = sheets.filter((s) => s.endsWith('_grid')).map((s) => s.replace(/_grid$/, ''));
     expect(repacked.length).toBeGreaterThan(0);
     for (const s of repacked) {
       expect(sheets).toContain(s);
-      expect(DECOR_SHEETS).toContain(`${s}_grid`);
+      if (!hidden(s)) expect(DECOR_SHEETS).toContain(`${s}_grid`);
       expect(DECOR_SHEETS).not.toContain(s);
     }
-    expect([...DECOR_SHEETS].sort()).toEqual(sheets.filter((s) => !repacked.includes(s)).sort());
+    expect([...DECOR_SHEETS].sort()).toEqual(sheets.filter((s) => !repacked.includes(s) && !hidden(s)).sort());
+    for (const s of ['castle', 'thrones', 'tavern_decor_grid', 'sofas_formal']) expect(DECOR_SHEETS).not.toContain(s);
+    expect(DECOR_SHEETS[0]).toMatch(/^gemini_/); // the Gemini sheets come first
   });
 });

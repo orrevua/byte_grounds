@@ -38,7 +38,6 @@ const DEFAULT_COLOR = '#4f8cff';
 /** localStorage key for the last-used appearance (E9). */
 const STORAGE_KEY = 'byte_grounds.appearance';
 const NAME_KEY = 'byte_grounds.name';
-const MAP_KEY = 'byte_grounds.map';
 const STATUS_KEY = 'byte_grounds.status';
 /** How often to save our spot while moving (also saved when the page is closed). */
 const SAVE_POSITION_MS = 5000;
@@ -126,7 +125,7 @@ function renderJoin(): void {
   else app!.querySelector('.studio-link')!.classList.remove('hidden'); // local dev: no gate
   void store
     .listMaps()
-    .then((maps) => fillMapSelect(mapEl, maps, localStorage.getItem(MAP_KEY)))
+    .then((maps) => fillMapSelect(mapEl, maps, DEFAULT_MAP.id)) // the Office is always preselected
     .catch((err) => (errorEl.textContent = storeError(err)));
   const previewCtx = app!.querySelector<HTMLCanvasElement>('#preview')!.getContext('2d');
 
@@ -267,7 +266,6 @@ function storeError(err: unknown): string {
 async function join(name: string, appearance: Appearance, mapId: string): Promise<void> {
   localStorage.setItem(STORAGE_KEY, serializeAppearance(appearance));
   localStorage.setItem(NAME_KEY, name);
-  localStorage.setItem(MAP_KEY, mapId);
   // Sheet Studio sheets before the map, so cells drawn with them are known (and loadable).
   await loadCustomSheets(store);
   const [map, saved, uid] = await Promise.all([

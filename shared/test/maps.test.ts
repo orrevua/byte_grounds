@@ -38,9 +38,9 @@ function reachable(m: OfficeMap): Set<string> {
 }
 
 describe('built-in maps', () => {
-  it('ships the lounge (the default), office, home and the Gemini studio with unique ids', () => {
-    expect(BUILT_IN_MAPS.map((m) => m.id)).toEqual(['lounge', 'office', 'home', 'studio']);
-    expect(DEFAULT_MAP.id).toBe('lounge');
+  it('ships the office (the default), lounge, home and the Gemini studio with unique ids', () => {
+    expect(BUILT_IN_MAPS.map((m) => m.id)).toEqual(['office', 'lounge', 'home', 'studio']);
+    expect(DEFAULT_MAP.id).toBe('office');
     expect(DEFAULT_ROOM).toBe(DEFAULT_MAP.id);
     expect(builtInMap('home')?.name).toBe('Home');
     expect(builtInMap('nope')).toBeNull();

@@ -24,8 +24,8 @@ describe('LocalStore', () => {
   it('always lists the built-in maps and serves them until edited', async () => {
     const store = new LocalStore(memoryStorage());
     expect(await store.listMaps()).toEqual([
-      { id: 'lounge', name: 'Lounge & Café' },
       { id: 'office', name: 'Office' },
+      { id: 'lounge', name: 'Lounge & Café' },
       { id: 'home', name: 'Home' },
       { id: 'studio', name: 'Gemini Studio' },
     ]);
@@ -38,7 +38,7 @@ describe('LocalStore', () => {
     const edited = { ...createBlankMap('My office', 5, 4), id: 'office' };
     await store.saveMap(edited);
     expect(await store.loadMap('office')).toEqual({ ...edited, basedOnRev: builtInRev('office') });
-    expect((await store.listMaps())[1]).toEqual({ id: 'office', name: 'My office' });
+    expect((await store.listMaps())[0]).toEqual({ id: 'office', name: 'My office' });
     await store.deleteMap('office');
     expect(await store.loadMap('office')).toEqual(OFFICE);
   });
@@ -51,7 +51,7 @@ describe('LocalStore', () => {
     const store = new LocalStore(storage);
     expect(await store.loadMap('office')).toEqual(OFFICE);
     expect(await store.loadMap('home')).toEqual(builtInMap('home'));
-    expect((await store.listMaps()).map((m) => m.name)).toEqual(['Lounge & Café', 'Office', 'Home', 'Gemini Studio']);
+    expect((await store.listMaps()).map((m) => m.name)).toEqual(['Office', 'Lounge & Café', 'Home', 'Gemini Studio']);
     expect(JSON.parse(storage.getItem('byte_grounds.maps')!).office).toEqual(stale);
   });
 
@@ -69,7 +69,7 @@ describe('LocalStore', () => {
     const store = new LocalStore(memoryStorage());
     const m = createBlankMap('Café', 5, 4);
     await store.saveMap(m);
-    expect((await store.listMaps()).map((x) => x.id)).toEqual(['lounge', 'office', 'home', 'studio', 'cafe']);
+    expect((await store.listMaps()).map((x) => x.id)).toEqual(['office', 'lounge', 'home', 'studio', 'cafe']);
     expect(await store.loadMap('cafe')).toEqual(m);
     await store.deleteMap('cafe');
     expect(await store.loadMap('cafe')).toBeNull();
