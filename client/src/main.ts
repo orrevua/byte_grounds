@@ -105,15 +105,22 @@ function renderJoin(error = ''): void {
           <div><h1>ByteGrounds</h1><p class="tagline">${t('join.tagline')}</p></div>
         </div>
         <label>${t('join.name')} <input id="name" maxlength="16" placeholder="${t('join.namePlaceholder')}" /></label>
-        <div class="map-label">${t('join.map')}</div>
-        <div id="map-slot"></div>
-        <div class="editor">
-          <canvas id="preview" width="64" height="64"></canvas>
-          <div class="axes">${categoryRows}</div>
+        <div class="join-tabs" role="tablist">
+          <button type="button" class="join-tab on" role="tab" data-tab="look" aria-selected="true">${t('join.tabLook')}</button>
+          <button type="button" class="join-tab" role="tab" data-tab="map" aria-selected="false">${t('join.map')}</button>
         </div>
-        <button type="button" id="shuffle">${t('join.shuffle')}</button>
-        <div class="preset-label">${t('join.presets')}</div>
-        <div id="presets">${presetBtns}</div>
+        <section class="join-section" data-section="look">
+          <div class="editor">
+            <canvas id="preview" width="64" height="64"></canvas>
+            <div class="axes">${categoryRows}</div>
+          </div>
+          <button type="button" id="shuffle">${t('join.shuffle')}</button>
+          <div class="preset-label">${t('join.presets')}</div>
+          <div id="presets">${presetBtns}</div>
+        </section>
+        <section class="join-section hidden" data-section="map">
+          <div id="map-slot"></div>
+        </section>
         <button id="go">${t('join.go')}</button>
         <div id="join-error" class="join-error"></div>
         <div id="admin-box" class="admin-box"></div>
@@ -127,6 +134,20 @@ function renderJoin(error = ''): void {
   app!.querySelector('.brand')!.append(langSwitch());
   const carousel = new MapCarousel((id) => store.loadMap(id));
   app!.querySelector('#map-slot')!.replaceWith(carousel.el);
+  // Two sections: Appearance (shown first) and Map; the Map tab names the chosen map.
+  const tabs = [...app!.querySelectorAll<HTMLButtonElement>('.join-tab')];
+  const mapTab = tabs.find((b) => b.dataset.tab === 'map')!;
+  carousel.onChange = (name) => (mapTab.textContent = `${t('join.map')}: ${name}`);
+  for (const tab of tabs) {
+    tab.addEventListener('click', () => {
+      for (const b of tabs) {
+        b.classList.toggle('on', b === tab);
+        b.setAttribute('aria-selected', String(b === tab));
+      }
+      for (const s of app!.querySelectorAll<HTMLElement>('.join-section')) s.classList.toggle('hidden', s.dataset.section !== tab.dataset.tab);
+      if (tab.dataset.tab === 'map') carousel.el.focus();
+    });
+  }
   const stopCounts = watchRoomCounts((counts) => carousel.setCounts(counts));
   const errorEl = app!.querySelector<HTMLDivElement>('#join-error')!;
   errorEl.textContent = error;

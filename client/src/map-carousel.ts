@@ -28,6 +28,8 @@ export class MapCarousel {
   private index = 0;
   private counts: RoomCounts = {};
   private readonly loaded = new Set<string>();
+  /** The chosen map changed (its name). */
+  onChange: (name: string) => void = () => {};
 
   constructor(private readonly loadMap: (id: string) => Promise<OfficeMap | null>) {
     const el = (this.el = document.createElement('div'));
@@ -102,6 +104,7 @@ export class MapCarousel {
     this.index = (i + n) % n;
     this.track.style.transform = `translateX(-${this.index * 100}%)`;
     this.dots.querySelectorAll('.mc-dot').forEach((d, k) => d.classList.toggle('on', k === this.index));
+    this.onChange(this.maps[this.index]!.name);
     for (const k of [this.index, this.index + 1, this.index - 1]) void this.thumb(this.maps[(k + n) % n]!.id);
   }
 

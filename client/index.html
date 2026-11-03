@@ -58,6 +58,13 @@
       .axis-label { text-align: center; font-size: 13px; }
       .axis.disabled { opacity: .4; }
       .preset-label { font-size: 14px; }
+      .join-tabs { display: flex; gap: 4px; border-bottom: 1px solid #2c323b; }
+      .panel button.join-tab { margin: 0; flex: 1; padding: 8px 6px; border-radius: 6px 6px 0 0; background: transparent;
+        color: #9aa3ad; border-bottom: 2px solid transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .panel button.join-tab:hover { color: #e6e8eb; background: #23282f; }
+      .panel button.join-tab.on { color: #e6e8eb; border-bottom-color: #4f8cff; background: #23282f; }
+      .join-section { display: flex; flex-direction: column; gap: 12px; }
+      .join-section.hidden { display: none; }
       /* Map carousel (join screen) */
       .map-label { font-size: 14px; }
       .map-carousel { outline: none; display: flex; flex-direction: column; gap: 6px; }
