@@ -147,8 +147,8 @@ GEMINI.update({
     "o2_bin": Obj(O2, 6, 2, 1, 1),
     "o2_boxes": Obj(O2, 7, 2, 2, 2),
     "o2_booth": Obj(O2, 9, 2, 1, 2),
-    "o2_chair_up": Obj(O2, 10, 2, 1, 2, "free"),
-    "o2_chair_down": Obj(O2, 0, 4, 1, 2, "free"),
+    "o2_chair_black": Obj(O2, 10, 2, 1, 2, "free"),  # front view: faces the viewer (sit facing down)
+    "o2_chair_down": Obj(O2, 0, 4, 1, 2, "free"),  # front view too
     "o2_side_table": Obj(O2, 0, 6, 1, 1),
     "o2_projector": Obj(O2, 2, 4, 2, 2),
     "o2_corkboard": Obj(O2, 4, 4, 2, 2),
@@ -675,7 +675,7 @@ def build_office():
     for x in (2, 7, 12, 17):
         for y in (3, 8):
             m.put("o2_desk_pc", x, y)
-            m.put_s("o2_chair_up", x + 1, y + 1, over=True)
+            m.put_s("g_chair_up", x + 1, y + 1, over=True)  # back view: sits facing the monitor
     m.put("p_snake", 5, 3)
     m.put("p_cactus", 10, 3)
     m.put("p_snake", 15, 8)
@@ -687,7 +687,7 @@ def build_office():
     m.put("o2_corkboard", 21, 9)
     m.put("o2_boxes", 24, 9)
     m.put("o2_l_desk", 2, 13)
-    m.put_s("o2_chair_up", 3, 14, over=True)
+    m.put_s("g_chair_up", 3, 14, over=True)
     m.put("o2_stand_desk", 7, 13)
     m.put("o2_arc_lamp", 10, 13)
     m.put("o2_projector", 16, 12)

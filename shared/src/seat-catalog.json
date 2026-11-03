@@ -219,7 +219,7 @@
     { "sheet": "byte_grounds_studio_grid", "x": 8, "y": 5, "kind": "sit", "dir": "down" },
 
     { "sheet": "byte_grounds_office2_grid", "x": 0, "y": 5, "kind": "sit", "dir": "down" },
-    { "sheet": "byte_grounds_office2_grid", "x": 10, "y": 3, "kind": "sit", "dir": "up" },
+    { "sheet": "byte_grounds_office2_grid", "x": 10, "y": 3, "kind": "sit", "dir": "down" },
     { "sheet": "byte_grounds_office2_grid", "x": 1, "y": 4, "kind": "sit", "dir": "down" },
 
     { "sheet": "byte_grounds_home_grid", "x": 0, "y": 0, "kind": "lie", "dir": "down" },
