@@ -193,7 +193,12 @@ export interface AvatarTags {
   muted?: boolean;
   /** Spotify now playing: a green "♪ …" line above the status. */
   music?: string;
+  /** Knighted: the tags clear the crown. */
+  crown?: boolean;
 }
+
+/** Extra lift (px) for the tags over a crown. */
+const CROWN_LIFT = 5;
 
 const MUSIC_COLOR = '#1ed760';
 /** Longest now-playing line drawn over a head (the rest is cut with "…"). */
@@ -272,7 +277,7 @@ export function drawAvatarTags(
   nowMs: number,
 ): number {
   const px = x * TILE_SIZE;
-  let top = y * TILE_SIZE - labelLift(pose);
+  let top = y * TILE_SIZE - labelLift(pose) - (tags.crown ? CROWN_LIFT : 0);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
   ctx.font = NAME_FONT;
@@ -311,7 +316,7 @@ export function drawAvatarTags(
 
 /** Where a new chat balloon's tail points (world px): just above the sender's tags. */
 export function tagsTop(y: number, pose: Pose, tags: AvatarTags): number {
-  return y * TILE_SIZE - labelLift(pose) - 13 - (tags.music ? 11 : 0) - (tags.status ? 11 : 0) - (tags.busy ? 18 : 0);
+  return y * TILE_SIZE - labelLift(pose) - (tags.crown ? CROWN_LIFT : 0) - 13 - (tags.music ? 11 : 0) - (tags.status ? 11 : 0) - (tags.busy ? 18 : 0);
 }
 
 /** A 9x12 px mic with a red slash, its left edge at `x` and its bottom on the text baseline `bottom`. */
@@ -637,4 +642,74 @@ export function drawHeldItem(
 export function drawFrameSprite(ctx: CanvasRenderingContext2D, a: Appearance, row: number, col: number, x: number, y: number): void {
   ctx.imageSmoothingEnabled = false;
   drawAppearanceFrame(ctx, a, row, col, x * TILE_SIZE - FRAME_SIZE / 2, y * TILE_SIZE - FRAME_SIZE + FOOT_OFFSET);
+}
+
+/** Top-left of the 64px frame for an avatar at tile point (x, y), as `drawPosedSprite` places it. */
+function frameOrigin(pose: Pose, dir: Direction, x: number, y: number): { ox: number; oy: number } {
+  return { ox: x * TILE_SIZE - FRAME_SIZE / 2, oy: y * TILE_SIZE - FRAME_SIZE + FOOT_OFFSET - (pose === 'sit' ? SIT_LIFT[dir] : 0) };
+}
+
+const CAPE = '#b3202a';
+const CAPE_DARK = '#7a1219';
+const GOLD = '#f5c542';
+const GOLD_DARK = '#9a6a00';
+
+function poly(ctx: CanvasRenderingContext2D, ox: number, oy: number, pts: number[], fill: string): void {
+  ctx.beginPath();
+  for (let i = 0; i < pts.length; i += 2) ctx[i ? 'lineTo' : 'moveTo'](ox + pts[i]!, oy + pts[i + 1]!);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
+
+/**
+ * A knight's red cape. `layer` 'back' is drawn before the sprite (it shows around the body when
+ * facing the viewer or sideways), 'front' after it (over the back when facing away). Not on beds.
+ */
+export function drawCape(ctx: CanvasRenderingContext2D, pose: Pose, dir: Direction, x: number, y: number, layer: 'back' | 'front'): void {
+  if (pose === 'lie') return;
+  const d: Direction = isDancePose(pose) ? 'down' : dir;
+  if ((d === 'up') !== (layer === 'front')) return;
+  const { ox, oy } = frameOrigin(pose, d, x, y);
+  const hem = pose === 'sit' ? 50 : 57;
+  if (d === 'down') {
+    poly(ctx, ox, oy, [21, 27, 43, 27, 47, hem, 17, hem], CAPE_DARK);
+  } else if (d === 'up') {
+    poly(ctx, ox, oy, [22, 26, 42, 26, 46, hem, 18, hem], CAPE);
+    poly(ctx, ox, oy, [31, 28, 33, 28, 34, hem, 30, hem], CAPE_DARK); // a fold down the middle
+    poly(ctx, ox, oy, [21, 25, 43, 25, 43, 28, 21, 28], CAPE_DARK); // collar
+  } else {
+    // Sideways: it hangs from the shoulder and trails behind the walker.
+    const s = d === 'left' ? 1 : -1;
+    const X = (v: number): number => 32 + s * (v - 32);
+    poly(ctx, ox, oy, [X(30), 27, X(38), 27, X(45), hem, X(29), hem], CAPE);
+    poly(ctx, ox, oy, [X(38), 27, X(40), 28, X(45), hem, X(41), hem], CAPE_DARK);
+  }
+}
+
+/** A knight's gold crown on the head. */
+export function drawCrown(ctx: CanvasRenderingContext2D, pose: Pose, dir: Direction, x: number, y: number): void {
+  if (pose === 'lie') return;
+  const d: Direction = isDancePose(pose) ? 'down' : dir;
+  const { ox, oy } = frameOrigin(pose, d, x, y);
+  const cx = d === 'left' ? 31 : d === 'right' ? 33 : 32;
+  const l = ox + cx - 6;
+  const t = oy + 9;
+  ctx.fillStyle = GOLD_DARK;
+  ctx.fillRect(l - 1, t + 3, 14, 6);
+  ctx.fillRect(l - 1, t - 1, 3, 5);
+  ctx.fillRect(l + 4, t - 2, 4, 6);
+  ctx.fillRect(l + 10, t - 1, 3, 5);
+  ctx.fillStyle = GOLD;
+  ctx.fillRect(l, t + 4, 12, 4);
+  ctx.fillRect(l, t, 1, 4); // three points
+  ctx.fillRect(l + 5, t - 1, 2, 5);
+  ctx.fillRect(l + 11, t, 1, 4);
+  if (d !== 'up') {
+    ctx.fillStyle = '#e03131';
+    ctx.fillRect(l + 5, t + 5, 2, 2); // a ruby in front
+    ctx.fillStyle = '#4dabf7';
+    ctx.fillRect(l + 2, t + 5, 1, 2);
+    ctx.fillRect(l + 9, t + 5, 1, 2);
+  }
 }

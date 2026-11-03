@@ -6,6 +6,7 @@
 -- silent anonymous sign-in. The admin grants two global permissions per person:
 --   build  = place / remove furniture live in a room (Phase 2)
 --   editor = open the map editor and save / delete maps
+--   knight = no power: a crown and cape on their avatar, seen by everyone
 -- Admins are added only here, by hand (see README):
 --   insert into public.admins (user_id) select id from auth.users where email = '<email>' on conflict do nothing;
 
@@ -15,7 +16,7 @@ create table if not exists public.admins (
 
 create table if not exists public.grants (
   user_id uuid not null references auth.users on delete cascade,
-  perm text not null check (perm in ('build', 'editor')),
+  perm text not null check (perm in ('build', 'editor', 'knight')),
   granted_at timestamptz not null default now(),
   primary key (user_id, perm)
 );
@@ -63,6 +64,10 @@ create policy "grants insert by admin" on public.grants
 drop policy if exists "grants delete by admin" on public.grants;
 create policy "grants delete by admin" on public.grants
   for delete to authenticated using (public.is_admin());
+
+-- Older installs: widen the perm check to include 'knight'.
+alter table public.grants drop constraint if exists grants_perm_check;
+alter table public.grants add constraint grants_perm_check check (perm in ('build', 'editor', 'knight'));
 
 grant select on public.admins, public.grants to anon, authenticated;
 grant insert, delete on public.grants to authenticated;

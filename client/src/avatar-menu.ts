@@ -13,6 +13,7 @@ export interface MenuTarget {
 const TOGGLES: { perm: Perm; label: MsgKey }[] = [
   { perm: 'build', label: 'menu.allowBuild' },
   { perm: 'editor', label: 'menu.allowEditor' },
+  { perm: 'knight', label: 'menu.knight' },
 ];
 
 /**

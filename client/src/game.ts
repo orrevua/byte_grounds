@@ -2,7 +2,7 @@ import { decorLayer, seatsNearIn, stepOutOf, zoneAt, zoneKey, type DecorCell, ty
 import { POSITION_TICK_MS, TILE_SIZE, isDancePose, isSnack, normalizeItem, normalizeChat, normalizeLock, normalizeMusic, normalizePose, normalizeStatus } from '@byte_grounds/shared/protocol';
 import { effectiveSeats, seatSpot } from '@byte_grounds/shared/seats';
 import type { Appearance, HeldItem, PeerId, PeerState, Pose, RoomLock, ServerToClient, StatusFields } from '@byte_grounds/shared/protocol';
-import { balloonHeight, drawAvatar, drawAvatarTags, drawChatBalloon, drawDecorCellAt, drawFrameSprite, drawHeldItem, drawZones, sipStep, tagsTop, drawMap, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
+import { balloonHeight, drawAvatar, drawAvatarTags, drawCape, drawChatBalloon, drawCrown, drawDecorCellAt, drawFrameSprite, drawHeldItem, drawZones, sipStep, tagsTop, drawMap, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
 import { avatarAnchorY, sortRenderables, stackedDecorAnchors } from './depth.ts';
 import { ZOOM_STEPS, cameraOffset, clampZoom, stepZoom, viewportSize } from './camera.ts';
 import { Minimap, type MinimapDot } from './minimap.ts';
@@ -455,6 +455,16 @@ export class Game {
     this.updateBuildAccess();
   }
 
+  /** Auth uid of an avatar (yours or a remote's). */
+  private uidOf(a: Avatar): string | undefined {
+    return a === this.self ? this.uid : (a as RemoteAvatar).uid;
+  }
+
+  /** Knighted by the admin (a `knight` grant): drawn with a crown and cape. */
+  private isKnight(uid: string | undefined): boolean {
+    return !!this.grants?.has(uid, 'knight');
+  }
+
   private canBuild(): boolean {
     return this.isAdmin || !!this.grants?.has(this.uid, 'build');
   }
@@ -705,7 +715,7 @@ export class Game {
       name: a.name,
       text,
       x: a.x * TILE_SIZE,
-      y: tagsTop(a.y, a.pose, { name: a.name, status: a.status, busy: a.busy }) - 2,
+      y: tagsTop(a.y, a.pose, { name: a.name, status: a.status, busy: a.busy, crown: this.isKnight(this.uidOf(a)) }) - 2,
       h: balloonHeight(this.ctx, a.name, text),
       born: now,
     };
@@ -1321,9 +1331,13 @@ export class Game {
         }
         const now = Date.now();
         const sip = sipStep(it.av.item, it.av.pose, it.av.dir, it.av.moving, now, sipSeed(it.av.name));
+        const knight = this.isKnight(this.uidOf(it.av)) && appearanceReady(it.av.appearance);
+        if (knight) drawCape(ctx, it.av.pose, it.av.dir, it.av.x, it.av.y, 'back');
         this.drawCharacter(it.av, sip);
+        if (knight) drawCape(ctx, it.av.pose, it.av.dir, it.av.x, it.av.y, 'front');
         if (it.av.item) drawHeldItem(ctx, it.av.item, it.av.pose, it.av.dir, it.av.x, it.av.y, now, sip);
         if (it.av.pose === 'sit' && it.av.dir === 'up') this.drawChairBackOver(it.av);
+        if (knight) drawCrown(ctx, it.av.pose, it.av.dir, it.av.x, it.av.y);
         if (it.av.pose === 'lie' && appearanceReady(it.av.appearance)) this.drawBedOver(it.av);
       }
     }
@@ -1453,7 +1467,7 @@ export class Game {
 
   /** Name, status, zzZ and chat bubble above an avatar, drawn in the top pass so furniture can't cover them. */
   private drawTags(a: Avatar, now: number): void {
-    drawAvatarTags(this.ctx, a.x, a.y, a.pose, { name: a.name, status: a.status, busy: a.busy, admin: a.admin, muted: a.muted, music: a.music }, now);
+    drawAvatarTags(this.ctx, a.x, a.y, a.pose, { name: a.name, status: a.status, busy: a.busy, admin: a.admin, muted: a.muted, music: a.music, crown: this.isKnight(this.uidOf(a)) }, now);
   }
 
   /**

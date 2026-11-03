@@ -1,7 +1,17 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-11-03 (Gemini refresh: rooms rebuilt, new sheets, snacks, Office default)
+**Last updated:** 2026-11-03 (knighthood, whiteboard)
 **Branch:** `master` (user asked: work on master directly, no more PRs)
+
+## Knighthood — DONE, PUSHED (2026-11-03)
+- Spec: `docs/specs/knighthood.md`. Admin avatar menu → "Knighted (crown + cape)" = a `knight` grant;
+  the crown and cape are drawn for everyone, live. **Owner TODO:** re-run `supabase/admin.sql` (widens the perm check).
+
+## Whiteboard — DONE, PUSHED (2026-11-03)
+- Spec: `docs/specs/whiteboard.md`. F at a whiteboard/projector opens it full screen with a 3x avatar beside it.
+  Pen, marker, eraser, line, arrow, rect, ellipse, text; tabs; undo/clear/PNG export; live sync over
+  ws/Supabase broadcast. **Owner TODO:** run `supabase/whiteboards.sql` so boards are saved.
+- The text tool's focus was fixed but never re-checked by hand: confirm that typed text appears.
 
 ## Gemini refresh — DONE, PUSHED (2026-11-03)
 - Spec: `docs/specs/gemini-refresh.md`. Pickers hide castle/medieval/tavern sheets (`HIDDEN_SHEETS` in

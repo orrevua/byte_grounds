@@ -2,10 +2,11 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { getSupabase } from './supabase.ts';
 
 /** Global per-person permissions granted by the admin (`public.grants`, `supabase/admin.sql`). */
-export type Perm = 'build' | 'editor';
+/** `knight` isn't a power: it dresses the person in a crown and cape for everyone to see. */
+export type Perm = 'build' | 'editor' | 'knight';
 export type GrantChange = { type: 'INSERT' | 'DELETE'; userId: string; perm: Perm };
 
-const PERMS: readonly Perm[] = ['build', 'editor'];
+const PERMS: readonly Perm[] = ['build', 'editor', 'knight'];
 
 export function grantKey(uid: string, perm: Perm): string {
   return `${uid}:${perm}`;

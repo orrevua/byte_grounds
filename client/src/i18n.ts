@@ -228,6 +228,7 @@ const en = {
   // avatar menu (admin)
   'menu.allowBuild': 'Allow building',
   'menu.allowEditor': 'Allow map editor',
+  'menu.knight': 'Knighted (crown + cape)',
   'menu.on': 'on',
   'menu.off': 'off',
   'menu.saveFailed': "Couldn't save: {msg}",
@@ -599,6 +600,7 @@ const pt: Record<MsgKey, string> = {
   'wb.notSaved': 'Não salvo: rode supabase/whiteboards.sql no Supabase (o desenho ao vivo continua funcionando)',
   'menu.allowBuild': 'Permitir construir',
   'menu.allowEditor': 'Permitir editor de mapas',
+  'menu.knight': 'Cavaleiro (coroa + capa)',
   'menu.on': 'sim',
   'menu.off': 'não',
   'menu.saveFailed': 'Não foi possível salvar: {msg}',
