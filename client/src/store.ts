@@ -1,3 +1,4 @@
+import { normalizeBoard, type BoardState } from '@byte_grounds/shared/board';
 import { parseMap, type OfficeMap } from '@byte_grounds/shared/map';
 import { BUILT_IN_MAPS, builtInMap, builtInRev } from '@byte_grounds/shared/maps';
 import { getSupabase, hasSupabase } from './supabase.ts';
@@ -30,6 +31,9 @@ export interface Store {
   listSheets(): Promise<CustomSheet[]>;
   saveSheet(sheet: CustomSheet): Promise<void>;
   deleteSheet(id: string): Promise<void>;
+  /** A whiteboard's saved drawing (null = never saved). */
+  loadBoard(id: string): Promise<BoardState | null>;
+  saveBoard(id: string, board: BoardState): Promise<void>;
 }
 
 /** A Sheet Studio sheet: id `custom_<slug>`, the image as a PNG data URL, its size in cells. */
@@ -212,6 +216,19 @@ export class SupabaseStore implements Store {
     if (error) throw error;
   }
 
+  async loadBoard(id: string): Promise<BoardState | null> {
+    const db = await getSupabase();
+    const { data, error } = await db.from('whiteboards').select('data').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data ? normalizeBoard((data as { data: unknown }).data) : null;
+  }
+
+  async saveBoard(id: string, board: BoardState): Promise<void> {
+    const db = await getSupabase();
+    const { error } = await db.from('whiteboards').upsert({ id, data: board, updated_at: new Date().toISOString() });
+    if (error) throw error;
+  }
+
   /** Through `delete_map`: also drops the map's live edits and saved player spots. */
   async deleteMap(id: string): Promise<void> {
     const db = await getSupabase();
@@ -247,6 +264,7 @@ export class SupabaseStore implements Store {
 const MAPS_KEY = 'byte_grounds.maps';
 const POS_KEY = 'byte_grounds.positions';
 const SHEETS_KEY = 'byte_grounds.sheets';
+const BOARDS_KEY = 'byte_grounds.boards';
 
 /** Browser-only fallback for local dev without Supabase (localStorage). */
 export class LocalStore implements Store {
@@ -317,6 +335,15 @@ export class LocalStore implements Store {
     const sheets = this.read(SHEETS_KEY);
     delete sheets[id];
     this.write(SHEETS_KEY, sheets);
+  }
+
+  async loadBoard(id: string): Promise<BoardState | null> {
+    const raw = this.read<unknown>(BOARDS_KEY)[id];
+    return raw ? normalizeBoard(raw) : null;
+  }
+
+  async saveBoard(id: string, board: BoardState): Promise<void> {
+    this.write(BOARDS_KEY, { ...this.read(BOARDS_KEY), [id]: board });
   }
 }
 

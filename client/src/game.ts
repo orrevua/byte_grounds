@@ -14,6 +14,9 @@ import { drinkDuration, formatDuration, machineNear, machinesIn, snackFor, type 
 import { MediaManager, ScreenStage, VideoBubbles, hasLiveVideo, volumeForDistance } from './media.ts';
 import { WebrtcMesh } from './webrtc.ts';
 import { VoiceMeter } from './voice.ts';
+import { WhiteboardView } from './whiteboard.ts';
+import { boardNear, boardsIn, type Whiteboard } from './boards.ts';
+import { createStore } from './store.ts';
 import { avatarAt, screenToWorld } from './hit.ts';
 import { AvatarMenu, type MenuTarget } from './avatar-menu.ts';
 import { canEnter, hashPassword, lockOn, teleportSpots, unlockKey, zoneByKey, type ActiveLock } from './meeting-lock.ts';
@@ -176,6 +179,9 @@ export class Game {
   private readonly danceBtn: HTMLButtonElement;
   /** Drink machines on the map, the button that uses one, and when our drink runs out. */
   private machines: Machine[];
+  private boards: Whiteboard[] = [];
+  /** The full-screen whiteboard (opened at a whiteboard with F). */
+  private readonly whiteboard: WhiteboardView;
   private readonly drinkBtn: HTMLButtonElement;
   private itemUntil = 0;
   private sentPose: Pose = 'stand';
@@ -230,6 +236,13 @@ export class Game {
     this.ctx = ctx;
     this.seats = effectiveSeats(map);
     this.machines = machinesIn(map);
+    this.boards = boardsIn(map);
+    this.whiteboard = new WhiteboardView({
+      store: createStore(),
+      name: () => this.self.name,
+      appearance: () => this.self.appearance,
+      send: (board, op) => this.net.send({ type: 'board', board, op }),
+    });
 
     this.fitCanvas();
 
@@ -361,6 +374,7 @@ export class Game {
   refreshSeats(): void {
     this.seats = effectiveSeats(this.map);
     this.machines = machinesIn(this.map);
+    this.boards = boardsIn(this.map);
     const mine = this.seat?.seat;
     if (mine && !this.seats.some((st) => st.x === mine.x && st.y === mine.y && st.kind === mine.kind)) this.standUp();
   }
@@ -401,6 +415,7 @@ export class Game {
     this.voice.dispose();
     this.stage.dispose();
     this.meeting.close();
+    this.whiteboard.close();
     this.meetPill.remove();
   }
 
@@ -632,7 +647,24 @@ export class Game {
   }
 
   /** Take a coffee / water / random snack from the machine in reach: held for 30 s, 1 min or 5 min (random). */
+  /** The whiteboard in reach, unless a machine is nearer (the action button serves the nearest). */
+  private boardNearby(): Whiteboard | undefined {
+    if (this.seat) return undefined;
+    const b = boardNear(this.boards, this.self.x, this.self.y);
+    if (!b) return undefined;
+    const k = this.machineNearby();
+    if (k && Math.hypot(k.x + 0.5 - this.self.x, k.y + 0.5 - this.self.y) < b.dist) return undefined;
+    return b.board;
+  }
+
+  /** Open the whiteboard in reach, full screen. */
+  openBoard(board: Whiteboard): void {
+    this.whiteboard.open(board.id, this.zone?.name ?? t('wb.title'));
+  }
+
   getDrink(): void {
+    const board = this.boardNearby();
+    if (board) return this.openBoard(board);
     const k = this.machineNearby();
     if (!k) return;
     const ms = drinkDuration(Math.random());
@@ -794,6 +826,9 @@ export class Game {
         this.onChat?.(r?.name ?? msg.name, text, false);
         break;
       }
+      case 'board':
+        this.whiteboard.applyRemote(msg.board, msg.op);
+        break;
       case 'invite':
         this.onInvite(msg.from, msg.zone, msg.locked === true);
         break;
@@ -1112,7 +1147,11 @@ export class Game {
     this.seatBtn.className = label ? '' : 'hidden';
 
     const k = this.machineNearby();
-    const drinkLabel = k ? t(k.item === 'coffee' ? 'game.getCoffee' : k.item === 'water' ? 'game.getWater' : 'game.getSnack') : '';
+    const drinkLabel = this.boardNearby()
+      ? t('game.openBoard')
+      : k
+        ? t(k.item === 'coffee' ? 'game.getCoffee' : k.item === 'water' ? 'game.getWater' : 'game.getSnack')
+        : '';
     if (this.drinkBtn.textContent !== drinkLabel) this.drinkBtn.textContent = drinkLabel;
     this.drinkBtn.className = drinkLabel ? '' : 'hidden';
   }
@@ -1227,7 +1266,7 @@ export class Game {
 
   /** Keyboard and on-screen pad combined (either one can hold a direction). */
   private moveInput(): MoveInput {
-    if (this.meeting.isOpen) return { up: false, down: false, left: false, right: false };
+    if (this.meeting.isOpen || this.whiteboard.isOpen) return { up: false, down: false, left: false, right: false };
     const k = this.keyboard.input;
     const t = this.touchpad?.input;
     if (!t) return k;

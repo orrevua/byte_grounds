@@ -1,3 +1,4 @@
+import type { BoardOp } from './board.ts';
 // Shared constants (tile/render/network tuning).
 export const TILE_SIZE = 32; // px per tile for rendering
 export const MOVE_SPEED = 4; // tiles per second
@@ -241,6 +242,15 @@ export interface InviteMsg {
   zone: string;
   locked: boolean;
 }
+/** An edit on a whiteboard (`board` = its id, `<map>:<x>,<y>`), relayed to the room. */
+/** Whiteboard ids are short: `<map id>:<x>,<y>`. */
+export const BOARD_ID_MAX = 80;
+
+export interface BoardMsg {
+  type: 'board';
+  board: string;
+  op: BoardOp;
+}
 /** Accept / decline an invite. */
 export interface InviteReplyMsg {
   type: 'invite-reply';
@@ -310,6 +320,12 @@ export interface RelayIceMsg {
   sid?: string;
 }
 
+export interface RelayBoardMsg {
+  type: 'board';
+  from: PeerId;
+  board: string;
+  op: BoardOp;
+}
 export interface RelayInviteMsg {
   type: 'invite';
   from: PeerId;
@@ -332,7 +348,8 @@ export type ClientToServer =
   | StatusMsg
   | ChatMsg
   | InviteMsg
-  | InviteReplyMsg;
+  | InviteReplyMsg
+  | BoardMsg;
 export type ServerToClient =
   | WelcomeMsg
   | PresenceSnapshotMsg
@@ -345,4 +362,5 @@ export type ServerToClient =
   | RelayAnswerMsg
   | RelayIceMsg
   | RelayInviteMsg
-  | RelayInviteReplyMsg;
+  | RelayInviteReplyMsg
+  | RelayBoardMsg;

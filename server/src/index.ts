@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { DEFAULT_ROOM, normalizeChat, normalizeStatusFields } from '@byte_grounds/shared/protocol';
+import { BOARD_ID_MAX, DEFAULT_ROOM, normalizeChat, normalizeStatusFields } from '@byte_grounds/shared/protocol';
+import { normalizeBoardOp } from '@byte_grounds/shared/board';
 import type {
   ClientToServer,
   PeerId,
@@ -117,6 +118,13 @@ wss.on('connection', (ws) => {
       case 'answer': {
         const target = sameRoom(selfId, msg.to) ? sockets.get(msg.to) : undefined;
         if (target) send(target, { type: 'answer', from: selfId, sdp: msg.sdp, sid: msg.sid });
+        break;
+      }
+      case 'board': {
+        const op = normalizeBoardOp(msg.op);
+        if (op && typeof msg.board === 'string' && msg.board.length <= BOARD_ID_MAX && roomOf.has(selfId)) {
+          broadcast(selfId, { type: 'board', from: selfId, board: msg.board, op });
+        }
         break;
       }
       case 'invite': {
