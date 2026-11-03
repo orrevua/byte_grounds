@@ -150,8 +150,8 @@ export type DanceAnim = 'cast' | 'thrust' | 'walk' | 'slash';
 
 /**
  * One dance frame: which animation frame to draw and a whole-pixel sway (dx) / bob (dy, - = up).
- * `legs`: draw the body below the hips (`LEG_SPLIT`) from another frame (open arms over stepping
- * legs); `flip`: mirror it (the other hand).
+ * `lift`: that side's shin (screen left / right, below `KNEE`) is drawn `LIFT` px higher, a foot
+ * off the floor; `flip`: the frame mirrored (the other hand).
  */
 export interface DanceStep {
   anim: DanceAnim;
@@ -159,12 +159,14 @@ export interface DanceStep {
   col: number;
   dx: number;
   dy: number;
-  legs?: { anim: DanceAnim; col: number };
+  lift?: 'left' | 'right';
   flip?: boolean;
 }
 
-/** Frame row where the legs start (front view): above it the arms of one frame, below the legs of another. */
-export const LEG_SPLIT = 42;
+/** Front view: below this frame row only the legs are drawn (hands end above it) in every body. */
+export const KNEE = 52;
+/** How far a lifted foot rises (px). */
+export const LIFT = 6;
 
 /** 8 fps; every dancer derives the step from a shared wall clock, so they stay on the beat. */
 export const DANCE_FRAME_MS = 125;
@@ -217,32 +219,35 @@ export const DANCE_LOOP_MS = DANCE_STEPS.length * DANCE_FRAME_MS;
 /** "Maggots for Brains" runs on a ~130 bpm half beat. */
 export const MAGGOTS_FRAME_MS = 230;
 
-const open = (legs: number, dy = 0) => ({ ...step('cast', 'down', 4, 0, dy), legs: { anim: 'walk' as const, col: legs } });
-const heart = (legs: number, dy = 0) => ({ ...step('thrust', 'down', 2, 0, dy), legs: { anim: 'walk' as const, col: legs } });
-const upKick = (legs: number, dy = 0) => ({ ...step('cast', 'down', 5, 0, dy), legs: { anim: 'walk' as const, col: legs } });
+type Lift = DanceStep['lift'];
+const open = (lift?: Lift, dy = 0): DanceStep => ({ ...step('cast', 'down', 4, 0, dy), lift });
+const heart = (lift?: Lift, dy = 0): DanceStep => ({ ...step('cast', 'down', 2, 0, dy), lift });
+const upKick = (lift?: Lift, dy = 0): DanceStep => ({ ...step('cast', 'down', 5, 0, dy), lift });
+const oneDown = (flip: boolean): DanceStep => ({ ...step('slash', 'down', 4, 0, 0), flip });
 
 /**
  * "Maggots for Brains", from the owner's description: open arms with the legs lifting in turn;
  * both hands up; hands down one at a time; hands from down to up; a hand to the heart with the
  * same-side foot tapping; hands down, mid, up; hands up with the feet kicking front in turn.
- * Walk col 3 lifts the left foot, col 7 the right; legs come from the walk row below `LEG_SPLIT`.
+ * Every frame is the pose's own (arms and legs from one frame, so nothing doubles); a raised foot
+ * is drawn by lifting that side's shin.
  */
 export const MAGGOTS_STEPS: readonly DanceStep[] = [
   // open arms, legs lifting in turn
-  open(3, -1), open(0), open(7, -1), open(0), open(3, -1), open(0), open(7, -1), open(0),
+  open('left', -1), open(), open('right', -1), open(), open('left', -1), open(), open('right', -1), open(),
   // both hands up together
   step('cast', 'down', 5, 0, -2), step('cast', 'down', 5, 0, -1),
-  // hands down, not together: one, then the other, then both low
-  step('slash', 'down', 4, 0, 0), { ...step('slash', 'down', 4, 0, 0), flip: true },
+  // hands down, not together: one (held), then the other (held), then both low
+  oneDown(false), oneDown(false), oneDown(true), oneDown(true),
   step('cast', 'down', 1, 0, 0), step('cast', 'down', 1, 0, 0),
   // hands from down to up
   step('cast', 'down', 1, 0, 0), step('cast', 'down', 4, 0, -1), step('cast', 'down', 5, 0, -2), step('cast', 'down', 5, 0, -1),
-  // a hand to the heart, the same-side foot tapping
-  heart(3), heart(0), heart(3), heart(0), heart(3), heart(0), heart(3), heart(0),
+  // hands to the heart, the foot tapping
+  heart('left'), heart(), heart('left'), heart(), heart('left'), heart(), heart('left'), heart(),
   // both hands down, at middle height, up
   step('walk', 'down', 0, 0, 0), step('cast', 'down', 4, 0, 0), step('cast', 'down', 5, 0, -1), step('cast', 'down', 5, 0, -1),
   // hands up, feet kicking front in turn
-  upKick(3, -1), upKick(0), upKick(7, -1), upKick(0), upKick(3, -1), upKick(0), upKick(7, -1), upKick(0),
+  upKick('left', -1), upKick(), upKick('right', -1), upKick(), upKick('left', -1), upKick(), upKick('right', -1), upKick(),
 ];
 
 export const MAGGOTS_LOOP_MS = MAGGOTS_STEPS.length * MAGGOTS_FRAME_MS;
@@ -507,17 +512,9 @@ export function drawSitAppearance(
   blitLayers(ctx, appearanceToLayers(a, 'sit'), col * FRAME_SIZE, row * FRAME_SIZE, destX, destY);
 }
 
-/** The men's suit top (formal) has no thrust rows: there the hand-to-heart becomes both hands on the chest. */
-const NO_THRUST = /_formal_male\.png$/;
-
-export function withFallback<T extends DanceStep & { row: number }>(s: T, urls: readonly string[]): T {
-  if (s.anim !== 'thrust' || !urls.some((u) => NO_THRUST.test(u))) return s;
-  return { ...s, anim: 'cast', col: 2, row: ANIM_ROW.cast[s.dir] };
-}
-
 /**
  * Blit the step at `ms` of a dance, each loaded stand layer, to (destX, destY) shifted by its
- * sway/bob: below `LEG_SPLIT` from the step's `legs` frame when it has one, mirrored when `flip`.
+ * sway/bob: mirrored when `flip`, and with that side's shin raised `LIFT` px when `lift`.
  */
 export function drawDanceAppearance(
   ctx: CanvasRenderingContext2D,
@@ -527,23 +524,32 @@ export function drawDanceAppearance(
   destY: number,
   dance: DancePose = 'dance',
 ): void {
-  const urls = appearanceToLayers(a);
-  const s = withFallback(danceStep(ms, dance), urls);
+  const s = danceStep(ms, dance);
   const x = destX + s.dx;
   const y = destY + s.dy;
-  if (!s.legs && !s.flip) return blitLayers(ctx, urls, s.col * FRAME_SIZE, s.row * FRAME_SIZE, x, y);
+  const urls = appearanceToLayers(a);
+  if (!s.lift && !s.flip) return blitLayers(ctx, urls, s.col * FRAME_SIZE, s.row * FRAME_SIZE, x, y);
   ctx.save();
   ctx.translate(s.flip ? x + FRAME_SIZE : x, y);
   if (s.flip) ctx.scale(-1, 1);
-  const top = s.legs ? LEG_SPLIT : FRAME_SIZE;
-  blitLayers(ctx, urls, s.col * FRAME_SIZE, s.row * FRAME_SIZE, 0, 0, top);
-  if (s.legs) {
-    const legsRow = ANIM_ROW[s.legs.anim][s.dir];
-    for (const url of urls) {
-      const img = cache.get(url);
-      if (!img || !img.complete || img.naturalWidth === 0) continue;
-      const h = FRAME_SIZE - LEG_SPLIT;
-      ctx.drawImage(img, s.legs.col * FRAME_SIZE, legsRow * FRAME_SIZE + LEG_SPLIT, FRAME_SIZE, h, 0, LEG_SPLIT, FRAME_SIZE, h);
+  const sx = s.col * FRAME_SIZE;
+  const sy = s.row * FRAME_SIZE;
+  const half = FRAME_SIZE / 2;
+  const shin = FRAME_SIZE - KNEE;
+  // In mirrored space the screen-left half is the frame's right half.
+  const liftLeftHalf = (s.lift === 'left') !== !!s.flip;
+  for (const url of urls) {
+    const img = cache.get(url);
+    if (!img || !img.complete || img.naturalWidth === 0) continue;
+    if (!s.lift) {
+      ctx.drawImage(img, sx, sy, FRAME_SIZE, FRAME_SIZE, 0, 0, FRAME_SIZE, FRAME_SIZE);
+      continue;
+    }
+    ctx.drawImage(img, sx, sy, FRAME_SIZE, KNEE, 0, 0, FRAME_SIZE, KNEE);
+    for (const left of [true, false]) {
+      const ox = left ? 0 : half;
+      const up = left === liftLeftHalf ? LIFT : 0;
+      ctx.drawImage(img, sx + ox, sy + KNEE, half, shin, ox, KNEE - up, half, shin);
     }
   }
   ctx.restore();

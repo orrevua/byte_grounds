@@ -9,9 +9,10 @@
   steps x 230 ms (~130 bpm half beats): open arms + alternating leg lifts; both hands up; hands
   down one at a time (mirrored slash frame); hands down→up; hand to heart (thrust col 2) + same-side
   foot tap; hands down/mid/up; hands up + alternating front kicks.
-- New `DanceStep.legs` (body below `LEG_SPLIT` = 42 from another frame) and `flip` (mirrored);
-  walk col 3 lifts the left foot, col 7 the right. The men's suit top lacks thrust rows →
-  `withFallback` uses cast col 2 (hands on chest). All other 396 layers draw every frame used.
+- Fixed (owner report): mixing two frames doubled the hands and the thrust frames misaligned the
+  tops (shoulder vanishing). Now every step uses one frame; `DanceStep.lift` raises that side's shin
+  (rows >= `KNEE` 52, `LIFT` 6 px) for the leg lifts / taps / kicks; `flip` mirrors (one hand down,
+  then the other, each held 2 steps); hand-to-heart = cast col 2 (both hands on the chest).
 - Q / dance button cycles: Dance → "Next: Maggots for Brains" → Stop dancing.
 
 ## Mobile HUD + Enter-to-chat — DONE, PUSHED (2026-11-02)
