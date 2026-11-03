@@ -31,6 +31,8 @@ OUT = ROOT / "shared" / "src" / "maps"
 SEAT_CATALOG = ROOT / "shared" / "src" / "seat-catalog.json"
 
 WALL = "#22262d"
+# The north wall's face, behind its wall art and windows.
+WALL_FACE = "#cdbf9f"
 
 
 class Obj:
@@ -125,6 +127,147 @@ GEMINI = {
     "g_coffee_table": Obj(G, 0, 6, 2, 1, "all"),
     "g_rug": Obj(G, 2, 6, 2, 1, "none"),
 }
+O2 = "gemini_office2_grid"
+B = "gemini_building_grid"
+H = "gemini_home_grid"
+LV = "byte_grounds_living_grid"
+PL = "byte_grounds_plants_grid"
+CF = "byte_grounds_cafe_grid"
+BD = "byte_grounds_bedroom_grid"
+GEMINI.update({
+    # office2: desks (front = monitor faces the viewer: sit south, face up), equipment, big tables
+    "o2_desk_pc": Obj(O2, 0, 0, 3, 2),
+    "o2_desk_back": Obj(O2, 3, 0, 3, 2),
+    "o2_l_desk": Obj(O2, 6, 0, 3, 2),
+    "o2_stand_desk": Obj(O2, 9, 0, 2, 2),
+    "o2_cabinet": Obj(O2, 0, 2, 1, 2),
+    "o2_copier": Obj(O2, 1, 2, 2, 2),
+    "o2_server": Obj(O2, 3, 2, 1, 2),
+    "o2_lockers": Obj(O2, 4, 2, 2, 2),
+    "o2_bin": Obj(O2, 6, 2, 1, 1),
+    "o2_boxes": Obj(O2, 7, 2, 2, 2),
+    "o2_booth": Obj(O2, 9, 2, 1, 2),
+    "o2_chair_up": Obj(O2, 10, 2, 1, 2, "free"),
+    "o2_chair_down": Obj(O2, 0, 4, 1, 2, "free"),
+    "o2_side_table": Obj(O2, 0, 6, 1, 1),
+    "o2_projector": Obj(O2, 2, 4, 2, 2),
+    "o2_corkboard": Obj(O2, 4, 4, 2, 2),
+    "o2_fig": Obj(O2, 6, 4, 1, 2),
+    "o2_arc_lamp": Obj(O2, 7, 4, 2, 2),
+    "o2_water": Obj(O2, 9, 4, 1, 2),
+    "o2_drinks": Obj(O2, 10, 4, 1, 2),
+    "o2_long_table": Obj(O2, 0, 7, 7, 2),
+    "o2_oval_table": Obj(O2, 0, 11, 5, 3),
+    # building: wall art (2 rows: hangs on the 2-tile north wall), doors, reception, small items
+    "b_wall_cream": Obj(B, 0, 0, 3, 2, "none"),
+    "b_wall_lilac": Obj(B, 3, 0, 3, 2, "none"),
+    "b_window": Obj(B, 6, 0, 3, 2, "none"),
+    "b_pillar": Obj(B, 9, 0, 1, 2, "none"),
+    "b_door": Obj(B, 10, 0, 1, 2, "none"),
+    "b_clock": Obj(B, 6, 2, 1, 1, "none"),
+    "b_painting": Obj(B, 7, 2, 1, 1, "none"),
+    "b_wall_tv": Obj(B, 8, 2, 2, 1, "none"),
+    "b_wall_shelf": Obj(B, 0, 4, 2, 1, "none"),
+    "b_extinguisher": Obj(B, 2, 4, 1, 1),
+    "b_reception": Obj(B, 3, 4, 2, 2),
+    "b_column": Obj(B, 7, 4, 1, 2),
+    "b_coat": Obj(B, 8, 4, 1, 2),
+    "b_mat": Obj(B, 0, 6, 2, 1, "none"),
+    "b_bin": Obj(B, 2, 6, 1, 1),
+    # home
+    "h_bed_quilt": Obj(H, 0, 0, 2, 2),
+    "h_bed_double": Obj(H, 2, 0, 2, 2),
+    "h_nightstand": Obj(H, 4, 0, 1, 2),
+    "h_wardrobe": Obj(H, 5, 0, 2, 2),
+    "h_sink_mirror": Obj(H, 7, 0, 1, 2),
+    "h_shower": Obj(H, 8, 0, 2, 2),
+    "h_bathtub": Obj(H, 0, 2, 2, 1),
+    "h_toilet": Obj(H, 2, 2, 1, 2),
+    "h_towels": Obj(H, 3, 2, 1, 2),
+    "h_fridge": Obj(H, 4, 2, 1, 2),
+    "h_chair": Obj(H, 5, 2, 1, 2, "free"),
+    "h_kitchen_sink": Obj(H, 6, 2, 2, 2),
+    "h_stove": Obj(H, 8, 2, 1, 2),
+    "h_microwave": Obj(H, 9, 2, 2, 2),
+    "h_table": Obj(H, 0, 4, 2, 2),
+    "h_fireplace": Obj(H, 2, 4, 2, 2),
+    "h_piano": Obj(H, 4, 4, 2, 2),
+    "h_aquarium": Obj(H, 6, 4, 2, 2),
+    "h_tv": Obj(H, 8, 4, 2, 2),
+    "h_armchair": Obj(H, 0, 6, 2, 2),
+    "h_palm": Obj(H, 2, 6, 2, 2),
+    # byte_grounds_living: pastel sofas / armchairs (front = facing the viewer, back = facing up)
+    "lv_sofa_front": Obj(LV, 0, 0, 3, 2),
+    "lv_sofa_back": Obj(LV, 3, 0, 3, 2),
+    "lv_armchair_front": Obj(LV, 6, 0, 2, 2),
+    "lv_armchair_back": Obj(LV, 8, 0, 2, 2),
+    "lv_sofa3": Obj(LV, 0, 2, 3, 2),
+    "lv_armchair_blue": Obj(LV, 3, 2, 2, 2),
+    "lv_side_lamp": Obj(LV, 5, 2, 1, 2),
+    "lv_coffee_table": Obj(LV, 6, 2, 2, 2),
+    "lv_tv": Obj(LV, 8, 2, 2, 2),
+    "lv_bookshelf": Obj(LV, 0, 4, 2, 2),
+    "lv_floor_lamp": Obj(LV, 2, 4, 1, 2),
+    "lv_rug_stripes": Obj(LV, 0, 6, 3, 1, "none"),
+    "lv_sideboard": Obj(LV, 3, 4, 3, 2),
+    "lv_rug_pink": Obj(LV, 6, 4, 3, 2, "none"),
+    "lv_pouf": Obj(LV, 3, 6, 2, 2, "free"),
+    "lv_bench": Obj(LV, 5, 6, 2, 1),
+    # byte_grounds_plants
+    "p_monstera": Obj(PL, 0, 0, 2, 3),
+    "p_snake": Obj(PL, 2, 0, 1, 2),
+    "p_fig": Obj(PL, 3, 0, 2, 3),
+    "p_olive": Obj(PL, 5, 0, 2, 3),
+    "p_succulents": Obj(PL, 7, 0, 2, 2),
+    "p_cactus": Obj(PL, 9, 0, 1, 2),
+    "p_pothos": Obj(PL, 0, 3, 2, 2),
+    "p_bonsai": Obj(PL, 2, 3, 2, 2),
+    "p_tulips": Obj(PL, 4, 3, 1, 2),
+    "p_sunflowers": Obj(PL, 5, 3, 2, 2),
+    "p_lavender": Obj(PL, 7, 3, 1, 2),
+    "p_daisies": Obj(PL, 8, 3, 1, 2),
+    "p_planter": Obj(PL, 0, 5, 3, 2),
+    "p_hanging": Obj(PL, 3, 5, 2, 2),
+    "p_pampas": Obj(PL, 5, 5, 2, 2),
+    "p_bush": Obj(PL, 7, 5, 2, 2),
+    # byte_grounds_cafe (counter = coffee machine, pastry case = snacks, cooler = water)
+    "c_counter": Obj(CF, 0, 0, 5, 3),
+    "c_pastry": Obj(CF, 5, 0, 3, 2),
+    "c_fridge": Obj(CF, 8, 0, 1, 2),
+    "c_round_table": Obj(CF, 9, 0, 2, 2),
+    "c_chair_down": Obj(CF, 0, 3, 1, 2, "free"),
+    "c_chair_up": Obj(CF, 1, 3, 1, 2, "free"),
+    "c_stool_yellow": Obj(CF, 2, 3, 1, 2, "free"),
+    "c_stool_mint": Obj(CF, 3, 3, 1, 2, "free"),
+    "c_water": Obj(CF, 4, 3, 1, 2),
+    "c_sink": Obj(CF, 5, 3, 3, 2),
+    "c_stove": Obj(CF, 8, 3, 3, 2),
+    "c_table_two": Obj(CF, 0, 5, 3, 2),
+    "c_menu": Obj(CF, 3, 5, 2, 2),
+    "c_shelf": Obj(CF, 5, 5, 2, 1),
+    "c_microwave": Obj(CF, 7, 5, 2, 2),
+    "c_bins": Obj(CF, 9, 5, 2, 2),
+    # byte_grounds_bedroom (same scale as the pastel living set)
+    "bd_bed_double": Obj(BD, 0, 0, 3, 3),
+    "bd_bed_single": Obj(BD, 3, 0, 3, 2),
+    "bd_wardrobe": Obj(BD, 6, 0, 2, 3),
+    "bd_dresser": Obj(BD, 8, 0, 2, 2),
+    "bd_nightstand": Obj(BD, 10, 0, 1, 2),
+    "bd_desk": Obj(BD, 0, 3, 2, 2),
+    "bd_chair_down": Obj(BD, 2, 3, 1, 2, "free"),
+    "bd_chair_up": Obj(BD, 3, 3, 1, 2, "free"),
+    "bd_basket": Obj(BD, 4, 3, 1, 1),
+    "bd_bathtub": Obj(BD, 5, 3, 3, 2),
+    "bd_toilet": Obj(BD, 8, 3, 1, 2),
+    "bd_sink": Obj(BD, 9, 3, 1, 2),
+    "bd_shower": Obj(BD, 0, 5, 2, 2),
+    "bd_towels": Obj(BD, 2, 5, 2, 2),
+    "bd_mirror": Obj(BD, 4, 5, 1, 2),
+    "bd_toy_chest": Obj(BD, 5, 5, 2, 2),
+    "bd_toy_shelf": Obj(BD, 7, 5, 2, 2),
+    "bd_plant_stool": Obj(BD, 9, 5, 2, 2),
+    "bd_bath_mat": Obj(BD, 0, 7, 2, 2, "none"),
+})
 # Gemini floor textures (gemini_floors.png): 3x3-cell seamless blocks, in this order.
 GEMINI_FLOORS = ["oak", "lavender", "grey", "stone", "teal", "walnut"]
 
@@ -275,9 +418,12 @@ class MapBuilder:
                     self.floor_decor.append({"x": x, "y": y, "sheet": sheet, "sx": sx, "sy": sy, "layer": "floor"})
 
     def floor3(self, x0, y0, x1, y1, kind):
-        """A Gemini floor texture: its 3x3-cell block repeats with the map grid, so it tiles."""
+        """A Gemini floor texture: its 3x3-cell block repeats with the map grid, so it tiles. It
+        replaces an earlier Gemini floor on those tiles (a room drawn over the base floor)."""
         i = GEMINI_FLOORS.index(kind)
         bx, by = (i % 3) * 3, (i // 3) * 3
+        inside = lambda d: x0 <= d["x"] <= x1 and y0 <= d["y"] <= y1 and d["sheet"] == "gemini_floors"
+        self.floor_decor = [d for d in self.floor_decor if not inside(d)]
         for y in range(y0, y1 + 1):
             for x in range(x0, x1 + 1):
                 if not self.tiles[y][x]:
@@ -288,6 +434,31 @@ class MapBuilder:
         slides under a table's walkable top row; `over`: the top cell overlaps a table's front edge."""
         self.put({"down": "g_chair_down", "up": "g_chair_up", "right": "g_chair_right"}[facing], x, y, tuck=tuck, over=over)
         self.seat(x, y + 1, facing)
+
+    def top_wall(self, pattern=("b_wall_cream", "b_window")):
+        """The north wall two tiles deep, dressed with Gemini wall art (3-wide pieces in turn,
+        pillars filling what's left)."""
+        self.hwall(1, 1, self.w - 2)
+        for y in (0, 1):
+            for x in range(1, self.w - 1):
+                self.colors[y][x] = WALL_FACE
+        x, i = 1, 0
+        while x + 3 <= self.w - 1:
+            self.put(pattern[i % len(pattern)], x, 0)
+            x, i = x + 3, i + 1
+        while x <= self.w - 2:
+            self.put("b_pillar", x, 0)
+            x += 1
+
+    def put_s(self, name, x, y, **kw):
+        """`put`, plus a seat on each cell the seat catalog makes one (chairs, sofas, beds...)."""
+        o = GEMINI.get(name) or CAT[name]
+        self.put(name, x, y, **kw)
+        for dy in range(o.h):
+            for dx in range(o.w):
+                spot = SEAT_SPOTS.get((o.sheet, o.sx + dx, o.sy + dy))
+                if spot:
+                    self.seat(x + dx, y + dy, spot[1], spot[0])
 
     def room(self, name, x, y):
         """A named point inside a room; the build checks each one is reachable from spawn."""
@@ -471,363 +642,232 @@ def write(m):
 # ---------- maps ----------
 
 def build_office():
-    m = MapBuilder("office", "Office", 1, 48, 32, "#4b5568")
-    # Meeting room (top right), break room (bottom right), library (bottom left), lobby.
-    m.vwall(31, 1, 30, gaps=(9, 10, 19, 20, 21, 27, 28))
-    m.hwall(13, 32, 46)
-    m.hwall(22, 1, 14, gaps=(11, 12, 13))
-    m.vwall(15, 22, 30)
-    m.floor(32, 1, 46, 12, "parquet")
-    m.floor(32, 14, 46, 30, "tile_cream")
-    m.floor(1, 23, 14, 30, "wood")
-    m.floor(16, 22, 30, 30, "stone_beige")
-    m.floor(36, 23, 43, 28, "rug_rose")
-    m.floor(3, 26, 7, 29, "rug_rose")
+    """The Office (default room), all Gemini art: open workspace, meeting room, lounge, café, reception."""
+    m = MapBuilder("office", "Office", 2, 40, 28, "#4a4f5c")
+    m.top_wall()
+    m.vwall(26, 2, 12, gaps=(9, 10))  # meeting room (north east)
+    m.hwall(12, 27, 38)
+    m.hwall(16, 1, 25, gaps=(12, 13, 20, 21))  # workspace / south rooms
+    m.vwall(13, 17, 26, gaps=(21, 22))  # lounge | café
+    m.vwall(28, 17, 26, gaps=(20, 21))  # café | reception
+    m.floor3(1, 2, 38, 26, "grey")
+    m.floor3(1, 2, 26, 16, "oak")
+    m.floor3(27, 2, 38, 11, "lavender")
+    m.floor3(1, 17, 12, 26, "teal")
+    m.floor3(13, 17, 27, 26, "stone")
+    m.floor3(13, 21, 13, 22, "teal")
 
-    # Open plan: six back-to-back desk pods (4 desks each), chairs facing their desk.
-    for py in (3, 10):
-        for px in (3, 11, 19):
-            for dx in (0, 3):
-                m.put("desk_north", px + dx, py)
-                m.chair(px + dx + 1, py, "down", 4, "charcoal", tuck=True)
-                m.put("desk_south", px + dx, py + 2)
-                m.chair(px + dx + 1, py + 4, "up", 4, "charcoal")
-                m.put("laptop_up" if dx == 0 else "laptop_up_white", px + dx + 1, py + 2, on=1)
-                m.put("laptop_closed" if dx == 0 else "laptop_closed_white", px + dx + 2, py, on=1)
-                m.put("phone_white" if dx == 0 else "phone_red", px + dx, py, on=1)
-    # Huddle tables between the pods and the library.
-    for tx in (5, 13, 21):
-        m.put("table_white_round", tx, 17)
-        for dx in (0, 1):
-            m.chair(tx + dx, 17, "down", 4, "grey", tuck=True)
-            m.chair(tx + dx, 19, "up", 4, "grey")
-    m.put("tree_vase", 1, 1)
-    m.put("fern", 1, 9)
-    m.put("fern", 1, 17)
-    m.put("bookshelf", 25, 1)
-    m.put("drawer_shelf", 27, 1)
-    m.put("copier", 29, 1)
-    m.put("bin", 30, 4)
-    m.put("water_cooler", 29, 10)
-    m.put("tree_box", 27, 10)
-    m.put("plant_box", 30, 16)
-    m.put("painting_wide", 9, 0)
-    m.put("painting_land", 16, 0)
-    m.put("painting_abstract", 21, 0)
+    # Meeting room: oval table for eight, TV, whiteboard, plants, water.
+    m.zone("Meeting room", 27, 2, 12, 10)
+    m.put("p_monstera", 27, 2)
+    m.put("g_tv", 31, 2)
+    m.put("g_whiteboard", 34, 2)
+    m.put("p_fig", 37, 2)
+    m.put("o2_oval_table", 30, 5)
+    for x in (31, 32, 33):
+        m.put_s("g_chair_down", x, 4, tuck=True)
+        m.put_s("g_chair_up", x, 7, over=True)
+    m.put_s("g_chair_right", 29, 5)
+    m.put("g_water", 37, 9)
+    m.put("p_cactus", 27, 9)
 
-    # Meeting room: a 3x4 table for ten, a screen on the north wall.
-    m.put("tv_bars", 38, 1)
-    m.put("dining_table", 38, 5)
-    for dx in range(3):
-        m.chair(38 + dx, 4, "down", 4, "grey")
-        m.chair(38 + dx, 9, "up", 4, "grey")
-    for dy in (1, 2):
-        m.chair(37, 5 + dy, "right", 4, "grey")
-        m.chair(41, 5 + dy, "left", 4, "grey")
-    m.put("laptop_up", 39, 7, on=0)
-    m.put("tree_vase", 32, 1)
-    m.put("drawer_shelf", 34, 1)
-    m.put("bookshelf", 43, 1)
-    m.put("tree_vase", 46, 1)
-    m.put("fern", 46, 10)
-    m.put("floor_lamp", 33, 11)
-    m.put("table_round_oak", 34, 9)
-    m.chair(33, 9, "right", 4, "grey")
-    m.chair(35, 9, "left", 4, "grey")
-    m.put("water_cooler", 44, 10)
-    m.put("painting_sea", 34, 0)
-    m.put("portrait", 45, 0)
+    # Workspace: two rows of four desks, equipment on the east side, a project corner.
+    for x in (2, 7, 12, 17):
+        for y in (3, 8):
+            m.put("o2_desk_pc", x, y)
+            m.put_s("o2_chair_up", x + 1, y + 1, over=True)
+    m.put("p_snake", 5, 3)
+    m.put("p_cactus", 10, 3)
+    m.put("p_snake", 15, 8)
+    m.put("o2_server", 21, 2)
+    m.put("o2_copier", 22, 2)
+    m.put("o2_lockers", 24, 2)
+    m.put("o2_cabinet", 22, 6)
+    m.put("o2_cabinet", 23, 6)
+    m.put("o2_corkboard", 21, 9)
+    m.put("o2_boxes", 24, 9)
+    m.put("o2_l_desk", 2, 13)
+    m.put_s("o2_chair_up", 3, 14, over=True)
+    m.put("o2_stand_desk", 7, 13)
+    m.put("o2_arc_lamp", 10, 13)
+    m.put("o2_projector", 16, 12)
+    m.put("p_monstera", 23, 12)
 
-    # Break room: kitchenette, café tables, a sofa corner on a rug.
-    for i, name in enumerate(["k_cupboard", "k_counter", "k_sink", "k_counter", "k_drawers", "k_stove", "k_veg", "k_cupboard2"]):
-        m.put(name, 33 + i, 14)
-    m.put("coffee_maker", 36, 14, on=1)
-    m.put("mug", 34, 14, on=1)
-    m.put("water_cooler", 42, 14)
-    m.put("glass_cabinet", 43, 14)
-    m.put("tree_vase", 46, 14)
-    m.put("painting_wide2", 38, 13)
-    for tx in (35, 39, 43):
-        m.put("table_round_wood", tx, 18)
-        m.chair(tx - 1, 18, "right", 8, "yellow")
-        m.chair(tx + 1, 18, "left", 8, "yellow")
-    m.sofa(38, 23, "blue", "down")
-    m.sofa(40, 23, "blue", "down")
-    m.put("coffee_table", 39, 25)
-    m.put("bouquet2", 39, 25, on=0)
-    m.armchair(36, 25, "blue", "right")
-    m.armchair(43, 25, "blue", "left")
-    m.sofa(39, 27, "blue", "up")
-    m.put("floor_lamp", 36, 23)
-    m.put("floor_lamp", 43, 23)
-    m.put("fern", 32, 23)
-    m.put("plant_box", 46, 28)
+    # Lounge: sofas around a coffee table, armchairs, shelf, lamp, rug, plants.
+    m.put_s("lv_sofa_front", 2, 17)
+    m.put_s("lv_armchair_front", 6, 17)
+    m.put("lv_floor_lamp", 9, 17)
+    m.put("lv_bookshelf", 10, 17)
+    m.put("lv_coffee_table", 3, 20)
+    m.put("lv_rug_pink", 8, 20)
+    m.put_s("lv_sofa_back", 2, 23)
+    m.put_s("lv_armchair_back", 6, 23)
+    m.put("p_pothos", 10, 24)
 
-    # Library: shelves along the north wall, a reading corner, one quiet desk.
-    for i, name in enumerate(["bookshelf", "bookshelf_green", "bookshelf", "drawer_shelf", "bookshelf_green"]):
-        m.put(name, 1 + 2 * i, 23)
-    m.put("grandfather_clock", 14, 23)
-    for dy in (0, 1):
-        m.armchair(3, 27 + dy, "green", "right")
-        m.armchair(7, 27 + dy, "green", "left")
-    m.put("coffee_table_v", 5, 27)
-    m.put("floor_lamp", 2, 25)
-    m.put("desk_south", 10, 26)
-    m.put("table_lamp", 10, 26, on=1)
-    m.put("laptop_up", 11, 26, on=1)
-    m.chair(11, 28, "up", 4, "green")
-    m.put("fern", 1, 29)
-    m.put("plant_box", 14, 29)
+    # Café: counter with the coffee machine, pastry case (snacks), water cooler, two tables.
+    m.put("c_counter", 15, 17)
+    m.put("c_pastry", 21, 17)
+    m.put("c_water", 25, 17)
+    m.put("c_fridge", 26, 17)
+    for tx in (16, 21):
+        m.put("c_round_table", tx, 22)
+        for x in (tx, tx + 1):
+            m.put_s("c_chair_down", x, 21, tuck=True)
+            m.put_s("c_chair_up", x, 23, over=True)
+    m.put("c_menu", 25, 23)
+    m.put("c_bins", 14, 25)
 
-    # Lobby: reception desk facing the entrance, waiting sofas.
-    m.put("desk_north", 22, 24)
-    m.chair(23, 24, "down", 4, "charcoal", tuck=True)
-    m.put("phone_red", 22, 24, on=1)
-    m.put("laptop_closed", 24, 24, on=1)
-    m.put("bouquet3", 24, 25, on=0)
-    m.floor(16, 25, 20, 29, "rug_rose")
-    m.floor(26, 25, 30, 29, "rug_rose")
-    for sx, facing, table_x in ((16, "right", 18), (30, "left", 28)):
-        m.sofa(sx, 26, "grey", facing)
-        m.put("coffee_table_v", table_x, 26)
-        m.armchair(table_x, 28, "grey", "up")
-        m.armchair(table_x, 24, "grey", "down")
-    m.put("tree_vase", 16, 22)
-    m.put("tree_vase", 30, 22)
-    m.put("plant_box", 19, 29)
-    m.put("plant_box", 27, 29)
-    m.put("water_cooler", 18, 22)
+    # Reception and entrance.
+    m.put("b_reception", 33, 18)
+    m.put("b_coat", 29, 17)
+    m.put("p_fig", 37, 17)
+    m.put_s("lv_sofa3", 30, 22)
+    m.put("p_bush", 37, 23)
+    m.put("b_mat", 33, 25)
 
-    m.zone("Meeting room", 32, 1, 15, 12)
-
-    m.spawn = (23.5, 28.5)
-    for name, p in {"open plan": (10, 8), "meeting": (35, 8), "break": (40, 20), "library": (9, 25), "lobby": (23, 27)}.items():
+    m.spawn = (34.5, 24.5)
+    for name, p in {"meeting": (28, 9), "work": (6, 6), "lounge": (6, 21), "cafe": (20, 20), "reception": (32, 20)}.items():
         m.room(name, *p)
     return m
 
 
 def build_lounge():
-    m = MapBuilder("lounge", "Lounge & Café", 1, 44, 30, "#4a3f36")
-    m.vwall(25, 1, 28, gaps=tuple(range(11, 18)))
-    m.floor(1, 1, 24, 28, "stone_beige")
-    m.floor(1, 1, 16, 3, "checker")
-    m.floor(26, 1, 42, 28, "parquet")
-    m.floor(29, 5, 37, 11, "rug_rose")
-    m.floor(34, 19, 41, 26, "rug_rose")
+    """Lounge & Café, all Gemini art: a café with tables, and a lounge with two sofa corners."""
+    m = MapBuilder("lounge", "Lounge & Café", 2, 36, 26, "#4a4f5c")
+    m.top_wall(("b_window", "b_wall_lilac"))
+    m.vwall(18, 2, 24, gaps=(12, 13, 14))
+    m.floor3(1, 2, 17, 24, "stone")
+    m.floor3(18, 2, 34, 24, "oak")
+    m.floor3(19, 12, 34, 24, "teal")
 
-    # Coffee bar: back counter on the north wall, bar counter with stools in front.
-    back = ["k_cupboard", "k_counter", "k_counter", "k_sink", "k_counter", "k_drawers", "k_counter", "k_veg", "k_counter", "k_cupboard2"]
-    for i, name in enumerate(back):
-        m.put(name, 2 + i, 1)
-    m.put("coffee_maker", 3, 1, on=1)
-    m.put("coffee_maker", 4, 1, on=1)
-    m.put("mug", 6, 1, on=1)
-    m.put("coffee_maker", 8, 1, on=1)
-    m.put("glass_cabinet", 12, 1)
-    m.put("dish_shelf", 13, 1)
-    m.put("bar_l", 3, 4)
-    for x in range(4, 14):
-        m.put("bar_m", x, 4)
-    m.put("bar_r", 14, 4)
-    for x, item in ((5, "mug"), (7, "bouquet3"), (10, "mug"), (12, "coffee_maker")):
-        m.put(item, x, 4, on=1)
-    for i, x in enumerate(range(4, 14, 2)):
-        m.stool(x, 6, ["red", "yellow", "green", "blue", "brown"][i])
-    m.put("tree_box", 16, 1)
-    m.put("painting_wide", 18, 0)
-    m.put("curtains_red", 21, 0)
+    # Café: counter (coffee), pastry case (snacks), fridge, water, shelf; six tables for four.
+    m.put("c_counter", 2, 2)
+    m.put("c_pastry", 8, 2)
+    m.put("c_fridge", 12, 2)
+    m.put("c_water", 13, 2)
+    m.put("c_shelf", 15, 2)
+    for ty in (8, 14):
+        for tx in (3, 8, 13):
+            m.put("c_round_table", tx, ty)
+            for x in (tx, tx + 1):
+                m.put_s("c_chair_down", x, ty - 1, tuck=True)
+                m.put_s("c_chair_up", x, ty + 1, over=True)
+    for tx in (2, 7, 12):
+        m.put_s("c_table_two", tx, 19)
+    m.put("p_tulips", 16, 8)
+    m.put("p_sunflowers", 16, 14)
+    m.put("c_menu", 15, 22)
+    m.put("c_bins", 1, 23)
+    m.put("p_planter", 9, 23)
 
-    # Café floor: round tables for four, small tables for two.
-    for ty in (9, 14, 19):
-        for tx in (3, 9, 15):
-            m.put("table_white_round", tx, ty)
-            for dx in (0, 1):
-                m.chair(tx + dx, ty, "down", 8, "green", tuck=True)
-                m.chair(tx + dx, ty + 2, "up", 8, "green")
-    for tx in (3, 8, 13, 18):
-        m.put("table_white_small", tx, 24)
-        m.put("mug", tx, 24, on=0)
-        m.chair(tx - 1, 24, "right", 8, "green")
-        m.chair(tx + 1, 24, "left", 8, "green")
-    for ty in (10, 15, 20):
-        m.put("table_white_small", 21, ty)
-        m.put("bouquet3" if ty == 15 else "mug", 21, ty, on=0)
-        m.chair(20, ty, "right", 8, "green")
-        m.chair(22, ty, "left", 8, "green")
-    m.put("tree_vase", 23, 5)
-    m.put("fern", 1, 12)
-    m.put("fern", 1, 17)
-    m.put("plant_box", 23, 24)
-    m.put("floor_lamp", 23, 27)
+    # Lounge: TV corner (sofa and armchairs facing the TV).
+    m.put("lv_bookshelf", 20, 2)
+    m.put("lv_floor_lamp", 23, 2)
+    m.put("lv_tv", 25, 2)
+    m.put("lv_bookshelf", 29, 2)
+    m.put("p_monstera", 33, 2)
+    m.put("lv_coffee_table", 25, 5)
+    m.put_s("lv_armchair_back", 21, 7)
+    m.put_s("lv_sofa_back", 24, 7)
+    m.put_s("lv_armchair_back", 28, 7)
+    m.put("lv_rug_stripes", 24, 10)
+    m.put("lv_sideboard", 30, 9)
+    m.put("p_bonsai", 19, 9)
+    m.put("p_hanging", 33, 6)
+    m.put_s("lv_armchair_blue", 21, 10)
 
-    # Lounge: fireplace with sofas facing it, an L of sofas, piano, chess.
-    m.put("bookshelf", 27, 1)
-    m.put("bookshelf_green", 29, 1)
-    m.put("fireplace", 32, 1)
-    m.put("bookshelf_green", 35, 1)
-    m.put("bookshelf", 37, 1)
-    m.put("curtains_gold", 40, 0)
-    m.armchair(30, 7, "red", "right")
-    m.armchair(36, 7, "red", "left")
-    m.put("coffee_table", 32, 7)
-    m.put("bouquet", 32, 7, on=0)
-    m.sofa(31, 10, "red", "up")
-    m.sofa(33, 10, "red", "up")
-    m.put("floor_lamp", 29, 9)
-    m.put("floor_lamp", 37, 9)
-    m.sofa(35, 19, "green", "down", 2)
-    m.sofa(37, 19, "green", "down", 2)
-    m.sofa(40, 21, "green", "left", 2)
-    m.put("coffee_table", 36, 22)
-    m.put("table_lamp2", 37, 22, on=0)
-    m.sofa(35, 25, "green", "up", 2)
-    m.sofa(37, 25, "green", "up", 2)
-    m.put("piano", 27, 20)
-    m.put(ottoman("brown"), 27, 22)
-    m.seat(27, 22, "up")
-    for tx in (35, 39):
-        m.put("table_round_wood", tx, 15)
-        m.put("bouquet2" if tx == 35 else "mug", tx, 15, on=0)
-        m.armchair(tx - 1, 15, "brown", "right", 0)
-        m.armchair(tx + 1, 15, "brown", "left", 0)
-    m.put("chess_table", 31, 15)
-    m.armchair(30, 15, "brown", "right")
-    m.armchair(32, 15, "brown", "left")
-    m.put("tree_vase", 42, 5)
-    m.put("tree_vase", 42, 14)
-    m.put("fern", 26, 26)
-    m.put("plant_box", 42, 27)
-    m.put("painting_land", 27, 0)
-    m.put("grandfather_clock", 26, 12)
+    # Second corner: sofa facing a sofa across a coffee table, rug, reading nook, plants.
+    m.put_s("lv_sofa3", 21, 13)
+    m.put_s("lv_armchair_front", 25, 13)
+    m.put("lv_coffee_table", 21, 16)
+    m.put_s("lv_sofa_back", 21, 19)
+    m.put("lv_rug_pink", 25, 17)
+    m.put_s("lv_armchair_blue", 30, 13)
+    m.put("lv_side_lamp", 32, 13)
+    m.put_s("lv_pouf", 30, 17)
+    m.put_s("lv_bench", 29, 22)
+    m.put("p_olive", 33, 13)
+    m.put("p_bush", 33, 21)
+    m.put("p_pampas", 19, 22)
+    m.put("lv_bookshelf", 25, 21)
+    m.put("lv_floor_lamp", 27, 21)
+    m.put("p_snake", 24, 13)
 
-    m.spawn = (20.5, 27.5)
-    for name, p in {"bar": (9, 3), "café": (12, 21), "lounge": (33, 13), "sofas": (38, 23)}.items():
+    m.spawn = (26.5, 23.5)
+    for name, p in {"cafe": (8, 11), "lounge": (27, 11), "corner": (27, 21)}.items():
         m.room(name, *p)
     return m
 
 
 def build_home():
-    m = MapBuilder("home", "Home", 1, 40, 30, "#4a4038")
-    m.hwall(12, 1, 20, gaps=tuple(range(7, 13)))
-    m.vwall(21, 1, 28, gaps=(20, 21))
-    m.hwall(12, 22, 38, gaps=(24, 25))
-    m.vwall(28, 13, 28, gaps=(16, 17, 25, 26))
-    m.hwall(21, 29, 38)
-    m.floor(1, 1, 9, 11, "checker")
-    m.floor(10, 1, 20, 11, "parquet")
-    m.floor(1, 13, 20, 28, "parquet")
-    m.floor(2, 16, 8, 21, "rug_rose")
-    m.floor(13, 18, 18, 22, "rug_rose")
-    m.floor(22, 1, 38, 11, "parquet")
-    m.floor(29, 13, 38, 20, "stone_beige")
-    m.floor(29, 22, 38, 28, "stone_green")
-    m.floor(22, 13, 27, 28, "tile_cream")
-    m.floor(29, 4, 32, 6, "rug_rose")
-    m.floor(4, 24, 8, 27, "rug_rose")
+    """Home, all pastel Gemini art: bedroom, bathroom, kitchen, living room with a kids' corner."""
+    m = MapBuilder("home", "Home", 2, 30, 22, "#4a4f5c")
+    m.top_wall(("b_wall_lilac", "b_window"))
+    m.vwall(11, 2, 9)
+    m.vwall(18, 2, 9)
+    m.hwall(10, 1, 28, gaps=(5, 6, 14, 15, 22, 23))
+    m.floor3(1, 2, 28, 20, "oak")
+    m.floor3(1, 2, 10, 9, "walnut")
+    m.floor3(12, 2, 17, 9, "stone")
+    m.floor3(19, 2, 28, 9, "grey")
 
-    # Kitchen + dining.
-    for i, name in enumerate(["k_cupboard", "k_counter", "k_sink", "k_counter", "k_stove", "k_drawers", "k_veg", "k_cupboard2"]):
-        m.put(name, 1 + i, 1)
-    m.put("coffee_maker", 2, 1, on=1)
-    m.put("bar_l", 2, 5)
-    for x in range(3, 6):
-        m.put("bar_m", x, 5)
-    m.put("bar_r", 6, 5)
-    m.put("bouquet3", 4, 5, on=1)
-    for x in (3, 5):
-        m.stool(x, 7, "brown")
-    m.put("glass_cabinet", 10, 1)
-    m.put("dish_shelf", 11, 1)
-    m.put("dining_table", 14, 4)
-    m.put("bouquet", 15, 6, on=0)
-    for dx in range(3):
-        m.chair(14 + dx, 3, "down", 0, "brown")
-        m.chair(14 + dx, 8, "up", 0, "brown")
-    for dy in (1, 2):
-        m.chair(13, 4 + dy, "right", 0, "brown")
-        m.chair(17, 4 + dy, "left", 0, "brown")
-    m.put("tree_vase", 20, 1)
-    m.put("painting_sea", 14, 0)
-    m.put("fern", 1, 9)
-    m.put("bin_green", 9, 1)
+    # Bedroom: double bed between nightstands, dresser, wardrobe, desk, rug, plant.
+    m.put("bd_nightstand", 1, 2)
+    m.put_s("bd_bed_double", 2, 2)
+    m.put("bd_nightstand", 5, 2)
+    m.put("bd_dresser", 6, 2)
+    m.put("bd_wardrobe", 8, 2)
+    m.put("bd_bath_mat", 2, 6)
+    m.put("bd_desk", 7, 7)
+    m.put_s("bd_chair_up", 7, 8, over=True)
+    m.put("bd_plant_stool", 1, 8)
+    m.put("bd_basket", 10, 9)
 
-    # Living room: TV corner on a rug, fireplace corner, reading shelf.
-    m.put("bookshelf", 1, 13)
-    m.put("tv", 4, 14)
-    m.put("coffee_table", 4, 17)
-    m.armchair(2, 17, "yellow", "right")
-    m.armchair(7, 17, "yellow", "left")
-    m.sofa(4, 19, "brown", "up")
-    m.put("floor_lamp", 2, 19)
-    m.put("fireplace", 14, 13)
-    m.put("bookshelf_green", 17, 13)
-    m.put("grandfather_clock", 20, 13)
-    m.armchair(14, 18, "green", "up")
-    m.armchair(16, 18, "green", "up")
-    m.put("side_table", 15, 18)
-    m.put("table_lamp2", 15, 18, on=0)
-    m.sofa(14, 21, "green", "up", 1)
-    m.put("chess_table", 6, 25)
-    m.armchair(5, 25, "brown", "right", 0)
-    m.armchair(7, 25, "brown", "left", 0)
-    m.put("piano", 1, 25)
-    m.put(ottoman("red"), 2, 27)
-    m.seat(2, 27, "up")
-    m.put("tree_vase", 20, 25)
-    m.put("fern", 10, 26)
-    m.put("plant_box", 13, 27)
-    m.put("painting_wide2", 2, 12)
-    m.put("painting_land", 15, 12)
+    # Bathroom.
+    m.put("bd_bathtub", 12, 2)
+    m.put("bd_toilet", 15, 2)
+    m.put("bd_sink", 16, 2)
+    m.put("bd_towels", 12, 6)
+    m.put("bd_shower", 16, 6)
+    m.put("bd_mirror", 17, 2)
 
-    # Bedroom: double bed between nightstands, wardrobe, vanity.
-    m.put("nightstand", 29, 1)
-    m.bed("bed_double", 30, 1)
-    m.put("nightstand", 32, 1)
-    m.put("table_lamp", 29, 1, on=1)
-    m.put("table_lamp", 32, 1, on=1)
-    m.put("curtains_white", 33, 0)
-    m.put("wardrobe", 36, 1)
-    m.put("vanity", 23, 1)
-    m.chair(23, 4, "up", 2, "white")
-    m.put("dresser", 26, 1)
-    m.armchair(37, 8, "red", "left")
-    m.put("side_table", 36, 8)
-    m.put("tree_vase", 38, 4)
-    m.put("fern", 22, 9)
-    m.put("portrait2", 27, 0)
+    # Kitchen with a little dining table.
+    m.put("c_stove", 19, 2)
+    m.put("c_sink", 22, 2)
+    m.put("c_fridge", 25, 2)
+    m.put("c_microwave", 26, 2)
+    m.put("c_round_table", 22, 6)
+    for x in (22, 23):
+        m.put_s("c_chair_down", x, 5, tuck=True)
+        m.put_s("c_chair_up", x, 7, over=True)
+    m.put("p_lavender", 19, 8)
+    m.put("c_bins", 27, 8)
 
-    # Second bedroom: two single beds, a desk.
-    m.bed("bed_single_red", 31, 13)
-    m.put("nightstand", 33, 13)
-    m.bed("bed_single_white", 35, 13)
-    m.put("desk_south", 33, 17)
-    m.put("laptop_up", 34, 17, on=1)
-    m.chair(34, 19, "up", 4, "blue")
-    m.put("bookshelf_green", 37, 19)
-    m.put("plant_pot", 29, 13)
-    m.put("painting_beach", 34, 12)
+    # Living room: sofa facing the TV across a coffee table, armchairs, shelf, lamp, plants.
+    m.put("lv_sideboard", 1, 11)
+    m.put("lv_tv", 8, 11)
+    m.put("lv_floor_lamp", 10, 11)
+    m.put("lv_bookshelf", 11, 11)
+    m.put_s("lv_armchair_front", 4, 14)
+    m.put("lv_coffee_table", 8, 14)
+    m.put_s("lv_armchair_blue", 11, 14)
+    m.put("lv_rug_stripes", 8, 16)
+    m.put_s("lv_sofa_back", 7, 17)
+    m.put("p_monstera", 1, 17)
 
-    # Bathroom corner.
-    m.put("wash_basin", 30, 22)
-    m.put("vanity", 32, 22)
-    m.put("sink_pedestal", 34, 22)
-    m.put("screen_blue", 37, 22)
-    m.put("screen_blue", 38, 22)
-    m.put("rug_runner", 33, 26)
-    m.put("plant_pot", 38, 28)
-    m.put("drawer_shelf", 29, 27)
+    # Kids' corner: a single bed, toys, pouf, rug.
+    m.put("bd_toy_chest", 24, 11)
+    m.put("bd_toy_shelf", 26, 11)
+    m.put_s("bd_bed_single", 24, 14)
+    m.put_s("lv_pouf", 20, 14)
+    m.put("lv_rug_pink", 20, 17)
+    m.put("p_fig", 27, 17)
+    m.put("p_planter", 14, 17)
+    m.put("b_coat", 17, 12)
+    m.put("b_mat", 15, 20)
 
-    # Hall: entrance, coat corner.
-    m.put("tree_vase", 22, 13)
-    m.put(Obj("ottomans", 4, 3, 2, 1, "base"), 26, 14)
-    m.seat(26, 14, "down")
-    m.seat(27, 14, "down")
-    m.put("clock", 27, 21)
-    m.put("floor_lamp", 22, 22)
-    m.put("painting_rose", 26, 12)
-
-    m.spawn = (24.5, 27.5)
-    for name, p in {"kitchen": (5, 9), "living": (10, 20), "bedroom": (30, 8), "kids": (32, 16), "bath": (33, 25), "hall": (24, 20)}.items():
+    m.spawn = (15.5, 19.5)
+    for name, p in {"bedroom": (5, 6), "bath": (14, 5), "kitchen": (25, 6), "living": (12, 19), "kids": (22, 13)}.items():
         m.room(name, *p)
     return m
 

@@ -1,7 +1,21 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-11-02 ("Maggots for Brains" dance)
+**Last updated:** 2026-11-03 (Gemini refresh: rooms rebuilt, new sheets, snacks, Office default)
 **Branch:** `master` (user asked: work on master directly, no more PRs)
+
+## Gemini refresh — DONE, PUSHED (2026-11-03)
+- Spec: `docs/specs/gemini-refresh.md`. Pickers hide castle/medieval/tavern sheets (`HIDDEN_SHEETS` in
+  decor.ts; they still draw); our sheets (`byte_grounds_*`) first, then `gemini_*`.
+- New pastel Gemini sheets: `byte_grounds_{living,plants,cafe,bedroom}` (+ `_grid`), seat rules for
+  their sofas/armchairs/chairs/stools/bench/pouf/beds; café counter = coffee, cooler = water.
+- Snacks: `SNACKS` (donut, cookie, croissant, apple, chocolate, chips) are held items; snack
+  sellers (Gemini vending machine, café pastry case) give a random one (`snackFor`), eaten with the
+  sip animation; pixel art in render.ts `SNACK_ART`.
+- `tools/build_maps.py`: Gemini catalog (studio, office2, building, home, living, plants, cafe,
+  bedroom), `top_wall()` (2-tile north wall with wall art, warm `WALL_FACE`), `put_s` (seats from the
+  catalog), `floor3` replaces earlier floors. Office (40x28, meeting room zone), Lounge & Café
+  (36x26), Home (30x22) rebuilt at rev 2 (saved rev-1 copies stop hiding them).
+- Office is the default room (`DEFAULT_MAP`/`DEFAULT_ROOM`), always preselected on the join screen.
 
 ## "Maggots for Brains" dance — DONE, PUSHED (2026-11-02)
 - From the owner's description (no video available to me): new pose `maggots` (protocol `POSES`,

@@ -1,8 +1,11 @@
 import type { OfficeMap } from '@byte_grounds/shared/map';
-import type { HeldItem } from '@byte_grounds/shared/protocol';
+import { SNACKS, type Snack } from '@byte_grounds/shared/protocol';
+
+/** What a machine gives: a coffee, a water, or a snack (a random one each time). */
+export type MachineKind = 'coffee' | 'water' | 'snack';
 
 /** Sheet cells that are drink machines once stamped, and what they give. */
-const MACHINES: { sheet: string; sx: number; sy: number; item: Exclude<HeldItem, ''> }[] = [
+const MACHINES: { sheet: string; sx: number; sy: number; item: MachineKind }[] = [
   { sheet: 'office', sx: 10, sy: 0, item: 'coffee' }, // coffee maker
   { sheet: 'office', sx: 10, sy: 20, item: 'water' }, // water cooler (top)
   { sheet: 'office', sx: 10, sy: 21, item: 'water' }, // water cooler (base)
@@ -12,6 +15,15 @@ const MACHINES: { sheet: string; sx: number; sy: number; item: Exclude<HeldItem,
   { sheet: 'gemini_studio_grid', sx: 4, sy: 3, item: 'water' },
   { sheet: 'gemini_office2_grid', sx: 9, sy: 4, item: 'water' }, // Gemini water dispenser
   { sheet: 'gemini_office2_grid', sx: 9, sy: 5, item: 'water' },
+  { sheet: 'byte_grounds_cafe_grid', sx: 0, sy: 0, item: 'coffee' }, // café counter (espresso machine)
+  { sheet: 'byte_grounds_cafe_grid', sx: 1, sy: 0, item: 'coffee' },
+  { sheet: 'byte_grounds_cafe_grid', sx: 0, sy: 1, item: 'coffee' },
+  { sheet: 'byte_grounds_cafe_grid', sx: 1, sy: 1, item: 'coffee' },
+  { sheet: 'byte_grounds_cafe_grid', sx: 4, sy: 3, item: 'water' }, // café water cooler
+  { sheet: 'byte_grounds_cafe_grid', sx: 4, sy: 4, item: 'water' },
+  // Snack sellers: the Gemini vending machine and the café pastry case.
+  ...[0, 1].flatMap((dx) => [2, 3].map((sy) => ({ sheet: 'gemini_studio_grid', sx: 5 + dx, sy, item: 'snack' as const }))),
+  ...[0, 1, 2].flatMap((dx) => [0, 1].map((sy) => ({ sheet: 'byte_grounds_cafe_grid', sx: 5 + dx, sy, item: 'snack' as const }))),
 ];
 
 /** How close (tiles, to a machine cell's center) you must stand to use it; counters sit in between. */
@@ -23,10 +35,15 @@ export const DRINK_MS = [30_000, 60_000, 300_000] as const;
 export interface Machine {
   x: number;
   y: number;
-  item: Exclude<HeldItem, ''>;
+  item: MachineKind;
 }
 
-/** Every drink machine on the map (one per tile). */
+/** The snack a seller hands out for a random number in [0, 1). */
+export function snackFor(rand: number): Snack {
+  return SNACKS[Math.min(SNACKS.length - 1, Math.floor(rand * SNACKS.length))]!;
+}
+
+/** Every drink machine and snack seller on the map (one per tile). */
 export function machinesIn(m: OfficeMap): Machine[] {
   const byTile = new Map<string, Machine>();
   for (const d of m.decor ?? []) {

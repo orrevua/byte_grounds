@@ -1,4 +1,4 @@
-import { TILE_SIZE, isDancePose } from '@byte_grounds/shared/protocol';
+import { TILE_SIZE, isDancePose, isSnack, type Snack } from '@byte_grounds/shared/protocol';
 import { decorLayer, tileColor, zoneKey } from '@byte_grounds/shared/map';
 import type { DecorCell, OfficeMap, Zone } from '@byte_grounds/shared/map';
 import {
@@ -548,8 +548,38 @@ export function cupRest(pose: Pose, dir: Direction): { dx: number; dy: number } 
   return dir === 'down' ? { dx: 8, dy: -1 } : { dx: dir === 'left' ? -5 : 5, dy: -4 };
 }
 
+/** Snack pixel art (one char per px): k outline, then the snack's own colors; '.' = clear. */
+const SNACK_COLORS: Record<string, string> = {
+  k: '#2a1d17', p: '#f59ac2', s: '#fff36b', b: '#7cd3f7', d: '#d9a066', D: '#a8692e', c: '#4a2a1a',
+  C: '#6b3f24', r: '#e04848', w: '#ff9a9a', g: '#3e8e41', v: '#7a5cd6', y: '#ffd84a', o: '#ff9f43',
+};
+const SNACK_ART: Record<Snack, readonly string[]> = {
+  donut: ['.kkkkk.', 'kpsppbk', 'kpk.kpk', 'kdpbpdk', '.kdddk.', '..kkk..'],
+  cookie: ['.kkkk.', 'kddcdk', 'kcdddk', 'kddcdk', 'kdcddk', '.kkkk.'],
+  croissant: ['..kkkk..', '.kddDdk.', 'kdDddDdk', 'kddDdddk', '.kk..kk.'],
+  apple: ['...g..', '..g...', '.kkkk.', 'krrrwk', 'krrrrk', 'krrrrk', '.kkkk.'],
+  chocolate: ['kkkkk', 'kcCck', 'kcCck', 'kvvvk', 'kvyvk', 'kvvvk', 'kkkkk'],
+  chips: ['.kkkk.', 'kooook', 'koyyok', 'koyyok', 'kooook', 'kooook', '.kkkk.'],
+};
+
+/** Draw a snack centered at (cx, cy). */
+function drawSnack(ctx: CanvasRenderingContext2D, snack: Snack, cx: number, cy: number): void {
+  const art = SNACK_ART[snack];
+  const x0 = cx - Math.floor(art[0]!.length / 2);
+  const y0 = cy - Math.floor(art.length / 2);
+  art.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) {
+      const color = SNACK_COLORS[row[x]!];
+      if (!color) continue;
+      ctx.fillStyle = color;
+      ctx.fillRect(x0 + x, y0 + y, 1, 1);
+    }
+  });
+}
+
 /**
- * A held drink by the avatar's hand: a white mug of coffee with steam, or a paper cup of water.
+ * A held drink or snack by the avatar's hand: a white mug of coffee with steam, a paper cup of
+ * water, or a snack (eaten with the same hand-to-mouth move as a sip).
  * `sip` (from `sipStep`) puts it where the raised hand is. Pixel-drawn (whole px) like the sprites.
  */
 export function drawHeldItem(
@@ -571,7 +601,9 @@ export function drawHeldItem(
     ctx.fillRect(cx + dx, cy + dy, w, h);
   };
   ctx.save();
-  if (item === 'coffee') {
+  if (isSnack(item)) {
+    drawSnack(ctx, item, cx, cy);
+  } else if (item === 'coffee') {
     px(-3, -3, 7, 7, '#2a1d17'); // outline
     px(-2, -2, 5, 5, '#f4f1ea'); // mug
     px(-2, -2, 5, 1, '#6b3f24'); // coffee

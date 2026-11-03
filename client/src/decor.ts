@@ -22,9 +22,9 @@ export const HIDDEN_SHEETS: ReadonlySet<string> = new Set([
   'wooden_furniture', 'upholstery', 'stairs', 'sofas_formal', 'paintings', 'interior',
 ]);
 
-/** Picker order: the Gemini sheets first, then the rest, each alphabetical. */
-const pickerOrder = (a: string, b: string) =>
-  Number(b.startsWith('gemini_')) - Number(a.startsWith('gemini_')) || a.localeCompare(b);
+/** Picker order: ByteGrounds' own Gemini-made sheets, then the other Gemini sheets, then the rest. */
+const rank = (s: string) => (s.startsWith('byte_grounds_') ? 0 : s.startsWith('gemini_') ? 1 : 2);
+const pickerOrder = (a: string, b: string) => rank(a) - rank(b) || a.localeCompare(b);
 
 /**
  * Sheets offered in the editor picker. A sheet with a `<name>_grid` repack (same art moved onto

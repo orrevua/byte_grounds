@@ -6,7 +6,7 @@ import { BUILT_IN_MAPS, DEFAULT_MAP, builtInMap, builtInRev } from '../src/maps.
 import { DEFAULT_ROOM } from '../src/protocol.ts';
 import { effectiveSeats } from '../src/seats.ts';
 
-const SEAT_COUNTS: Record<string, number> = { studio: 34, office: 76, lounge: 78, home: 32 };
+const SEAT_COUNTS: Record<string, number> = { studio: 34, office: 35, lounge: 47, home: 14 };
 
 const DECOR_DIR = resolve(import.meta.dirname, '../../client/src/assets/decor');
 

@@ -31,6 +31,6 @@ describe('decor sheets', () => {
     }
     expect([...DECOR_SHEETS].sort()).toEqual(sheets.filter((s) => !repacked.includes(s) && !hidden(s)).sort());
     for (const s of ['castle', 'thrones', 'tavern_decor_grid', 'sofas_formal']) expect(DECOR_SHEETS).not.toContain(s);
-    expect(DECOR_SHEETS[0]).toMatch(/^gemini_/); // the Gemini sheets come first
+    expect(DECOR_SHEETS[0]).toMatch(/^byte_grounds_/); // our Gemini sheets come first, then gemini_*
   });
 });

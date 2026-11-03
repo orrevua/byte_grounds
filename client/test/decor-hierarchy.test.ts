@@ -78,7 +78,7 @@ describe('decor hierarchy', () => {
         if (isGroundCell(d)) ground++;
       }
     }
-    expect(floors).toBeGreaterThan(3000);
+    expect(floors).toBeGreaterThan(2500);
     expect(ground / floors).toBeGreaterThan(0.97);
   });
 

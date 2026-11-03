@@ -206,3 +206,10 @@ under the original's license (CC-BY-SA share-alike included).
 - Meeting tables (long, vertical, oval) appended below `gemini_office2(_grid)`: generated from
   `art/gemini/meeting_tables3.png` (chairs removed by a Gemini edit), converted at scale 3.54,
   repacked separately and stacked under the existing rows so no earlier piece moved.
+
+### byte_grounds_living, byte_grounds_plants, byte_grounds_cafe, byte_grounds_bedroom (+ _grid repacks)
+
+- Generated with Google Gemini (via `tools/gemini_mcp.py`) for the project owner in the pastel
+  Gemini style (sources `art/gemini/{living,plants,cafe,bedroom}_sheet.png`, git-ignored), converted
+  with `tools/pixelate_image.py --scale 3.54` and repacked with `tools/repack_decor.py`.
+

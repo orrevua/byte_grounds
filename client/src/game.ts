@@ -1,5 +1,5 @@
 import { decorLayer, seatsNearIn, stepOutOf, zoneAt, zoneKey, type DecorCell, type OfficeMap, type Seat, type Zone } from '@byte_grounds/shared/map';
-import { POSITION_TICK_MS, TILE_SIZE, isDancePose, normalizeChat, normalizeLock, normalizeMusic, normalizePose, normalizeStatus } from '@byte_grounds/shared/protocol';
+import { POSITION_TICK_MS, TILE_SIZE, isDancePose, isSnack, normalizeItem, normalizeChat, normalizeLock, normalizeMusic, normalizePose, normalizeStatus } from '@byte_grounds/shared/protocol';
 import { effectiveSeats, seatSpot } from '@byte_grounds/shared/seats';
 import type { Appearance, HeldItem, PeerId, PeerState, Pose, RoomLock, ServerToClient, StatusFields } from '@byte_grounds/shared/protocol';
 import { balloonHeight, drawAvatar, drawAvatarTags, drawChatBalloon, drawDecorCellAt, drawFrameSprite, drawHeldItem, drawZones, sipStep, tagsTop, drawMap, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
@@ -10,7 +10,7 @@ import { Keyboard, TouchPad, isTouchDevice } from './input.ts';
 import { stepMovement, type MoveInput } from './movement.ts';
 import { distanceTiles, nextLinkState, type ProxState } from './proximity.ts';
 import { MeetingView, type Participant } from './meeting.ts';
-import { drinkDuration, formatDuration, machineNear, machinesIn, type Machine } from './dispensers.ts';
+import { drinkDuration, formatDuration, machineNear, machinesIn, snackFor, type Machine } from './dispensers.ts';
 import { MediaManager, ScreenStage, VideoBubbles, hasLiveVideo, volumeForDistance } from './media.ts';
 import { WebrtcMesh } from './webrtc.ts';
 import { VoiceMeter } from './voice.ts';
@@ -631,16 +631,18 @@ export class Game {
     return this.seat ? undefined : machineNear(this.machines, this.self.x, this.self.y);
   }
 
-  /** Take a coffee / water from the machine in reach: held for 30 s, 1 min or 5 min (random). */
+  /** Take a coffee / water / random snack from the machine in reach: held for 30 s, 1 min or 5 min (random). */
   getDrink(): void {
     const k = this.machineNearby();
     if (!k) return;
     const ms = drinkDuration(Math.random());
-    this.self.item = k.item;
+    this.self.item = k.item === 'snack' ? snackFor(Math.random()) : k.item;
     this.itemUntil = Date.now() + ms;
     if (isDancePose(this.self.pose)) this.self.pose = 'stand';
     this.sendStatus();
-    this.toast(t(k.item === 'coffee' ? 'game.coffeeInHand' : 'game.waterInHand', { time: formatDuration(ms) }), 'info');
+    const time = formatDuration(ms);
+    if (isSnack(this.self.item)) this.toast(t('game.snackInHand', { snack: t(`snack.${this.self.item}`), time }), 'info');
+    else this.toast(t(k.item === 'coffee' ? 'game.coffeeInHand' : 'game.waterInHand', { time }), 'info');
   }
 
   /** The drink is finished. */
@@ -727,7 +729,7 @@ export class Game {
       muted: p.muted === true,
       lock: normalizeLock(p.lock),
       music: normalizeMusic(p.music),
-      item: p.item === 'coffee' || p.item === 'water' ? p.item : '',
+      item: normalizeItem(p.item),
       admin: p.admin === true,
       ...(typeof p.uid === 'string' ? { uid: p.uid } : {}),
     };
@@ -779,7 +781,7 @@ export class Game {
           r.muted = msg.muted === true;
           r.lock = normalizeLock(msg.lock);
           r.music = normalizeMusic(msg.music);
-          r.item = msg.item === 'coffee' || msg.item === 'water' ? msg.item : '';
+          r.item = normalizeItem(msg.item);
           this.onPeersChanged?.();
         }
         break;
@@ -1110,7 +1112,7 @@ export class Game {
     this.seatBtn.className = label ? '' : 'hidden';
 
     const k = this.machineNearby();
-    const drinkLabel = k ? t(k.item === 'coffee' ? 'game.getCoffee' : 'game.getWater') : '';
+    const drinkLabel = k ? t(k.item === 'coffee' ? 'game.getCoffee' : k.item === 'water' ? 'game.getWater' : 'game.getSnack') : '';
     if (this.drinkBtn.textContent !== drinkLabel) this.drinkBtn.textContent = drinkLabel;
     this.drinkBtn.className = drinkLabel ? '' : 'hidden';
   }

@@ -77,8 +77,20 @@ export interface PeerState {
 }
 
 /** Things an avatar can hold. */
-export const HELD_ITEMS = ['coffee', 'water'] as const;
+/** Snacks from a snack seller (vending machine, pastry case): one at random each time. */
+export const SNACKS = ['donut', 'cookie', 'croissant', 'apple', 'chocolate', 'chips'] as const;
+export type Snack = (typeof SNACKS)[number];
+export const HELD_ITEMS = ['coffee', 'water', ...SNACKS] as const;
 export type HeldItem = (typeof HELD_ITEMS)[number] | '';
+
+/** Coerce an incoming held item (unknown → nothing). */
+export function normalizeItem(x: unknown): HeldItem {
+  return HELD_ITEMS.includes(x as (typeof HELD_ITEMS)[number]) ? (x as HeldItem) : '';
+}
+
+export function isSnack(item: HeldItem): item is Snack {
+  return (SNACKS as readonly string[]).includes(item);
+}
 
 /** Longest status line / chat message kept (longer input is clipped). */
 export const STATUS_MAX = 80;
