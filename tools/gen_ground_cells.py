@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DECOR = ROOT / "client" / "src" / "assets" / "decor"
 OUT = ROOT / "shared" / "src" / "ground-cells.json"
 # Floor / wall tile sets (decor.ts TILE_SHEETS) and the Gemini floor textures.
-SHEETS = ["castle", "gemini_floors", "house_inside", "interior", "interior_tiles", "stairs"]
+SHEETS = ["castle", "byte_grounds_floors", "house_inside", "interior", "interior_tiles", "stairs"]
 CELL = 32
 COVER = 0.95
 

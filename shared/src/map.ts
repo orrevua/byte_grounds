@@ -242,6 +242,15 @@ function parseNoSeats(data: unknown): Pick<OfficeMap, 'noSeats'> {
 }
 
 /**
+ * The sheet's current file name: the Gemini-made sheets were renamed from `gemini_*` to
+ * `byte_grounds_*`, and maps / live edits saved before that keep the old names (live-edit undo
+ * matches stored ops exactly, so the data is never rewritten): lookups go through this.
+ */
+export function canonicalSheet(sheet: string): string {
+  return sheet.startsWith('gemini_') ? `byte_grounds_${sheet.slice('gemini_'.length)}` : sheet;
+}
+
+/**
  * The depth layer of a decor cell: its explicit `layer` if set, else inferred from the tile
  * under it — a wall tile (solid furniture) is an `object` (occludes avatars), anything else `floor`.
  */

@@ -1,5 +1,5 @@
 import catalog from './seat-catalog.json' with { type: 'json' };
-import { transformFacing, type Facing, type OfficeMap, type Seat } from './map.ts';
+import { transformFacing, type Facing, type OfficeMap, type Seat, canonicalSheet } from './map.ts';
 
 /** What a sheet cell offers once stamped: sit or lie, facing `dir` (untransformed). */
 export interface SeatSpot {
@@ -103,7 +103,7 @@ export function registerSeatMarks(sheet: string, marks: readonly SeatMark[]): vo
 
 /** The seat a stamped `(sheet, sx, sy)` cell offers, if any. */
 export function seatSpot(sheet: string, sx: number, sy: number): SeatSpot | undefined {
-  return INDEX.get(cellKey(sheet, sx, sy));
+  return INDEX.get(cellKey(canonicalSheet(sheet), sx, sy));
 }
 
 /**

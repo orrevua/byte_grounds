@@ -1310,18 +1310,30 @@ export class Game {
 
   /**
    * Sitting with the back to the viewer, the chair's backrest is nearer than the body: draw the
-   * chair cells of the seat tile again over the avatar, so only the back of the head shows.
-   * Only seat cells (chairs, sofas…) are redrawn; a desk in the same row stays behind.
+   * seat tile's chair cells again over the avatar, and the cells of the same piece straight above
+   * them (a tall backrest), so the chair is always in front and only what rises above it shows.
+   * Only seat pieces (chairs, sofas…) are redrawn; a desk in the same row stays behind.
    */
   private drawChairBackOver(a: Avatar): void {
     const x = Math.floor(a.x);
     const y = Math.floor(a.y);
-    for (const d of this.map.decor ?? []) {
-      if (d.x === x && d.y === y && decorLayer(this.map, d) === 'object' && seatSpot(d.sheet, d.sx, d.sy)) {
-        drawDecorCellAt(this.ctx, d);
-      }
+    const decor = this.map.decor ?? [];
+    let row = decor.filter((d) => d.x === x && d.y === y && decorLayer(this.map, d) === 'object' && seatSpot(d.sheet, d.sx, d.sy));
+    for (let ty = y; row.length > 0; ty--) {
+      for (const d of row) drawDecorCellAt(this.ctx, d);
+      const below = row;
+      row = decor.filter(
+        (d) =>
+          d.x === x &&
+          d.y === ty - 1 &&
+          !d.rot &&
+          !d.flipX &&
+          below.some((b) => !b.rot && !b.flipX && b.sheet === d.sheet && b.sx === d.sx && b.sy === d.sy + 1),
+      );
     }
   }
+
+
 
   /**
    * Lying in bed, the body is under the covers: draw the bed's own cells on the tiles toward the

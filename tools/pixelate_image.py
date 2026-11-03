@@ -16,7 +16,7 @@ real pixels so the game (32px cells, LPC-sized characters) can use them:
    rare distinct colors (leaf greens, highlights) survive;
 6. background- or shadow-colored pixels enclosed by a piece (grey seats, screens), and shadow-colored
    ones with art above and below them, stay opaque art; only what connects to the open background is
-   see-through (`--keep-holes` turns this off);
+   see-through (`--holes shadow` fills only the shadow-colored ones, `--holes none` neither);
 7. specks smaller than `--min-blob` pixels are dropped (stray legs, crumbs).
 
 Pick `--scale` so one of the image's grid cells (or one chair) becomes 32px. Then
@@ -136,7 +136,11 @@ def main() -> None:
     ap.add_argument("--min-shadow", type=int, default=40, help="min size (px) of a dark background-hue blob to make a shadow")
     ap.add_argument("--merge", type=int, default=18, help="merge colors closer than this (|dr|+|dg|+|db|)")
     ap.add_argument("--min-blob", type=int, default=60)
-    ap.add_argument("--keep-holes", action="store_true", help="leave background-colored pixels enclosed by art transparent")
+    ap.add_argument("--holes", choices=["all", "shadow", "none"], default="all",
+                    help="which enclosed pixels become art: background- and shadow-colored (all; a sheet whose "
+                    "art shares the background's grey), only the shadow-colored ones (shadow; screens, dark parts: "
+                    "background-colored pockets stay see-through), or none")
+    ap.add_argument("--keep-holes", action="store_true", help="same as --holes none")
     ap.add_argument("--preview")
     ap.add_argument("--debug", action="store_true")
     args = ap.parse_args()
@@ -265,10 +269,13 @@ def main() -> None:
     # transparent / shadow. Outlines often have 1-2px gaps, so enclosure is judged on the art closed
     # by one pixel; the open background then grows back by one pixel, so notches stay see-through.
     art = ~clear & ~shadow
-    if not args.keep_holes:
+    mode = "none" if args.keep_holes else args.holes
+    if mode != "none":
         # ...and shadow-colored pixels with art above and below them are the piece's own (an
         # unoutlined grey cushion, a JPEG fringe): cast shadows lie under a piece, not inside it.
         holes = enclosed(art) | (shadow & sandwiched(art))
+        if mode == "shadow":
+            holes &= shadow  # background-colored pockets (between leaves, legs, ropes) stay clear
         art |= holes
         clear &= ~holes
         shadow &= ~holes

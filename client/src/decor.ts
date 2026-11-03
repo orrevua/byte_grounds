@@ -1,5 +1,5 @@
 import { TILE_SIZE } from '@byte_grounds/shared/protocol';
-import type { Rotation } from '@byte_grounds/shared/map';
+import { canonicalSheet, type Rotation } from '@byte_grounds/shared/map';
 import { labelObjects, type SheetObjects } from './decor-objects.ts';
 import { registerSeatMarks, type SeatMark } from '@byte_grounds/shared/seats';
 
@@ -22,8 +22,8 @@ export const HIDDEN_SHEETS: ReadonlySet<string> = new Set([
   'wooden_furniture', 'upholstery', 'stairs', 'sofas_formal', 'paintings', 'interior',
 ]);
 
-/** Picker order: ByteGrounds' own Gemini-made sheets, then the other Gemini sheets, then the rest. */
-const rank = (s: string) => (s.startsWith('byte_grounds_') ? 0 : s.startsWith('gemini_') ? 1 : 2);
+/** Picker order: ByteGrounds' own Gemini-made sheets first, then the rest. */
+const rank = (s: string) => (s.startsWith('byte_grounds_') ? 0 : 1);
 const pickerOrder = (a: string, b: string) => rank(a) - rank(b) || a.localeCompare(b);
 
 /**
@@ -88,7 +88,7 @@ const objects = new Map<string, SheetObjects>();
 
 /** The sheet's image, starting the load on first use; draw it once `complete`. */
 export function decorImage(sheet: string): HTMLImageElement | null {
-  const url = SHEET_URLS[sheet];
+  const url = SHEET_URLS[sheet] ?? SHEET_URLS[canonicalSheet(sheet)];
   if (!url) return null;
   let img = images.get(sheet);
   if (!img) {

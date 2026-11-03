@@ -1,4 +1,4 @@
-import type { OfficeMap } from '@byte_grounds/shared/map';
+import { canonicalSheet, type OfficeMap } from '@byte_grounds/shared/map';
 import { SNACKS, type Snack } from '@byte_grounds/shared/protocol';
 
 /** What a machine gives: a coffee, a water, or a snack (a random one each time). */
@@ -9,12 +9,12 @@ const MACHINES: { sheet: string; sx: number; sy: number; item: MachineKind }[] =
   { sheet: 'office', sx: 10, sy: 0, item: 'coffee' }, // coffee maker
   { sheet: 'office', sx: 10, sy: 20, item: 'water' }, // water cooler (top)
   { sheet: 'office', sx: 10, sy: 21, item: 'water' }, // water cooler (base)
-  { sheet: 'gemini_studio_grid', sx: 0, sy: 4, item: 'coffee' }, // Gemini coffee bar (machine)
-  { sheet: 'gemini_studio_grid', sx: 1, sy: 4, item: 'coffee' },
-  { sheet: 'gemini_studio_grid', sx: 4, sy: 2, item: 'water' }, // Gemini water cooler
-  { sheet: 'gemini_studio_grid', sx: 4, sy: 3, item: 'water' },
-  { sheet: 'gemini_office2_grid', sx: 9, sy: 4, item: 'water' }, // Gemini water dispenser
-  { sheet: 'gemini_office2_grid', sx: 9, sy: 5, item: 'water' },
+  { sheet: 'byte_grounds_studio_grid', sx: 0, sy: 4, item: 'coffee' }, // Gemini coffee bar (machine)
+  { sheet: 'byte_grounds_studio_grid', sx: 1, sy: 4, item: 'coffee' },
+  { sheet: 'byte_grounds_studio_grid', sx: 4, sy: 2, item: 'water' }, // Gemini water cooler
+  { sheet: 'byte_grounds_studio_grid', sx: 4, sy: 3, item: 'water' },
+  { sheet: 'byte_grounds_office2_grid', sx: 9, sy: 4, item: 'water' }, // Gemini water dispenser
+  { sheet: 'byte_grounds_office2_grid', sx: 9, sy: 5, item: 'water' },
   { sheet: 'byte_grounds_cafe_grid', sx: 0, sy: 0, item: 'coffee' }, // café counter (espresso machine)
   { sheet: 'byte_grounds_cafe_grid', sx: 1, sy: 0, item: 'coffee' },
   { sheet: 'byte_grounds_cafe_grid', sx: 0, sy: 1, item: 'coffee' },
@@ -22,7 +22,7 @@ const MACHINES: { sheet: string; sx: number; sy: number; item: MachineKind }[] =
   { sheet: 'byte_grounds_cafe_grid', sx: 4, sy: 3, item: 'water' }, // café water cooler
   { sheet: 'byte_grounds_cafe_grid', sx: 4, sy: 4, item: 'water' },
   // Snack sellers: the Gemini vending machine and the café pastry case.
-  ...[0, 1].flatMap((dx) => [2, 3].map((sy) => ({ sheet: 'gemini_studio_grid', sx: 5 + dx, sy, item: 'snack' as const }))),
+  ...[0, 1].flatMap((dx) => [2, 3].map((sy) => ({ sheet: 'byte_grounds_studio_grid', sx: 5 + dx, sy, item: 'snack' as const }))),
   ...[0, 1, 2].flatMap((dx) => [0, 1].map((sy) => ({ sheet: 'byte_grounds_cafe_grid', sx: 5 + dx, sy, item: 'snack' as const }))),
 ];
 
@@ -47,7 +47,8 @@ export function snackFor(rand: number): Snack {
 export function machinesIn(m: OfficeMap): Machine[] {
   const byTile = new Map<string, Machine>();
   for (const d of m.decor ?? []) {
-    const hit = MACHINES.find((k) => k.sheet === d.sheet && k.sx === d.sx && k.sy === d.sy);
+    const sheet = canonicalSheet(d.sheet);
+    const hit = MACHINES.find((k) => k.sheet === sheet && k.sx === d.sx && k.sy === d.sy);
     if (hit) byTile.set(`${d.x},${d.y}`, { x: d.x, y: d.y, item: hit.item });
   }
   return [...byTile.values()];

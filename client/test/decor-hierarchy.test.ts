@@ -7,8 +7,8 @@ import { EditLog, refusedByWall } from '../src/live-model.ts';
 import type { EditOp, MapEdit } from '../src/edit-ops.ts';
 import { IDENTITY } from '../src/decor-transform.ts';
 
-const oak = { sheet: 'gemini_floors', sx: 0, sy: 0, w: 1, h: 1 };
-const grey = { sheet: 'gemini_floors', sx: 6, sy: 0, w: 1, h: 1 };
+const oak = { sheet: 'byte_grounds_floors', sx: 0, sy: 0, w: 1, h: 1 };
+const grey = { sheet: 'byte_grounds_floors', sx: 6, sy: 0, w: 1, h: 1 };
 const chair = { sheet: 'chairs', sx: 0, sy: 0, w: 1, h: 1 };
 const art = (m: { decor?: { x: number; y: number; sheet: string; sx: number }[] }, x: number, y: number) =>
   (m.decor ?? []).filter((d) => d.x === x && d.y === y).map((d) => `${d.sheet}:${d.sx}`);
@@ -25,15 +25,15 @@ describe('decor hierarchy', () => {
     stampDecor(m, 2, 2, oak, 'none');
     stampDecor(m, 2, 2, chair, 'none');
     stampDecor(m, 2, 2, grey, 'base');
-    expect(art(m, 2, 2)).toEqual(['gemini_floors:6', 'chairs:0']);
-    expect(m.decor!.find((d) => d.sheet === 'gemini_floors')!.layer).toBe('floor');
+    expect(art(m, 2, 2)).toEqual(['byte_grounds_floors:6', 'chairs:0']);
+    expect(m.decor!.find((d) => d.sheet === 'byte_grounds_floors')!.layer).toBe('floor');
   });
 
   it('a floor on a tile with only furniture goes under it', () => {
     const m = createBlankMap('t', 6, 6);
     stampDecor(m, 3, 3, chair, 'none');
     stampDecor(m, 3, 3, oak, 'none');
-    expect(art(m, 3, 3)).toEqual(['gemini_floors:0', 'chairs:0']);
+    expect(art(m, 3, 3)).toEqual(['byte_grounds_floors:0', 'chairs:0']);
   });
 
   it('furniture still stacks on furniture', () => {
@@ -48,11 +48,11 @@ describe('decor hierarchy', () => {
     stampDecor(m, 2, 2, oak, 'none');
     stampDecor(m, 2, 2, chair, 'none');
     stampDecor(m, 2, 2, grey, 'none', IDENTITY, { keepGround: true });
-    expect(art(m, 2, 2)).toEqual(['gemini_floors:0', 'gemini_floors:6', 'chairs:0']);
+    expect(art(m, 2, 2)).toEqual(['byte_grounds_floors:0', 'byte_grounds_floors:6', 'chairs:0']);
     stampDecor(m, 2, 2, grey, 'none', IDENTITY, { keepGround: true }); // the same floor again: no copy
-    expect(art(m, 2, 2)).toEqual(['gemini_floors:0', 'gemini_floors:6', 'chairs:0']);
+    expect(art(m, 2, 2)).toEqual(['byte_grounds_floors:0', 'byte_grounds_floors:6', 'chairs:0']);
     expect(eraseDecor(m, 2, 2)).toBe(true); // erase takes the furniture first
-    expect(art(m, 2, 2)).toEqual(['gemini_floors:0', 'gemini_floors:6']);
+    expect(art(m, 2, 2)).toEqual(['byte_grounds_floors:0', 'byte_grounds_floors:6']);
   });
 
   it('floors lie on the floor layer and only block with Whole piece', () => {
@@ -73,7 +73,7 @@ describe('decor hierarchy', () => {
     let ground = 0;
     for (const id of ['lounge', 'office', 'home', 'studio']) {
       for (const d of builtInMap(id)!.decor ?? []) {
-        if (d.layer !== 'floor' || !['interior_tiles', 'house_inside', 'gemini_floors'].includes(d.sheet)) continue;
+        if (d.layer !== 'floor' || !['interior_tiles', 'house_inside', 'byte_grounds_floors'].includes(d.sheet)) continue;
         floors++;
         if (isGroundCell(d)) ground++;
       }
@@ -92,7 +92,7 @@ describe('decor hierarchy', () => {
     expect(isWalkable(m, 2.5, 2.5)).toBe(false); // the chair still blocks
     stampDecor(m, 2, 2, oak, 'none');
     expect(eraseDecor(m, 2, 2)).toBe(true); // furniture first
-    expect(art(m, 2, 2)).toEqual(['gemini_floors:0']);
+    expect(art(m, 2, 2)).toEqual(['byte_grounds_floors:0']);
     expect(isWalkable(m, 2.5, 2.5)).toBe(true); // its last object left: walkable again
     expect(eraseDecor(m, 2, 2, 'furniture')).toBe(false);
   });

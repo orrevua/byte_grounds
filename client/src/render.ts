@@ -21,6 +21,11 @@ import type { Appearance, HeldItem, Pose } from '@byte_grounds/shared/protocol';
 
 /** Drop the 64px frame so the character's feet sit on the tile point. */
 const FOOT_OFFSET = 16;
+/**
+ * Seated, the body is raised off the floor point (px): onto the cushion when facing the viewer, and
+ * when facing away high enough that the head clears a backrest (drawn back over the body).
+ */
+export const SIT_LIFT: Record<Direction, number> = { down: 7, up: 14, left: 3, right: 3 };
 
 const GRID = '#20242b';
 
@@ -146,7 +151,7 @@ export function drawPosedSprite(
   const px = x * TILE_SIZE;
   const py = y * TILE_SIZE;
   if (pose === 'sit') {
-    drawSitAppearance(ctx, a, dir, px - FRAME_SIZE / 2, py - FRAME_SIZE + FOOT_OFFSET);
+    drawSitAppearance(ctx, a, dir, px - FRAME_SIZE / 2, py - FRAME_SIZE + FOOT_OFFSET - SIT_LIFT[dir]);
     return;
   }
   if (isDancePose(pose)) {
@@ -544,7 +549,7 @@ export function cupRest(pose: Pose, dir: Direction): { dx: number; dy: number } 
   if (dir === 'up' || pose === 'lie' || isDancePose(pose)) return null;
   // The left hand, the one that sips: facing down it hangs at frame (40, 48), on the viewer's right
   // (the frame's top is 48px above the feet point); sideways, the front hand.
-  if (pose === 'sit') return dir === 'down' ? { dx: 8, dy: -2 } : { dx: dir === 'left' ? -6 : 6, dy: -3 };
+  if (pose === 'sit') return dir === 'down' ? { dx: 8, dy: -2 - SIT_LIFT.down } : { dx: dir === 'left' ? -6 : 6, dy: -3 - SIT_LIFT[dir] };
   return dir === 'down' ? { dx: 8, dy: -1 } : { dx: dir === 'left' ? -5 : 5, dy: -4 };
 }
 

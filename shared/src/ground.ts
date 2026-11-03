@@ -1,4 +1,5 @@
 import catalog from './ground-cells.json' with { type: 'json' };
+import { canonicalSheet } from './map.ts';
 
 /**
  * The decor hierarchy: `ground` (floor and wall tiles, from `ground-cells.json`, written by
@@ -13,7 +14,7 @@ const GROUND = new Map<string, ReadonlySet<string>>(
 );
 
 export function isGroundCell(c: { sheet: string; sx: number; sy: number }): boolean {
-  return GROUND.get(c.sheet)?.has(`${c.sx},${c.sy}`) ?? false;
+  return GROUND.get(canonicalSheet(c.sheet))?.has(`${c.sx},${c.sy}`) ?? false;
 }
 
 export function decorLevel(c: { sheet: string; sx: number; sy: number }): DecorLevel {

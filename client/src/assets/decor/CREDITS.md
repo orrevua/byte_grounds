@@ -186,24 +186,24 @@ under the original's license (CC-BY-SA share-alike included).
   rendered with `node tools/sheet_spec.mts render`). No third-party pixels.
 - License: **CC0 1.0** (public domain dedication, https://creativecommons.org/publicdomain/zero/1.0/).
 
-### gemini_office.png, gemini_lounge.png (+ their _grid repacks)
+### byte_grounds_office.png, byte_grounds_lounge.png (+ their _grid repacks)
 
 - Generated with Google Gemini for the project owner, then converted to real 32px-grid pixel art with
   `tools/pixelate_image.py` (shrink, background / grid-line removal, translucent shadows) and
   repacked with `tools/repack_decor.py`. Sources: `Gemini_Generated_Image_*.jpg` (not committed).
 
-### gemini_studio.png (+ _grid), gemini_floors.png
+### byte_grounds_studio.png (+ _grid), byte_grounds_floors.png
 
 - Generated with Google Gemini (via `tools/gemini_mcp.py`) for the project owner, in the style of the
   earlier Gemini sheets; converted with `tools/pixelate_image.py` and repacked with
   `tools/repack_decor.py`. Floors: six seamless textures shrunk to 3x3-cell blocks.
 
-### gemini_building.png, gemini_office2.png, gemini_home.png (+ their _grid repacks)
+### byte_grounds_building.png, byte_grounds_office2.png, byte_grounds_home.png (+ their _grid repacks)
 
 - Generated with Google Gemini (via `tools/gemini_mcp.py`) in the Gemini Studio style (walls, doors,
   windows, reception; desks, office equipment; beds, bathroom, kitchen, living room), converted with
   `tools/pixelate_image.py` and repacked with `tools/repack_decor.py`.
-- Meeting tables (long, vertical, oval) appended below `gemini_office2(_grid)`: generated from
+- Meeting tables (long, vertical, oval) appended below `byte_grounds_office2(_grid)`: generated from
   `art/gemini/meeting_tables3.png` (chairs removed by a Gemini edit), converted at scale 3.54,
   repacked separately and stacked under the existing rows so no earlier piece moved.
 

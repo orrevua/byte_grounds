@@ -103,9 +103,9 @@ def ottoman(color):
     return Obj("ottomans", COLORS.index(color), 4, 1, 1, "free")
 
 
-# Gemini Studio pieces (client/src/assets/decor/gemini_studio_grid.png, made with Gemini; see
+# Gemini Studio pieces (client/src/assets/decor/byte_grounds_studio_grid.png, made with Gemini; see
 # tools/pixelate_image.py). Chairs are 1x2: the seat is the lower cell.
-G = "gemini_studio_grid"
+G = "byte_grounds_studio_grid"
 GEMINI = {
     "g_round_table": Obj(G, 0, 0, 2, 2),
     "g_tv": Obj(G, 2, 0, 2, 2),
@@ -127,9 +127,9 @@ GEMINI = {
     "g_coffee_table": Obj(G, 0, 6, 2, 1, "all"),
     "g_rug": Obj(G, 2, 6, 2, 1, "none"),
 }
-O2 = "gemini_office2_grid"
-B = "gemini_building_grid"
-H = "gemini_home_grid"
+O2 = "byte_grounds_office2_grid"
+B = "byte_grounds_building_grid"
+H = "byte_grounds_home_grid"
 LV = "byte_grounds_living_grid"
 PL = "byte_grounds_plants_grid"
 CF = "byte_grounds_cafe_grid"
@@ -197,22 +197,22 @@ GEMINI.update({
     "h_armchair": Obj(H, 0, 6, 2, 2),
     "h_palm": Obj(H, 2, 6, 2, 2),
     # byte_grounds_living: pastel sofas / armchairs (front = facing the viewer, back = facing up)
-    "lv_sofa_front": Obj(LV, 0, 0, 3, 2),
-    "lv_sofa_back": Obj(LV, 3, 0, 3, 2),
-    "lv_armchair_front": Obj(LV, 6, 0, 2, 2),
-    "lv_armchair_back": Obj(LV, 8, 0, 2, 2),
-    "lv_sofa3": Obj(LV, 0, 2, 3, 2),
-    "lv_armchair_blue": Obj(LV, 3, 2, 2, 2),
-    "lv_side_lamp": Obj(LV, 5, 2, 1, 2),
-    "lv_coffee_table": Obj(LV, 6, 2, 2, 2),
-    "lv_tv": Obj(LV, 8, 2, 2, 2),
-    "lv_bookshelf": Obj(LV, 0, 4, 2, 2),
-    "lv_floor_lamp": Obj(LV, 2, 4, 1, 2),
-    "lv_rug_stripes": Obj(LV, 0, 6, 3, 1, "none"),
-    "lv_sideboard": Obj(LV, 3, 4, 3, 2),
-    "lv_rug_pink": Obj(LV, 6, 4, 3, 2, "none"),
-    "lv_pouf": Obj(LV, 3, 6, 2, 2, "free"),
-    "lv_bench": Obj(LV, 5, 6, 2, 1),
+    "lv_sofa_front": Obj(LV, 0, 0, 4, 2),
+    "lv_sofa_back": Obj(LV, 4, 0, 4, 2),
+    "lv_armchair_front": Obj(LV, 8, 0, 3, 2),
+    "lv_armchair_back": Obj(LV, 0, 2, 3, 2),
+    "lv_sofa3": Obj(LV, 3, 2, 3, 2),
+    "lv_armchair_blue": Obj(LV, 6, 2, 3, 2),
+    "lv_side_lamp": Obj(LV, 9, 2, 1, 2),
+    "lv_coffee_table": Obj(LV, 0, 4, 2, 2),
+    "lv_tv": Obj(LV, 2, 4, 2, 2),
+    "lv_bookshelf": Obj(LV, 4, 4, 2, 2),
+    "lv_floor_lamp": Obj(LV, 6, 4, 1, 2),
+    "lv_rug_stripes": Obj(LV, 8, 6, 3, 1, "none"),
+    "lv_sideboard": Obj(LV, 7, 4, 3, 2),
+    "lv_rug_pink": Obj(LV, 0, 6, 3, 2, "none"),
+    "lv_pouf": Obj(LV, 3, 6, 3, 2, "free"),
+    "lv_bench": Obj(LV, 6, 6, 2, 1),
     # byte_grounds_plants
     "p_monstera": Obj(PL, 0, 0, 2, 3),
     "p_snake": Obj(PL, 2, 0, 1, 2),
@@ -268,7 +268,7 @@ GEMINI.update({
     "bd_plant_stool": Obj(BD, 9, 5, 2, 2),
     "bd_bath_mat": Obj(BD, 0, 7, 2, 2, "none"),
 })
-# Gemini floor textures (gemini_floors.png): 3x3-cell seamless blocks, in this order.
+# Gemini floor textures (byte_grounds_floors.png): 3x3-cell seamless blocks, in this order.
 GEMINI_FLOORS = ["oak", "lavender", "grey", "stone", "teal", "walnut"]
 
 CAT = {
@@ -422,12 +422,12 @@ class MapBuilder:
         replaces an earlier Gemini floor on those tiles (a room drawn over the base floor)."""
         i = GEMINI_FLOORS.index(kind)
         bx, by = (i % 3) * 3, (i // 3) * 3
-        inside = lambda d: x0 <= d["x"] <= x1 and y0 <= d["y"] <= y1 and d["sheet"] == "gemini_floors"
+        inside = lambda d: x0 <= d["x"] <= x1 and y0 <= d["y"] <= y1 and d["sheet"] == "byte_grounds_floors"
         self.floor_decor = [d for d in self.floor_decor if not inside(d)]
         for y in range(y0, y1 + 1):
             for x in range(x0, x1 + 1):
                 if not self.tiles[y][x]:
-                    self.floor_decor.append({"x": x, "y": y, "sheet": "gemini_floors", "sx": bx + x % 3, "sy": by + y % 3, "layer": "floor"})
+                    self.floor_decor.append({"x": x, "y": y, "sheet": "byte_grounds_floors", "sx": bx + x % 3, "sy": by + y % 3, "layer": "floor"})
 
     def gchair(self, x, y, facing, tuck=False, over=False):
         """A Gemini chair with its top-left on (x, y); the seat is the lower cell. `tuck`: the seat
@@ -782,7 +782,7 @@ def build_lounge():
     m.put("lv_coffee_table", 21, 16)
     m.put_s("lv_sofa_back", 21, 19)
     m.put("lv_rug_pink", 25, 17)
-    m.put_s("lv_armchair_blue", 30, 13)
+    m.put_s("lv_armchair_blue", 29, 13)
     m.put("lv_side_lamp", 32, 13)
     m.put_s("lv_pouf", 30, 17)
     m.put_s("lv_bench", 29, 22)

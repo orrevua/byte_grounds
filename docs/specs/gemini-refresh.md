@@ -17,11 +17,11 @@ tavern_kitchen, chests, wooden_furniture, upholstery, stairs, sofas_formal, pain
 ## 2. New sheets (Gemini MCP → `tools/pixelate_image.py --scale 3.54` → `tools/repack_decor.py`)
 Prompts ask for an asset sheet (flat background, wide gaps, no chairs touching tables), front-facing
 3/4 camera, the reference `art/gemini/studio_furniture.png` + the office pack JPG for style.
-- `gemini_living`: pastel sofas (facing down and up), armchairs (down, up), coffee tables, side
+- `byte_grounds_living`: pastel sofas (facing down and up), armchairs (down, up), coffee tables, side
   tables, rugs, TV console, floor lamps, bookshelves, sideboard.
-- `gemini_plants`: potted plants (small to tall), flower vases, hanging/planter boxes, cacti,
+- `byte_grounds_plants`: potted plants (small to tall), flower vases, hanging/planter boxes, cacti,
   succulents, flower beds, small trees in pots.
-- `gemini_cafe`: café counter with espresso machine, pastry display, bar stools, round café tables,
+- `byte_grounds_cafe`: café counter with espresso machine, pastry display, bar stools, round café tables,
   café chairs (down, up), menu board, fridge, coffee bags shelf.
 Seat rules for every new chair / sofa / stool / bed go in `shared/src/seat-catalog.json`; the drink
 machines (`client/src/dispensers.ts`) learn the new espresso machine / water cooler cells.
