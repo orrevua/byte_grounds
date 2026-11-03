@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CHAT_MAX, POSES, STATUS_MAX, normalizeChat, normalizePose, normalizeStatus, normalizeStatusFields, normalizeLock, LOCK_ALLOW_MAX, normalizeMusic, MUSIC_MAX } from '../src/protocol.ts';
+import { CHAT_MAX, POSES, STATUS_MAX, normalizeChat, normalizePose, normalizeStatus, normalizeStatusFields, normalizeLock, LOCK_ALLOW_MAX, normalizeMusic, MUSIC_MAX, normalizeSign, signUp, SIGN_MAX } from '../src/protocol.ts';
 
 describe('normalizePose', () => {
   it('keeps every known pose', () => {
@@ -35,8 +35,21 @@ describe('status / chat text', () => {
       item: 'coffee',
       lock: null,
       music: '',
+      sign: null,
     });
     expect(normalizeStatusFields({ item: 'beer' }).item).toBe('');
+  });
+
+  it('normalizes a held sign and knows when it is up', () => {
+    expect(normalizeSign({ text: '  Ask me\nabout  React ', color: '#ffe066', until: 1000.4 })).toEqual({ text: 'Ask me about React', color: '#ffe066', until: 1000 });
+    expect(normalizeSign({ text: 'x'.repeat(99), color: 'red' })).toEqual({ text: 'x'.repeat(SIGN_MAX), color: '#ffffff', until: 0 });
+    expect(normalizeSign({ text: '   ' })).toBeNull();
+    expect(normalizeSign('hi')).toBeNull();
+    expect(normalizeStatusFields({ sign: { text: 'Hi' } }).sign).toEqual({ text: 'Hi', color: '#ffffff', until: 0 });
+    expect(signUp({ text: 'Hi', color: '#ffffff', until: 0 }, 9e12)).toBe(true);
+    expect(signUp({ text: 'Hi', color: '#ffffff', until: 500 }, 499)).toBe(true);
+    expect(signUp({ text: 'Hi', color: '#ffffff', until: 500 }, 500)).toBe(false);
+    expect(signUp(null, 0)).toBe(false);
   });
 
   it('normalizes a now-playing line', () => {
@@ -54,6 +67,6 @@ describe('status / chat text', () => {
     expect(normalizeLock('x')).toBeNull();
     expect(normalizeLock({ zone: 'z', hash, allow: Array.from({ length: 40 }, (_, i) => `p${i}`) })!.allow).toHaveLength(LOCK_ALLOW_MAX);
     expect(normalizeStatusFields({ lock: { zone: 'z', hash } }).lock).toEqual({ zone: 'z', hash, allow: [] });
-    expect(normalizeStatusFields(null)).toEqual({ status: '', busy: false, sharing: false, muted: false, item: '', lock: null, music: '' });
+    expect(normalizeStatusFields(null)).toEqual({ status: '', busy: false, sharing: false, muted: false, item: '', lock: null, music: '', sign: null });
   });
 });

@@ -1,4 +1,4 @@
-import type { Appearance } from '@byte_grounds/shared/protocol';
+import { SIGN_COLORS, SIGN_DURATIONS, SIGN_MAX, normalizeSign, type Appearance, type Sign } from '@byte_grounds/shared/protocol';
 import {
   BOARD_H,
   BOARD_W,
@@ -41,6 +41,9 @@ export interface WhiteboardDeps {
   appearance: () => Appearance;
   /** Send an edit to the room. */
   send: (board: string, op: BoardOp) => void;
+  /** The sign we hold now (null = none), and holding one up / putting it down. */
+  sign: () => Sign | null;
+  setSign: (sign: Sign | null) => void;
 }
 
 /**
@@ -147,7 +150,7 @@ export class WhiteboardView {
       <div class="wb-body">
         <div class="wb-tools"></div>
         <div class="wb-stage"><canvas class="wb-canvas" width="${BOARD_W}" height="${BOARD_H}"></canvas></div>
-        <div class="wb-side"><canvas class="wb-avatar" width="64" height="64"></canvas><div class="wb-name"></div></div>
+        <div class="wb-side"><canvas class="wb-avatar" width="64" height="64"></canvas><div class="wb-name"></div><div class="wb-sign"></div></div>
       </div>`;
     root.querySelector('.wb-title')!.textContent = title;
     root.querySelector('.wb-name')!.textContent = this.deps.name();
@@ -157,6 +160,8 @@ export class WhiteboardView {
     this.ctx = this.canvas.getContext('2d')!;
     this.avatarCtx = root.querySelector<HTMLCanvasElement>('.wb-avatar')!.getContext('2d')!;
     this.buildTools(root.querySelector('.wb-tools')!);
+    this.signBox = root.querySelector('.wb-sign')!;
+    this.renderSign();
     this.canvas.addEventListener('pointerdown', this.onDown);
     this.canvas.addEventListener('pointermove', this.onMove);
     this.canvas.addEventListener('pointerup', this.onUp);
@@ -171,6 +176,95 @@ export class WhiteboardView {
       this.raf = requestAnimationFrame(loop);
     };
     this.raf = requestAnimationFrame(loop);
+  }
+
+  // ---------- my sign ----------
+
+  private signBox: HTMLDivElement | null = null;
+  private signForm = false;
+
+  /**
+   * "Make my sign": write a short text, pick a card colour and how long to hold it; the character
+   * then holds it up on the map for everyone. While holding one: what it says, and "Put it down".
+   */
+  private renderSign(): void {
+    const box = this.signBox;
+    if (!box) return;
+    const sign = this.deps.sign();
+    box.replaceChildren();
+    if (sign && !this.signForm) {
+      const what = document.createElement('div');
+      what.className = 'wb-sign-now';
+      what.textContent = `🪧 “${sign.text}”`;
+      const when = document.createElement('div');
+      when.className = 'wb-sign-when';
+      when.textContent = sign.until
+        ? t('wb.signUntil', { time: new Date(sign.until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })
+        : t('wb.signForever');
+      const down = button(t('wb.signDown'), () => {
+        this.deps.setSign(null);
+        this.renderSign();
+      });
+      const edit = button(t('wb.signEdit'), () => {
+        this.signForm = true;
+        this.renderSign();
+      });
+      box.append(what, when, down, edit);
+      return;
+    }
+    if (!this.signForm) {
+      box.append(button(t('wb.signMake'), () => {
+        this.signForm = true;
+        this.renderSign();
+      }));
+      return;
+    }
+    const text = document.createElement('input');
+    text.className = 'wb-sign-text';
+    text.maxLength = SIGN_MAX;
+    text.placeholder = t('wb.signPlaceholder');
+    text.value = sign?.text ?? '';
+    let color: string = sign?.color ?? SIGN_COLORS[1];
+    const colors = document.createElement('div');
+    colors.className = 'wb-sign-colors';
+    for (const c of SIGN_COLORS) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.style.background = c;
+      b.classList.toggle('on', c === color);
+      b.addEventListener('click', () => {
+        color = c;
+        for (const o of colors.children) o.classList.toggle('on', o === b);
+      });
+      colors.appendChild(b);
+    }
+    const time = document.createElement('select');
+    time.className = 'wb-sign-time';
+    for (const m of SIGN_DURATIONS) {
+      const o = document.createElement('option');
+      o.value = String(m);
+      o.textContent = m ? (m < 60 ? t('wb.signMinutes', { n: m }) : t('wb.signHour')) : t('wb.signForever');
+      time.appendChild(o);
+    }
+    time.value = '15';
+    const hold = button(t('wb.signHold'), () => {
+      const minutes = Number(time.value);
+      const next = normalizeSign({ text: text.value, color, until: minutes ? Date.now() + minutes * 60_000 : 0 });
+      if (!next) return text.focus();
+      this.deps.setSign(next);
+      this.signForm = false;
+      this.renderSign();
+    });
+    hold.classList.add('wb-sign-hold');
+    const cancel = button(t('wb.signCancel'), () => {
+      this.signForm = false;
+      this.renderSign();
+    });
+    text.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') hold.click();
+    });
+    box.append(text, colors, time, hold, cancel);
+    text.focus();
   }
 
   private buildTools(bar: HTMLDivElement): void {
@@ -603,4 +697,12 @@ export function drawItem(ctx: CanvasRenderingContext2D, it: Item): void {
     ctx.stroke();
   }
   ctx.restore();
+}
+
+function button(label: string, onClick: () => void): HTMLButtonElement {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.textContent = label;
+  b.addEventListener('click', onClick);
+  return b;
 }

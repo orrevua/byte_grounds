@@ -41,3 +41,17 @@ Mobile: the side panel shrinks to a strip; touch draws with pointer events.
 ## Units
 1. `shared/src/board.ts` + tests. 2. Protocol message + ws/Supabase relay. 3. Store + SQL + README.
 4. `whiteboard.ts` view. 5. Game wiring (detection, F button), i18n, CSS. 6. Verify in the browser.
+
+## Addendum: my sign (2026-11-03)
+
+At a whiteboard, the side panel under your big character has "🪧 Make my sign":
+
+- You enter a text (at most `SIGN_MAX` = 40 characters), pick one of `SIGN_COLORS` and how long to hold it (5, 15, 30 or 60 minutes, or until you put it down).
+- The sign rides the status path: `StatusFields.sign = { text, color, until }`, coerced by `normalizeSign`. `signUp(sign, now)` says whether it's still up.
+- `render.ts` `drawSign` shows it to everyone:
+  - a card at chest height with up to 3 lines of text, and hands on its sides;
+  - its cardboard back, behind the body, when facing away;
+  - hidden while lying in bed.
+- When the time is up, the owner's client clears it.
+- Back at a board, the panel shows the sign with "Put it down" and "Change it".
+- The panel is hidden on phones for now.

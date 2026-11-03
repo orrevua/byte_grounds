@@ -73,6 +73,8 @@ export interface PeerState {
   music?: string;
   /** What they hold (a drink from a machine); absent/'' = nothing. */
   item?: HeldItem;
+  /** A sign they hold up (made at a whiteboard). */
+  sign?: Sign | null;
   /** Signed in as the admin: shown as an [ADM] tag. Cosmetic only (RLS enforces real powers). */
   admin?: boolean;
 }
@@ -146,9 +148,38 @@ export interface StatusFields {
   item: HeldItem;
   lock: RoomLock | null;
   music: string;
+  sign: Sign | null;
 }
 
 export const MUSIC_MAX = 100;
+
+/** A sign someone made at a whiteboard and holds up: its text, card colour, and when it goes away. */
+export interface Sign {
+  text: string;
+  color: string;
+  /** Epoch ms when it is put down by itself; 0 = held until its owner puts it down. */
+  until: number;
+}
+export const SIGN_MAX = 40;
+export const SIGN_COLORS = ['#ffffff', '#ffe066', '#ffc9de', '#b2f2bb', '#a5d8ff'] as const;
+/** How long a sign can be held (minutes; 0 = until put down). */
+export const SIGN_DURATIONS = [5, 15, 30, 60, 0] as const;
+
+/** Coerce a sign: text like a status line (≤ `SIGN_MAX`), a known colour, a sane end time. */
+export function normalizeSign(x: unknown): Sign | null {
+  const o = (x ?? {}) as { text?: unknown; color?: unknown; until?: unknown };
+  if (typeof o.text !== 'string') return null;
+  const text = o.text.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, SIGN_MAX);
+  if (!text) return null;
+  const color = SIGN_COLORS.includes(o.color as (typeof SIGN_COLORS)[number]) ? (o.color as string) : SIGN_COLORS[0];
+  const until = typeof o.until === 'number' && Number.isFinite(o.until) && o.until > 0 ? Math.round(o.until) : 0;
+  return { text, color, until };
+}
+
+/** Whether a sign is still up at `nowMs`. */
+export function signUp(sign: Sign | null | undefined, nowMs: number): sign is Sign {
+  return !!sign && (sign.until === 0 || nowMs < sign.until);
+}
 
 /** Coerce a "now playing" line: a string, control characters out, trimmed, at most `MUSIC_MAX`. */
 export function normalizeMusic(x: unknown): string {
@@ -168,6 +199,7 @@ export function normalizeStatusFields(x: unknown): StatusFields {
     item,
     lock: normalizeLock(o.lock),
     music: normalizeMusic(o.music),
+    sign: normalizeSign(o.sign),
   };
 }
 

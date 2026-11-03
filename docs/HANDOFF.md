@@ -3,6 +3,11 @@
 **Last updated:** 2026-11-03 (knighthood, whiteboard)
 **Branch:** `master` (user asked: work on master directly, no more PRs)
 
+## Whiteboard signs — DONE, PUSHED (2026-11-03)
+- At a board: "🪧 Make my sign" (text ≤ 40, 5 colours, 5/15/30/60 min or until put down). The character
+  holds it on the map for everyone (`StatusFields.sign`, `drawSign`). Back at a board: Put it down / Change it.
+  Spec addendum in `docs/specs/whiteboard.md`. Not offered on phones yet (side panel hidden there).
+
 ## Voice fixes, map carousel, online counts, one login per name — DONE, PUSHED (2026-11-03)
 - Spec: `docs/specs/voice-lobby-carousel.md`.
 - Voice:

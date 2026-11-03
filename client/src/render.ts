@@ -17,7 +17,7 @@ import {
 } from './sprites.ts';
 import { drawDecorCell } from './decor.ts';
 import type { Direction } from './sprites.ts';
-import type { Appearance, HeldItem, Pose } from '@byte_grounds/shared/protocol';
+import type { Appearance, HeldItem, Pose, Sign } from '@byte_grounds/shared/protocol';
 
 /** Drop the 64px frame so the character's feet sit on the tile point. */
 const FOOT_OFFSET = 16;
@@ -712,4 +712,46 @@ export function drawCrown(ctx: CanvasRenderingContext2D, pose: Pose, dir: Direct
     ctx.fillRect(l + 2, t + 5, 1, 2);
     ctx.fillRect(l + 9, t + 5, 1, 2);
   }
+}
+
+/** Sign card size (world px) and how many lines of text fit. */
+const SIGN_W = 70;
+const SIGN_H = 32;
+const SIGN_LINES = 3;
+
+/**
+ * A sign held at chest height. Facing the viewer or sideways: its front with the text, in front of
+ * the body (`layer` 'front'); facing away: its plain cardboard back, behind the body ('back').
+ */
+export function drawSign(ctx: CanvasRenderingContext2D, pose: Pose, dir: Direction, x: number, y: number, sign: Sign, layer: 'back' | 'front'): void {
+  if (pose === 'lie') return;
+  const d: Direction = isDancePose(pose) ? 'down' : dir;
+  if ((d === 'up') !== (layer === 'back')) return;
+  const { ox, oy } = frameOrigin(pose, d, x, y);
+  const shift = d === 'left' ? -5 : d === 'right' ? 5 : 0;
+  const left = Math.round(ox + 32 - SIGN_W / 2 + shift);
+  const top = Math.round(oy + (d === 'up' ? 26 : 34));
+  ctx.fillStyle = '#5b3a1e';
+  ctx.fillRect(left - 1, top - 1, SIGN_W + 2, SIGN_H + 2);
+  if (d === 'up') {
+    ctx.fillStyle = '#c8a165'; // cardboard back
+    ctx.fillRect(left, top, SIGN_W, SIGN_H);
+    return;
+  }
+  ctx.fillStyle = sign.color;
+  ctx.fillRect(left, top, SIGN_W, SIGN_H);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+  ctx.fillRect(left, top + SIGN_H - 2, SIGN_W, 2);
+  ctx.font = 'bold 8px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#1d1f24';
+  const lines = wrapText((t) => ctx.measureText(t).width, sign.text, SIGN_W - 6, SIGN_LINES);
+  const lh = 9;
+  const y0 = top + SIGN_H / 2 - ((lines.length - 1) * lh) / 2;
+  lines.forEach((line, i) => ctx.fillText(line, left + SIGN_W / 2, y0 + i * lh));
+  // Hands on the sides of the card.
+  ctx.fillStyle = '#f1c27d';
+  ctx.fillRect(left - 2, top + 9, 3, 4);
+  ctx.fillRect(left + SIGN_W - 1, top + 9, 3, 4);
 }

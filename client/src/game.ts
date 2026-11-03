@@ -1,8 +1,8 @@
 import { decorLayer, seatsNearIn, stepOutOf, zoneAt, zoneKey, type DecorCell, type OfficeMap, type Seat, type Zone } from '@byte_grounds/shared/map';
-import { POSITION_TICK_MS, TILE_SIZE, isDancePose, isSnack, normalizeItem, normalizeChat, normalizeLock, normalizeMusic, normalizePose, normalizeStatus } from '@byte_grounds/shared/protocol';
+import { POSITION_TICK_MS, TILE_SIZE, isDancePose, isSnack, normalizeItem, normalizeChat, normalizeLock, normalizeMusic, normalizePose, normalizeStatus, normalizeSign, signUp, type Sign } from '@byte_grounds/shared/protocol';
 import { effectiveSeats, seatSpot } from '@byte_grounds/shared/seats';
 import type { Appearance, HeldItem, PeerId, PeerState, Pose, RoomLock, ServerToClient, StatusFields } from '@byte_grounds/shared/protocol';
-import { balloonHeight, drawAvatar, drawAvatarTags, drawCape, drawChatBalloon, drawCrown, drawDecorCellAt, drawFrameSprite, drawHeldItem, drawZones, sipStep, tagsTop, drawMap, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
+import { balloonHeight, drawAvatar, drawAvatarTags, drawCape, drawChatBalloon, drawCrown, drawSign, drawDecorCellAt, drawFrameSprite, drawHeldItem, drawZones, sipStep, tagsTop, drawMap, drawPosedSprite, mapPixelSize, tileToScreen } from './render.ts';
 import { avatarAnchorY, sortRenderables, stackedDecorAnchors } from './depth.ts';
 import { ZOOM_STEPS, cameraOffset, clampZoom, stepZoom, viewportSize } from './camera.ts';
 import { Minimap, type MinimapDot } from './minimap.ts';
@@ -71,6 +71,8 @@ interface Avatar {
   music: string;
   /** A drink in hand ('' = none). */
   item: HeldItem;
+  /** A sign held up (made at a whiteboard), or null. */
+  sign: Sign | null;
   /** Signed in as the admin: an [ADM] tag before the name. */
   admin: boolean;
 }
@@ -242,6 +244,8 @@ export class Game {
       name: () => this.self.name,
       appearance: () => this.self.appearance,
       send: (board, op) => this.net.send({ type: 'board', board, op }),
+      sign: () => this.sign,
+      setSign: (sign) => this.setSign(sign),
     });
 
     this.fitCanvas();
@@ -265,6 +269,7 @@ export class Game {
       item: '',
       lock: null,
       music: '',
+      sign: null,
       admin: self.isAdmin,
     };
 
@@ -510,8 +515,19 @@ export class Game {
 
   /** Our status fields as sent to others. */
   get statusFields(): StatusFields {
-    const { status, busy, sharing, muted, item, lock, music } = this.self;
-    return { status, busy, sharing, muted, item, lock, music };
+    const { status, busy, sharing, muted, item, lock, music, sign } = this.self;
+    return { status, busy, sharing, muted, item, lock, music, sign };
+  }
+
+  /** The sign we hold, while it is up. */
+  get sign(): Sign | null {
+    return signUp(this.self.sign, Date.now()) ? this.self.sign : null;
+  }
+
+  /** Hold up a sign (made at a whiteboard), or put it down (null). */
+  setSign(sign: Sign | null): void {
+    this.self.sign = normalizeSign(sign);
+    this.sendStatus();
   }
 
   /** Share what we're listening to ('' = nothing); sent only when it changes. */
@@ -777,6 +793,7 @@ export class Game {
       lock: normalizeLock(p.lock),
       music: normalizeMusic(p.music),
       item: normalizeItem(p.item),
+      sign: normalizeSign(p.sign),
       admin: p.admin === true,
       ...(typeof p.uid === 'string' ? { uid: p.uid } : {}),
     };
@@ -829,6 +846,7 @@ export class Game {
           r.lock = normalizeLock(msg.lock);
           r.music = normalizeMusic(msg.music);
           r.item = normalizeItem(msg.item);
+          r.sign = normalizeSign(msg.sign);
           this.onPeersChanged?.();
         }
         break;
@@ -923,6 +941,8 @@ export class Game {
     }
 
     this.voice.update(performance.now());
+    // Our sign's time is up: put it down for everyone.
+    if (this.self.sign && !signUp(this.self.sign, Date.now())) this.setSign(null);
     this.render();
     this.raf = requestAnimationFrame(this.frame);
   };
@@ -1337,9 +1357,12 @@ export class Game {
         const now = Date.now();
         const sip = sipStep(it.av.item, it.av.pose, it.av.dir, it.av.moving, now, sipSeed(it.av.name));
         const knight = this.isKnight(this.uidOf(it.av)) && appearanceReady(it.av.appearance);
+        const sign = signUp(it.av.sign, now) ? it.av.sign : null;
         if (knight) drawCape(ctx, it.av.pose, it.av.dir, it.av.x, it.av.y, 'back');
+        if (sign) drawSign(ctx, it.av.pose, it.av.dir, it.av.x, it.av.y, sign, 'back');
         this.drawCharacter(it.av, sip);
         if (knight) drawCape(ctx, it.av.pose, it.av.dir, it.av.x, it.av.y, 'front');
+        if (sign) drawSign(ctx, it.av.pose, it.av.dir, it.av.x, it.av.y, sign, 'front');
         if (it.av.item) drawHeldItem(ctx, it.av.item, it.av.pose, it.av.dir, it.av.x, it.av.y, now, sip);
         if (it.av.pose === 'sit' && it.av.dir === 'up') this.drawChairBackOver(it.av);
         if (knight) drawCrown(ctx, it.av.pose, it.av.dir, it.av.x, it.av.y);

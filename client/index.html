@@ -168,6 +168,16 @@
       .wb-side { flex: none; width: 220px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
         padding: 16px 8px 28px; gap: 6px; background: linear-gradient(#262a31, #1e2228); }
       .wb-avatar { width: 192px; height: 192px; image-rendering: pixelated; }
+      .wb-sign { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 0 12px; box-sizing: border-box; font-size: 13px; }
+      .wb-sign button { padding: 7px 8px; border: 0; border-radius: 6px; background: #2a2f37; color: #e6e8eb; cursor: pointer; font-weight: 600; }
+      .wb-sign button.wb-sign-hold { background: #4f8cff; color: #fff; }
+      .wb-sign input, .wb-sign select { background: #14161a; color: #e6e8eb; border: 1px solid #333a44; border-radius: 6px; padding: 6px 8px; }
+      .wb-sign-colors { display: flex; gap: 6px; justify-content: center; }
+      .wb-sign .wb-sign-colors button { width: 24px; height: 24px; padding: 0; border-radius: 50%; border: 2px solid #333a44; }
+      .wb-sign .wb-sign-colors button.on { border-color: #4f8cff; box-shadow: 0 0 0 2px #4f8cff55; }
+      .wb-sign-now { font-weight: 600; word-break: break-word; text-align: center; }
+      .wb-sign-when { color: #9aa3ad; font-size: 12px; text-align: center; }
+      .touch-ui .wb-sign { display: none; }
       .wb-name { font-weight: 600; }
       .touch-ui .wb-body { flex-direction: column; }
       .touch-ui .wb-tools { width: auto; flex-direction: row; overflow-x: auto; overflow-y: hidden; border-right: 0;
