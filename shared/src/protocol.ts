@@ -159,7 +159,12 @@ export interface Sign {
   color: string;
   /** Epoch ms when it is put down by itself; 0 = held until its owner puts it down. */
   until: number;
+  /** A drawing from a whiteboard page (small PNG/JPEG data URL) shown instead of the text. */
+  image?: string;
 }
+/** Longest sign image (data URL characters): it travels with every status update. */
+export const SIGN_IMAGE_MAX = 16000;
+const SIGN_IMAGE_RE = /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/;
 export const SIGN_MAX = 40;
 export const SIGN_COLORS = ['#ffffff', '#ffe066', '#ffc9de', '#b2f2bb', '#a5d8ff'] as const;
 /** How long a sign can be held (minutes; 0 = until put down). */
@@ -167,13 +172,15 @@ export const SIGN_DURATIONS = [5, 15, 30, 60, 0] as const;
 
 /** Coerce a sign: text like a status line (≤ `SIGN_MAX`), a known colour, a sane end time. */
 export function normalizeSign(x: unknown): Sign | null {
-  const o = (x ?? {}) as { text?: unknown; color?: unknown; until?: unknown };
-  if (typeof o.text !== 'string') return null;
-  const text = o.text.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, SIGN_MAX);
-  if (!text) return null;
+  const o = (x ?? {}) as { text?: unknown; color?: unknown; until?: unknown; image?: unknown };
+  if (!o || typeof o !== 'object') return null;
+  const raw = typeof o.text === 'string' ? o.text : '';
+  const text = raw.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, SIGN_MAX);
+  const image = typeof o.image === 'string' && o.image.length <= SIGN_IMAGE_MAX && SIGN_IMAGE_RE.test(o.image) ? o.image : undefined;
+  if (!text && !image) return null;
   const color = SIGN_COLORS.includes(o.color as (typeof SIGN_COLORS)[number]) ? (o.color as string) : SIGN_COLORS[0];
   const until = typeof o.until === 'number' && Number.isFinite(o.until) && o.until > 0 ? Math.round(o.until) : 0;
-  return { text, color, until };
+  return { text, color, until, ...(image ? { image } : {}) };
 }
 
 /** Whether a sign is still up at `nowMs`. */

@@ -719,6 +719,23 @@ const SIGN_W = 70;
 const SIGN_H = 32;
 const SIGN_LINES = 3;
 
+/** Sign card for a drawing (world px): the page's 1.6:1 shape. */
+const SIGN_IMG_W = 64;
+const SIGN_IMG_H = 40;
+const signImages = new Map<string, HTMLImageElement>();
+
+/** A decoded sign drawing, or null while it loads (kept in a small cache). */
+function signImage(src: string): HTMLImageElement | null {
+  let img = signImages.get(src);
+  if (!img) {
+    if (signImages.size > 64) signImages.clear();
+    img = new Image();
+    img.src = src;
+    signImages.set(src, img);
+  }
+  return img.complete && img.naturalWidth > 0 ? img : null;
+}
+
 /**
  * A sign held at chest height. Facing the viewer or sideways: its front with the text, in front of
  * the body (`layer` 'front'); facing away: its plain cardboard back, behind the body ('back').
@@ -729,13 +746,31 @@ export function drawSign(ctx: CanvasRenderingContext2D, pose: Pose, dir: Directi
   if ((d === 'up') !== (layer === 'back')) return;
   const { ox, oy } = frameOrigin(pose, d, x, y);
   const shift = d === 'left' ? -5 : d === 'right' ? 5 : 0;
-  const left = Math.round(ox + 32 - SIGN_W / 2 + shift);
-  const top = Math.round(oy + (d === 'up' ? 26 : 34));
+  const W = sign.image ? SIGN_IMG_W : SIGN_W;
+  const H = sign.image ? SIGN_IMG_H : SIGN_H;
+  const left = Math.round(ox + 32 - W / 2 + shift);
+  const top = Math.round(oy + (d === 'up' ? 26 : sign.image ? 28 : 34));
   ctx.fillStyle = '#5b3a1e';
-  ctx.fillRect(left - 1, top - 1, SIGN_W + 2, SIGN_H + 2);
+  ctx.fillRect(left - 1, top - 1, W + 2, H + 2);
   if (d === 'up') {
     ctx.fillStyle = '#c8a165'; // cardboard back
-    ctx.fillRect(left, top, SIGN_W, SIGN_H);
+    ctx.fillRect(left, top, W, H);
+    return;
+  }
+  if (sign.image) {
+    // A page from a whiteboard: the drawing on a white card.
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(left, top, W, H);
+    const img = signImage(sign.image);
+    if (img) {
+      ctx.save();
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(img, left + 1, top + 1, W - 2, H - 2);
+      ctx.restore();
+    }
+    ctx.fillStyle = '#f1c27d';
+    ctx.fillRect(left - 2, top + 12, 3, 4);
+    ctx.fillRect(left + W - 1, top + 12, 3, 4);
     return;
   }
   ctx.fillStyle = sign.color;

@@ -55,3 +55,4 @@ At a whiteboard, the side panel under your big character has "🪧 Make my sign"
 - When the time is up, the owner's client clears it.
 - Back at a board, the panel shows the sign with "Put it down" and "Change it".
 - The panel is hidden on phones for now.
+- **From this page** is the default sign kind; **Text** is the other. `pageSnapshot` renders the page's items, crops to the drawn area plus a margin in the page's 1.6:1 shape, and returns a 128x80 PNG (JPEG as a fallback). The data URL is at most `SIGN_IMAGE_MAX` = 16000 characters. `Sign.image` only accepts `data:image/png|jpeg;base64`, and on the map it's drawn as a 64x40 white card.

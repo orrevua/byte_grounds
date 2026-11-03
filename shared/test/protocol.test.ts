@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CHAT_MAX, POSES, STATUS_MAX, normalizeChat, normalizePose, normalizeStatus, normalizeStatusFields, normalizeLock, LOCK_ALLOW_MAX, normalizeMusic, MUSIC_MAX, normalizeSign, signUp, SIGN_MAX } from '../src/protocol.ts';
+import { CHAT_MAX, POSES, STATUS_MAX, normalizeChat, normalizePose, normalizeStatus, normalizeStatusFields, normalizeLock, LOCK_ALLOW_MAX, normalizeMusic, MUSIC_MAX, normalizeSign, signUp, SIGN_MAX, SIGN_IMAGE_MAX } from '../src/protocol.ts';
 
 describe('normalizePose', () => {
   it('keeps every known pose', () => {
@@ -50,6 +50,11 @@ describe('status / chat text', () => {
     expect(signUp({ text: 'Hi', color: '#ffffff', until: 500 }, 499)).toBe(true);
     expect(signUp({ text: 'Hi', color: '#ffffff', until: 500 }, 500)).toBe(false);
     expect(signUp(null, 0)).toBe(false);
+    const png = 'data:image/png;base64,iVBORw0KGgo=';
+    expect(normalizeSign({ image: png, until: 0 })).toEqual({ text: '', color: '#ffffff', until: 0, image: png });
+    expect(normalizeSign({ image: 'data:text/html;base64,PHNjcmlwdD4=' })).toBeNull();
+    expect(normalizeSign({ image: 'javascript:alert(1)', text: 'Hi' })).toEqual({ text: 'Hi', color: '#ffffff', until: 0 });
+    expect(normalizeSign({ image: `data:image/png;base64,${'A'.repeat(SIGN_IMAGE_MAX)}` })).toBeNull();
   });
 
   it('normalizes a now-playing line', () => {

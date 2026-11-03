@@ -1,4 +1,4 @@
-import { SIGN_COLORS, SIGN_DURATIONS, SIGN_MAX, normalizeSign, type Appearance, type Sign } from '@byte_grounds/shared/protocol';
+import { SIGN_COLORS, SIGN_DURATIONS, SIGN_IMAGE_MAX, SIGN_MAX, normalizeSign, type Appearance, type Sign } from '@byte_grounds/shared/protocol';
 import {
   BOARD_H,
   BOARD_W,
@@ -182,6 +182,8 @@ export class WhiteboardView {
 
   private signBox: HTMLDivElement | null = null;
   private signForm = false;
+  /** The sign form makes it from this page's drawing ('page') or from a text ('text'). */
+  private signKind: 'page' | 'text' = 'page';
 
   /**
    * "Make my sign": write a short text, pick a card colour and how long to hold it; the character
@@ -195,7 +197,13 @@ export class WhiteboardView {
     if (sign && !this.signForm) {
       const what = document.createElement('div');
       what.className = 'wb-sign-now';
-      what.textContent = `🪧 “${sign.text}”`;
+      if (sign.image) {
+        const img = document.createElement('img');
+        img.className = 'wb-sign-preview';
+        img.src = sign.image;
+        img.alt = '';
+        what.append(img);
+      } else what.textContent = `🪧 “${sign.text}”`;
       const when = document.createElement('div');
       when.className = 'wb-sign-when';
       when.textContent = sign.until
@@ -219,6 +227,27 @@ export class WhiteboardView {
       }));
       return;
     }
+    // From this page / Text
+    const kinds = document.createElement('div');
+    kinds.className = 'wb-sign-kinds';
+    for (const [kind, label] of [['page', t('wb.signFromPage')], ['text', t('wb.signFromText')]] as const) {
+      const b = button(label, () => {
+        this.signKind = kind;
+        this.renderSign();
+      });
+      b.classList.toggle('on', this.signKind === kind);
+      kinds.appendChild(b);
+    }
+    const image = this.signKind === 'page' ? pageSnapshot(this.board.tabs.find((tb) => tb.id === this.tab)?.items ?? []) : null;
+    const preview = document.createElement('div');
+    preview.className = 'wb-sign-page';
+    if (image) {
+      const img = document.createElement('img');
+      img.className = 'wb-sign-preview';
+      img.src = image;
+      img.alt = '';
+      preview.append(img);
+    } else preview.textContent = t('wb.signEmptyPage');
     const text = document.createElement('input');
     text.className = 'wb-sign-text';
     text.maxLength = SIGN_MAX;
@@ -249,8 +278,9 @@ export class WhiteboardView {
     time.value = '15';
     const hold = button(t('wb.signHold'), () => {
       const minutes = Number(time.value);
-      const next = normalizeSign({ text: text.value, color, until: minutes ? Date.now() + minutes * 60_000 : 0 });
-      if (!next) return text.focus();
+      const until = minutes ? Date.now() + minutes * 60_000 : 0;
+      const next = this.signKind === 'page' ? (image ? normalizeSign({ text: '', color, until, image }) : null) : normalizeSign({ text: text.value, color, until });
+      if (!next) return this.signKind === 'text' ? text.focus() : undefined;
       this.deps.setSign(next);
       this.signForm = false;
       this.renderSign();
@@ -263,8 +293,12 @@ export class WhiteboardView {
     text.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') hold.click();
     });
-    box.append(text, colors, time, hold, cancel);
-    text.focus();
+    hold.disabled = this.signKind === 'page' && !image;
+    if (this.signKind === 'page') box.append(kinds, preview, time, hold, cancel);
+    else {
+      box.append(kinds, text, colors, time, hold, cancel);
+      text.focus();
+    }
   }
 
   private buildTools(bar: HTMLDivElement): void {
@@ -705,4 +739,56 @@ function button(label: string, onClick: () => void): HTMLButtonElement {
   b.textContent = label;
   b.addEventListener('click', onClick);
   return b;
+}
+
+/** Sign drawing size (px): twice the card on the map, for a crisp look when zoomed. */
+const SIGN_PNG_W = 128;
+const SIGN_PNG_H = 80;
+
+/**
+ * A page's drawing as a small image for a sign: cropped to what is drawn (plus a margin) in the
+ * page's shape, so a small doodle fills the card. Null for an empty page or if it can't be made
+ * small enough to send.
+ */
+export function pageSnapshot(items: readonly Item[]): string | null {
+  if (!items.length) return null;
+  const full = document.createElement('canvas');
+  full.width = BOARD_W;
+  full.height = BOARD_H;
+  const c = full.getContext('2d', { willReadFrequently: true })!;
+  c.fillStyle = '#ffffff';
+  c.fillRect(0, 0, BOARD_W, BOARD_H);
+  for (const it of items) drawItem(c, it);
+  const px = c.getImageData(0, 0, BOARD_W, BOARD_H).data;
+  let x0 = BOARD_W, y0 = BOARD_H, x1 = -1, y1 = -1;
+  for (let y = 0; y < BOARD_H; y++) {
+    for (let x = 0; x < BOARD_W; x++) {
+      const i = (y * BOARD_W + x) * 4;
+      if (px[i]! < 240 || px[i + 1]! < 240 || px[i + 2]! < 240) {
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+  }
+  if (x1 < 0) return null;
+  const pad = 30;
+  const aspect = SIGN_PNG_W / SIGN_PNG_H;
+  let w = x1 - x0 + 1 + pad * 2;
+  let h = y1 - y0 + 1 + pad * 2;
+  if (w / h < aspect) w = h * aspect;
+  else h = w / aspect;
+  const out = document.createElement('canvas');
+  out.width = SIGN_PNG_W;
+  out.height = SIGN_PNG_H;
+  const o = out.getContext('2d')!;
+  o.fillStyle = '#ffffff';
+  o.fillRect(0, 0, SIGN_PNG_W, SIGN_PNG_H);
+  o.imageSmoothingQuality = 'high';
+  o.drawImage(full, (x0 + x1) / 2 - w / 2, (y0 + y1) / 2 - h / 2, w, h, 0, 0, SIGN_PNG_W, SIGN_PNG_H);
+  for (const url of [out.toDataURL('image/png'), out.toDataURL('image/jpeg', 0.8), out.toDataURL('image/jpeg', 0.6)]) {
+    if (url.length <= SIGN_IMAGE_MAX) return url;
+  }
+  return null;
 }
