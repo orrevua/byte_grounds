@@ -10,6 +10,8 @@ import type {
 } from '@byte_grounds/shared/protocol';
 import { DEFAULT_MAP } from '@byte_grounds/shared/maps';
 import { getSupabase } from './supabase.ts';
+import { admission } from '@byte_grounds/shared/lobby';
+import { LOBBY_TOPIC, lobbyEntries } from './lobby.ts';
 import { reconnectDelay, type Net, type NetHandlers } from './net.ts';
 
 /**
@@ -28,6 +30,8 @@ const LEAVE_GRACE_MS = 10_000;
 /** Signaling held while disconnected: older than this is stale (the call will be redone). */
 const OUTBOX_MAX_AGE_MS = 20_000;
 const OUTBOX_LIMIT = 200;
+/** Join the room anyway if the lobby hasn't answered by then (it only guards names). */
+const LOBBY_WAIT_MS = 4000;
 
 /** Signaling payload: a relay message addressed to one peer (others drop it). */
 interface SignalPayload {
@@ -45,6 +49,8 @@ export class SupabaseNet implements Net {
   private readonly selfId: PeerId = crypto.randomUUID();
   private client: SupabaseClient | null = null;
   private channel: RealtimeChannel | null = null;
+  /** Lobby presence: who is online in every room (counts, one instance per name / account). */
+  private lobby: RealtimeChannel | null = null;
   private handlers: NetHandlers | null = null;
   private self: PeerState | null = null;
   private room = DEFAULT_ROOM;
@@ -98,7 +104,7 @@ export class SupabaseNet implements Net {
     void getSupabase(this.url, this.key).then((client) => {
       if (this.closed) return;
       this.client = client;
-      this.open();
+      this.enterLobby();
     });
     globalThis.addEventListener?.('pagehide', this.sayBye);
   }
@@ -108,6 +114,47 @@ export class SupabaseNet implements Net {
       void this.channel.send({ type: 'broadcast', event: 'bye', payload: { id: this.selfId } });
     }
   };
+
+  /**
+   * Before joining the room: read the lobby. A name someone else is using is refused; our own
+   * account elsewhere is told to stop (`kick`, newest wins). Then we announce ourselves and join.
+   */
+  private enterLobby(): void {
+    const self = this.self!;
+    const ch = this.client!.channel(LOBBY_TOPIC, {
+      config: { broadcast: { self: false }, presence: { key: this.selfId } },
+    });
+    this.lobby = ch;
+    let admitted = false;
+    const track = (): void => void ch.track({ name: self.name, room: this.room, ...(self.uid ? { uid: self.uid } : {}) });
+    const admit = (): void => {
+      if (admitted || this.closed) return;
+      admitted = true;
+      clearTimeout(timer);
+      const others = lobbyEntries(ch.presenceState()).filter((e) => e.id !== this.selfId);
+      const { taken, kick } = admission(others, self.name, self.uid);
+      if (taken) {
+        this.emit({ type: 'refused', reason: 'name' });
+        this.close();
+        return;
+      }
+      if (kick.length) void ch.send({ type: 'broadcast', event: 'kick', payload: { ids: kick } });
+      track();
+      this.open();
+    };
+    const timer = setTimeout(admit, LOBBY_WAIT_MS);
+    ch.on('broadcast', { event: 'kick' }, ({ payload }) => {
+      const ids = (payload as { ids?: unknown }).ids;
+      if (!this.closed && Array.isArray(ids) && ids.includes(this.selfId)) {
+        this.emit({ type: 'kicked' });
+        this.close();
+      }
+    })
+      .on('presence', { event: 'sync' }, admit)
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED' && admitted && !this.closed) track(); // rejoined: announce again
+      });
+  }
 
   private open(): void {
     const channel = this.client!.channel(`byte_grounds:${this.room}`, {
@@ -403,6 +450,8 @@ export class SupabaseNet implements Net {
     this.flushTimer = null;
     if (this.channel) void this.client?.removeChannel(this.channel);
     this.channel = null;
+    if (this.lobby) void this.client?.removeChannel(this.lobby);
+    this.lobby = null;
   }
 }
 

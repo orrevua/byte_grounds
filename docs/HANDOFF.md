@@ -3,6 +3,27 @@
 **Last updated:** 2026-11-03 (knighthood, whiteboard)
 **Branch:** `master` (user asked: work on master directly, no more PRs)
 
+## Voice fixes, map carousel, online counts, one login per name — DONE, PUSHED (2026-11-03)
+- Spec: `docs/specs/voice-lobby-carousel.md`.
+- Voice:
+  - each peer's voice plays from its own hidden `<audio>` (bubble videos are muted), and a refused
+    `play()` is retried on the next click or key;
+  - remote speaking levels come from RTP `audioLevel`, so remote streams no longer go through Web Audio
+    (that can silence Safari);
+  - a dead mic track (unplugged, taken by the OS) is re-acquired and `replaceTrack`ed into every call,
+    on `ended`, on `devicechange`, and when the mic is turned back on;
+  - 8 s stuck in `disconnected` starts a fresh call;
+  - optional TURN from `VITE_TURN_*` (README step 8). **Owner TODO:** set up TURN if friends are on
+    company networks.
+- Join screen: the map dropdown became a carousel (miniatures, arrows, dots, swipe, ←/→), with
+  "N online" per map. Counts come from the Supabase lobby presence (`byte_grounds:lobby`), or from
+  the ws server's `GET /lobby` in dev.
+- One instance per name or account (`shared/src/lobby.ts` `admission`):
+  - a name someone else is using is refused on the join screen;
+  - the same account (uid, or a per-browser id in ws dev) somewhere else is kicked, newest wins.
+  - The ws server enforces this itself; with Supabase it is enforced client-side via lobby presence
+    (best effort).
+
 ## Knighthood — DONE, PUSHED (2026-11-03)
 - Spec: `docs/specs/knighthood.md`. Admin avatar menu → "Knighted (crown + cape)" = a `knight` grant;
   the crown and cape are drawn for everyone, live. **Owner TODO:** re-run `supabase/admin.sql` (widens the perm check).

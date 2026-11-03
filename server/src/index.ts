@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { BOARD_ID_MAX, DEFAULT_ROOM, normalizeChat, normalizeStatusFields } from '@byte_grounds/shared/protocol';
 import { normalizeBoardOp } from '@byte_grounds/shared/board';
+import { admission, countByRoom, type LobbyEntry } from '@byte_grounds/shared/lobby';
 import type {
   ClientToServer,
   PeerId,
@@ -32,6 +33,15 @@ function broadcast(exceptId: PeerId, msg: ServerToClient): void {
   }
 }
 
+/** Everyone online, in every room. */
+function lobby(): LobbyEntry[] {
+  const out: LobbyEntry[] = [];
+  for (const [roomId, room] of rooms) {
+    for (const p of room.list()) out.push({ id: p.id, name: p.name, room: roomId, ...(p.uid ? { uid: p.uid } : {}) });
+  }
+  return out;
+}
+
 /** Signaling only reaches peers in the sender's room. */
 function sameRoom(a: PeerId, b: PeerId): boolean {
   return roomOf.has(a) && roomOf.get(a) === roomOf.get(b);
@@ -39,6 +49,12 @@ function sameRoom(a: PeerId, b: PeerId): boolean {
 
 // Plain HTTP answers health checks from hosting platforms (e.g. Render); WebSocket upgrades go to `wss`.
 const http = createServer((req, res) => {
+  if (req.url === '/lobby') {
+    // How many are in each room, for the join screen (another origin in dev: allow it).
+    res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' });
+    res.end(JSON.stringify({ counts: countByRoom(lobby()) }));
+    return;
+  }
   const ok = req.url === '/' || req.url === '/healthz';
   res.writeHead(ok ? 200 : 404, { 'content-type': 'text/plain' });
   res.end(ok ? 'ok' : 'not found');
@@ -62,6 +78,22 @@ wss.on('connection', (ws) => {
     switch (msg.type) {
       case 'join': {
         if (joined) return;
+        // One instance per name, or per account: the same account elsewhere is replaced.
+        const name = typeof msg.name === 'string' ? msg.name : '';
+        const uid = typeof msg.uid === 'string' ? msg.uid : undefined;
+        const { taken, kick } = admission(lobby(), name, uid);
+        if (taken) {
+          send(ws, { type: 'refused', reason: 'name' });
+          ws.close();
+          return;
+        }
+        for (const id of kick) {
+          const old = sockets.get(id);
+          if (old) {
+            send(old, { type: 'kicked' });
+            old.close();
+          }
+        }
         joined = true;
         const roomId = msg.room ?? DEFAULT_ROOM;
         let room = rooms.get(roomId);

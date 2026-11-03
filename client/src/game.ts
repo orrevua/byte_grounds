@@ -324,7 +324,7 @@ export class Game {
         }),
       (peerId, stream) => {
         this.bubbles.add(peerId, stream);
-        this.voice.track(peerId, stream);
+        this.voice.probe(peerId, () => this.mesh.audioLevel(peerId));
       },
       (peerId) => {
         this.bubbles.remove(peerId);
@@ -332,6 +332,11 @@ export class Game {
       },
     );
     this.media.onVideoTrack = (track, stream) => this.mesh.setVideo(track, stream);
+    this.media.onAudioTrack = (track, stream) => {
+      this.mesh.setAudio(track, stream);
+      this.voice.untrack(SELF_VOICE); // the meter was bound to the old track
+      this.voice.track(SELF_VOICE, stream);
+    };
     this.media.onSharing = (on) => this.setSharing(on);
     this.meeting = new MeetingView({
       roomName: () => this.zone?.name ?? t('meet.defaultRoom'),

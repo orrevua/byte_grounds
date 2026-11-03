@@ -16,6 +16,9 @@ import type { Appearance, PeerId } from '@byte_grounds/shared/protocol';
 import { startPosition, type OfficeMap } from '@byte_grounds/shared/map';
 import { DEFAULT_MAP } from '@byte_grounds/shared/maps';
 import { createStore, type MapSummary } from './store.ts';
+
+/** The built-in Office, when the saved maps can't be listed. */
+const FALLBACK_MAP: MapSummary = { id: DEFAULT_MAP.id, name: DEFAULT_MAP.name ?? 'Office' };
 import { loadCustomSheets, loadDecorSheets } from './decor.ts';
 import { hasSupabase } from './supabase.ts';
 import { adminEmail, checkIsAdmin, ensureSession, signInAdmin, signOutAdmin } from './auth.ts';
@@ -26,6 +29,8 @@ import { SpotifyLink } from './spotify.ts';
 import { MusicButton } from './music-button.ts';
 import { dayKey, loadDailyStatus, saveDailyStatus } from './chat.ts';
 import { isTouchDevice } from './input.ts';
+import { MapCarousel } from './map-carousel.ts';
+import { watchRoomCounts } from './lobby.ts';
 import { applyDocLang, langSwitch, t, type MsgKey } from './i18n.ts';
 
 applyDocLang();
@@ -38,6 +43,8 @@ const DEFAULT_COLOR = '#4f8cff';
 /** localStorage key for the last-used appearance (E9). */
 const STORAGE_KEY = 'byte_grounds.appearance';
 const NAME_KEY = 'byte_grounds.name';
+/** Without Supabase (ws dev): a per-browser id, so a reconnect or a second tab replaces the old one. */
+const DEVICE_KEY = 'byte_grounds.device';
 const STATUS_KEY = 'byte_grounds.status';
 /** How often to save our spot while moving (also saved when the page is closed). */
 const SAVE_POSITION_MS = 5000;
@@ -74,7 +81,7 @@ function loadAppearance(): Appearance {
   return saved ? parseAppearance(saved) : DEFAULT_APPEARANCE;
 }
 
-function renderJoin(): void {
+function renderJoin(error = ''): void {
   let appearance: Appearance = loadAppearance();
 
   const categoryRows = CATEGORIES.map(
@@ -98,7 +105,8 @@ function renderJoin(): void {
           <div><h1>ByteGrounds</h1><p class="tagline">${t('join.tagline')}</p></div>
         </div>
         <label>${t('join.name')} <input id="name" maxlength="16" placeholder="${t('join.namePlaceholder')}" /></label>
-        <label>${t('join.map')} <select id="map"><option value="${DEFAULT_MAP.id}">${DEFAULT_MAP.name}</option></select></label>
+        <div class="map-label">${t('join.map')}</div>
+        <div id="map-slot"></div>
         <div class="editor">
           <canvas id="preview" width="64" height="64"></canvas>
           <div class="axes">${categoryRows}</div>
@@ -117,16 +125,23 @@ function renderJoin(): void {
   const nameEl = app!.querySelector<HTMLInputElement>('#name')!;
   nameEl.value = localStorage.getItem(NAME_KEY) ?? t('join.guest');
   app!.querySelector('.brand')!.append(langSwitch());
-  const mapEl = app!.querySelector<HTMLSelectElement>('#map')!;
+  const carousel = new MapCarousel((id) => store.loadMap(id));
+  app!.querySelector('#map-slot')!.replaceWith(carousel.el);
+  const stopCounts = watchRoomCounts((counts) => carousel.setCounts(counts));
   const errorEl = app!.querySelector<HTMLDivElement>('#join-error')!;
+  errorEl.textContent = error;
   const go = app!.querySelector<HTMLButtonElement>('#go')!;
   const adminBox = app!.querySelector<HTMLDivElement>('#admin-box')!;
   if (hasSupabase) renderAdminBox(adminBox);
   else app!.querySelector('.studio-link')!.classList.remove('hidden'); // local dev: no gate
-  void store
-    .listMaps()
-    .then((maps) => fillMapSelect(mapEl, maps, DEFAULT_MAP.id)) // the Office is always preselected
-    .catch((err) => (errorEl.textContent = storeError(err)));
+  // Sheet Studio sheets first, so the miniatures can draw cells made with them.
+  void loadCustomSheets(store)
+    .then(() => store.listMaps())
+    .then((maps) => carousel.setMaps(maps.length ? maps : [FALLBACK_MAP], DEFAULT_MAP.id)) // the Office is always preselected
+    .catch((err) => {
+      carousel.setMaps([FALLBACK_MAP], DEFAULT_MAP.id);
+      errorEl.textContent = storeError(err);
+    });
   const previewCtx = app!.querySelector<HTMLCanvasElement>('#preview')!.getContext('2d');
 
   function redraw(): void {
@@ -181,23 +196,11 @@ function renderJoin(): void {
   go.addEventListener('click', () => {
     go.disabled = true;
     errorEl.textContent = '';
-    join(nameEl.value.trim() || t('join.guest'), appearance, mapEl.value).catch((err) => {
+    join(nameEl.value.trim() || t('join.guest'), appearance, carousel.value || DEFAULT_MAP.id, stopCounts).catch((err) => {
       go.disabled = false;
       errorEl.textContent = storeError(err);
     });
   });
-}
-
-function fillMapSelect(select: HTMLSelectElement, maps: MapSummary[], selected: string | null): void {
-  select.replaceChildren(
-    ...maps.map((m) => {
-      const opt = document.createElement('option');
-      opt.value = m.id;
-      opt.textContent = m.name;
-      opt.selected = m.id === selected;
-      return opt;
-    }),
-  );
 }
 
 /** Admin sign-in state under Join: signed in as the admin, or a link that opens the login form. */
@@ -263,7 +266,26 @@ function storeError(err: unknown): string {
     : t('join.mapsLoadFailed', { msg });
 }
 
-async function join(name: string, appearance: Appearance, mapId: string): Promise<void> {
+/** A stable id for this browser, used as the account in ws dev mode (no Supabase Auth there). */
+function deviceId(): string {
+  let id = localStorage.getItem(DEVICE_KEY);
+  if (!id) localStorage.setItem(DEVICE_KEY, (id = crypto.randomUUID()));
+  return id;
+}
+
+/** The same account joined elsewhere: this tab stops, with a way to take over again. */
+function showKicked(): void {
+  const el = document.createElement('div');
+  el.id = 'kicked';
+  el.innerHTML = `<div class="kicked-card"><p></p><button type="button"></button></div>`;
+  el.querySelector('p')!.textContent = t('kicked.text');
+  const btn = el.querySelector('button')!;
+  btn.textContent = t('kicked.reload');
+  btn.addEventListener('click', () => location.reload());
+  document.body.appendChild(el);
+}
+
+async function join(name: string, appearance: Appearance, mapId: string, stopCounts: () => Promise<void>): Promise<void> {
   localStorage.setItem(STORAGE_KEY, serializeAppearance(appearance));
   localStorage.setItem(NAME_KEY, name);
   // Sheet Studio sheets before the map, so cells drawn with them are known (and loadable).
@@ -278,12 +300,28 @@ async function join(name: string, appearance: Appearance, mapId: string): Promis
   const start = startPosition(map, saved);
   const status = loadDailyStatus(localStorage.getItem(STATUS_KEY), dayKey(new Date()));
   const self: SelfInfo = { name, color: DEFAULT_COLOR, appearance, isAdmin, status, ...(uid ? { uid } : {}) };
+  // The game joins the lobby channel itself; the join screen's watcher must be gone first.
+  await stopCounts();
+  // ws dev has no auth: a per-browser id stands in, so one browser = one player there too.
+  const account = uid ?? (hasSupabase ? undefined : deviceId());
   net = createNet();
   net.connect(
-    { name, color: DEFAULT_COLOR, appearance, room: map.id, ...start, status, ...(uid ? { uid } : {}), ...(isAdmin ? { admin: true } : {}) },
+    { name, color: DEFAULT_COLOR, appearance, room: map.id, ...start, status, ...(account ? { uid: account } : {}), ...(isAdmin ? { admin: true } : {}) },
     {
       onStatus: setStatus,
       onMessage: (msg) => {
+        if (msg.type === 'refused' || msg.type === 'kicked') {
+          net?.close();
+          net = null;
+          banner.className = 'hidden';
+          if (game || msg.type === 'kicked') {
+            game?.stop();
+            game = null;
+            app!.innerHTML = '';
+            showKicked();
+          } else renderJoin(t('join.nameTaken', { name }));
+          return;
+        }
         if (msg.type === 'welcome') {
           if (game) game.onReconnect(msg.selfId);
           else startGame(self, msg.selfId, map, start);

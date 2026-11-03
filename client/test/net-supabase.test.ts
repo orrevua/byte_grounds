@@ -41,6 +41,7 @@ class FakeChannel {
       for (const [key, metas] of Object.entries(this.hub.state)) {
         this.dispatch('presence', 'join', { key, newPresences: metas });
       }
+      this.dispatch('presence', 'sync', {});
     });
     return this;
   }
@@ -73,12 +74,15 @@ class FakeChannel {
 }
 
 let hub: Hub;
-/** Every channel the code under test created, newest last. */
+/** The lobby topic (who is online where) is a separate hub. */
+let lobbyHub: Hub;
+/** Every room channel the code under test created, newest last (lobby channels aren't listed). */
 let created: FakeChannel[];
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
-    channel: (_name: string, opts: any) => {
+    channel: (name: string, opts: any) => {
+      if (name === 'byte_grounds:lobby') return new FakeChannel(lobbyHub, opts.config.presence.key);
       const ch = new FakeChannel(hub, opts.config.presence.key);
       created.push(ch);
       return ch;
@@ -89,20 +93,55 @@ vi.mock('@supabase/supabase-js', () => ({
 
 const appearance = { body: 'male', hair: 'brown', outfit: 'casual', torso: 'teal', legs: 'teal', skin: 'light', bottom: 'pants', hairStyle: 'classic' } as const;
 
-async function joinAs(name: string, uid?: string): Promise<{ net: SupabaseNet; inbox: ServerToClient[]; id: string }> {
+async function connectAs(name: string, uid?: string): Promise<{ net: SupabaseNet; inbox: ServerToClient[] }> {
   const inbox: ServerToClient[] = [];
   const net = new SupabaseNet('https://x.supabase.co', 'anon');
   net.connect({ name, color: '#fff', appearance, ...(uid ? { uid } : {}) }, { onMessage: (m) => inbox.push(m) });
   await vi.dynamicImportSettled();
-  await Promise.resolve();
+  for (let i = 0; i < 5; i++) await Promise.resolve(); // lobby, then the room
+  return { net, inbox };
+}
+
+async function joinAs(name: string, uid?: string): Promise<{ net: SupabaseNet; inbox: ServerToClient[]; id: string }> {
+  const { net, inbox } = await connectAs(name, uid);
   const welcome = inbox.find((m) => m.type === 'welcome');
   if (welcome?.type !== 'welcome') throw new Error('no welcome');
   return { net, inbox, id: welcome.selfId };
 }
 
+describe('SupabaseNet lobby', () => {
+  beforeEach(() => {
+    hub = new Hub();
+    lobbyHub = new Hub();
+    created = [];
+    vi.useFakeTimers();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('announces itself in the lobby with its room', async () => {
+    const a = await joinAs('alice', 'u-a');
+    expect(lobbyHub.state[a.id]?.[0]).toMatchObject({ name: 'alice', uid: 'u-a', room: 'office' });
+  });
+
+  it("refuses a name someone else is using, and doesn't join the room", async () => {
+    await joinAs('alice', 'u-a');
+    const b = await connectAs('ALICE', 'u-b');
+    expect(b.inbox).toEqual([{ type: 'refused', reason: 'name' }]);
+    expect(Object.keys(hub.state)).toHaveLength(1);
+  });
+
+  it('replaces the same account elsewhere (newest wins)', async () => {
+    const a = await joinAs('alice', 'u-a');
+    const b = await joinAs('alice', 'u-a');
+    expect(a.inbox.at(-1)).toEqual({ type: 'kicked' });
+    expect(Object.keys(hub.state)).toEqual([b.id]);
+  });
+});
+
 describe('SupabaseNet', () => {
   beforeEach(() => {
     hub = new Hub();
+    lobbyHub = new Hub();
     created = [];
     vi.useFakeTimers();
   });

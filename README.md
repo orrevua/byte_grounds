@@ -71,6 +71,16 @@ the room, broadcast carries positions and WebRTC signaling (`client/src/net-supa
    email under **User Management**. Players then get a "♪ Connect Spotify" button in the HUD. No
    secret is needed (the browser uses PKCE); without the Client ID the button doesn't show.
 
+7. **Whiteboards:** run [`supabase/whiteboards.sql`](supabase/whiteboards.sql) so boards are saved
+   (live drawing works without it). **Knighthood:** re-run `supabase/admin.sql` (adds the `knight` grant).
+
+8. **TURN relay (recommended for company / strict networks):** voice and video are peer-to-peer
+   with STUN only by default, which can't connect through networks that block UDP. Get TURN
+   credentials (e.g. metered.ca or Cloudflare Calls TURN) and set `VITE_TURN_URLS`
+   (comma separated, e.g. `turn:host:3478,turns:host:443`), `VITE_TURN_USERNAME` and
+   `VITE_TURN_CREDENTIAL` in Vercel, then redeploy. They ship in the page, so use credentials
+   with a usage cap.
+
 When both variables are set the client uses Supabase; otherwise it falls back to the ws server at
 `VITE_WS_URL`. To try Supabase locally, put the two variables in `client/.env.local`
 (see `client/.env.example`) and run `npm run dev:client`.

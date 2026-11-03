@@ -49,6 +49,8 @@ export function bubblePosition(
 export class VideoBubbles {
   private readonly layer: HTMLDivElement;
   private readonly bubbles = new Map<PeerId, HTMLVideoElement>();
+  /** The voice: one hidden <audio> per peer (the bubble video is muted, and may be hidden). */
+  private readonly voices = new Map<PeerId, HTMLAudioElement>();
   /** Peers whose video shows elsewhere (the screen-share stage): bubble hidden, audio kept. */
   private readonly suppressed = new Set<PeerId>();
 
@@ -64,6 +66,7 @@ export class VideoBubbles {
       v = document.createElement('video');
       v.autoplay = true;
       v.playsInline = true;
+      v.muted = true;
       v.style.cssText = `position:absolute;width:${BUBBLE_W}px;height:${BUBBLE_H}px;object-fit:cover;border-radius:8px;border:2px solid #4fe0a0;background:#000;`;
       this.layer.appendChild(v);
       this.bubbles.set(peerId, v);
@@ -75,6 +78,17 @@ export class VideoBubbles {
       const sync = () => this.sync(peerId);
       stream.onaddtrack = sync;
       stream.onremovetrack = sync;
+    }
+    let a = this.voices.get(peerId);
+    if (!a) {
+      a = document.createElement('audio');
+      a.autoplay = true;
+      this.layer.appendChild(a);
+      this.voices.set(peerId, a);
+    }
+    if (a.srcObject !== stream) {
+      a.srcObject = stream;
+      playWhenAllowed(a);
     }
     this.sync(peerId);
   }
@@ -111,8 +125,8 @@ export class VideoBubbles {
 
   /** Set playback volume (0..1) for a peer's bubble; no-op if absent. */
   setVolume(peerId: PeerId, volume: number): void {
-    const v = this.bubbles.get(peerId);
-    if (v) v.volume = volume;
+    const a = this.voices.get(peerId);
+    if (a) a.volume = volume;
   }
 
   remove(peerId: PeerId): void {
@@ -122,8 +136,30 @@ export class VideoBubbles {
     v.srcObject = null;
     v.remove();
     this.bubbles.delete(peerId);
+    const a = this.voices.get(peerId);
+    if (a) {
+      a.srcObject = null;
+      a.remove();
+      this.voices.delete(peerId);
+    }
     this.suppressed.delete(peerId);
   }
+}
+
+/**
+ * Start playback; if the browser refuses (autoplay policy), try again on the next click / key /
+ * touch, so a voice is never stuck silent.
+ */
+export function playWhenAllowed(el: HTMLMediaElement): void {
+  void el.play().catch(() => {
+    const retry = (): void => {
+      removeEventListener('pointerdown', retry, true);
+      removeEventListener('keydown', retry, true);
+      if (el.isConnected && el.srcObject) playWhenAllowed(el);
+    };
+    addEventListener('pointerdown', retry, true);
+    addEventListener('keydown', retry, true);
+  });
 }
 
 /**
@@ -219,6 +255,8 @@ export class MediaManager {
 
   /** The outgoing video changed (camera, screen, or none): the mesh sends it to every peer. */
   onVideoTrack: (track: MediaStreamTrack | null, stream: MediaStream) => void = () => {};
+  /** A new mic track replaced a dead one (or the mic came back after a failure): send it. */
+  onAudioTrack: (track: MediaStreamTrack, stream: MediaStream) => void = () => {};
   /** Screen sharing started / stopped. */
   onSharing: (on: boolean) => void = () => {};
   /** Mic, camera or screen state changed (the meeting view's buttons follow it). */
@@ -256,6 +294,7 @@ export class MediaManager {
 
     root.append(this.preview, bar, this.notice);
     document.body.appendChild(root);
+    navigator.mediaDevices?.addEventListener?.('devicechange', this.onDeviceChange);
   }
 
   /** Acquire the mic once (cached). Always resolves a stream; it has no audio if denied. */
@@ -265,7 +304,7 @@ export class MediaManager {
     this.pending = navigator.mediaDevices
       .getUserMedia({ audio: MIC_CONSTRAINTS })
       .then((s) => {
-        for (const t of s.getAudioTracks()) t.enabled = this.micOn;
+        for (const t of s.getAudioTracks()) this.watchMic(t);
         return s;
       })
       .catch(() => {
@@ -285,6 +324,44 @@ export class MediaManager {
     return this.pending;
   }
 
+  /** Follow a mic track: when it ends (unplugged, taken by the OS / another app), get a new one. */
+  private watchMic(track: MediaStreamTrack): void {
+    track.enabled = this.micOn;
+    track.addEventListener('ended', () => void this.recoverMic());
+  }
+
+  private recovering = false;
+
+  /**
+   * Open the mic again and swap it into our stream and every call. Used when the track died, on a
+   * device change with no live mic, and when the mic is turned on after it failed.
+   */
+  private async recoverMic(): Promise<void> {
+    const stream = this.stream;
+    if (!stream || this.recovering) return;
+    if (stream.getAudioTracks().some((t) => t.readyState === 'live')) return;
+    this.recovering = true;
+    try {
+      const fresh = (await navigator.mediaDevices.getUserMedia({ audio: MIC_CONSTRAINTS })).getAudioTracks()[0];
+      if (!fresh) return;
+      for (const old of stream.getAudioTracks()) stream.removeTrack(old);
+      stream.addTrack(fresh);
+      this.watchMic(fresh);
+      this.micDenied = false;
+      this.notice.textContent = '';
+      this.onAudioTrack(fresh, stream);
+    } catch {
+      this.micDenied = true;
+      this.notice.textContent = t('media.noMic');
+    } finally {
+      this.recovering = false;
+      this.onChange();
+    }
+  }
+
+  /** A mic plugged in or out: if ours is dead, pick up the new default. */
+  private readonly onDeviceChange = (): void => void this.recoverMic();
+
   get localStream(): MediaStream | null {
     return this.stream;
   }
@@ -292,6 +369,7 @@ export class MediaManager {
   toggleMic(): void {
     this.micOn = !this.micOn;
     for (const t of this.stream?.getAudioTracks() ?? []) t.enabled = this.micOn;
+    if (this.micOn) void this.recoverMic(); // it had failed or died: try again
     this.micBtn.textContent = this.micOn ? t('media.micOn') : t('media.micOff');
     this.onChange();
   }

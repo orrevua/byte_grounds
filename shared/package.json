@@ -9,7 +9,8 @@
     "./maps": "./src/maps.ts",
     "./seats": "./src/seats.ts",
     "./ground": "./src/ground.ts",
-    "./board": "./src/board.ts"
+    "./board": "./src/board.ts",
+    "./lobby": "./src/lobby.ts"
   },
   "scripts": {
     "build": "tsc --noEmit"

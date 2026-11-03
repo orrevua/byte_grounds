@@ -21,6 +21,17 @@ export interface PeerCallbacks {
   onFailed(): void;
 }
 
+/** STUN, plus a TURN relay when the build sets one (strict NATs / company networks need it). */
+export function iceServers(env: Record<string, string | undefined> = import.meta.env): RTCIceServer[] {
+  const servers: RTCIceServer[] = [{ urls: STUN_URLS }];
+  const urls = (env.VITE_TURN_URLS ?? '').split(',').map((u) => u.trim()).filter(Boolean);
+  if (urls.length) servers.push({ urls, username: env.VITE_TURN_USERNAME ?? '', credential: env.VITE_TURN_CREDENTIAL ?? '' });
+  return servers;
+}
+
+/** A call stuck this long in `disconnected` is replaced, like a `failed` one. */
+const STUCK_MS = 8000;
+
 /** A short random id for one RTCPeerConnection (its "call"). */
 function newCallId(): string {
   return Math.random().toString(36).slice(2, 10);
@@ -41,6 +52,8 @@ export class PeerLink {
   private makingOffer = false;
   private ignoreOffer = false;
   private videoSender: RTCRtpSender | null = null;
+  private audioSender: RTCRtpSender | null = null;
+  private stuckTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     readonly selfId: PeerId,
@@ -51,10 +64,11 @@ export class PeerLink {
     video: MediaStreamTrack | null = localStream?.getVideoTracks()[0] ?? null,
   ) {
     this.polite = isPolite(selfId, peerId);
-    this.pc = new RTCPeerConnection({ iceServers: [{ urls: STUN_URLS }] });
+    this.pc = new RTCPeerConnection({ iceServers: iceServers() });
 
     if (localStream) {
-      for (const t of localStream.getAudioTracks()) this.pc.addTrack(t, localStream);
+      const mic = localStream.getAudioTracks()[0];
+      if (mic) this.audioSender = this.pc.addTrack(mic, localStream);
       if (video) this.setVideo(video, localStream);
     }
 
@@ -67,7 +81,12 @@ export class PeerLink {
     // 'disconnected' usually heals by itself; 'failed' doesn't (often the other side's end
     // is gone after a long drop), so the mesh replaces this connection with a fresh call.
     this.pc.onconnectionstatechange = () => {
-      if (this.pc.connectionState === 'failed') cb.onFailed();
+      const state = this.pc.connectionState;
+      if (this.stuckTimer) clearTimeout(this.stuckTimer);
+      this.stuckTimer = null;
+      if (state === 'failed') cb.onFailed();
+      // 'disconnected' that doesn't heal within STUCK_MS never will: start over too.
+      else if (state === 'disconnected') this.stuckTimer = setTimeout(() => cb.onFailed(), STUCK_MS);
     };
     this.pc.onnegotiationneeded = async () => {
       try {
@@ -99,6 +118,26 @@ export class PeerLink {
     transceiver.direction = track ? 'sendrecv' : 'recvonly';
   }
 
+  /**
+   * Send a new mic track (the old one ended, or the mic was off/denied when the call began).
+   * Replacing keeps the call as is; a first audio track renegotiates.
+   */
+  setAudio(track: MediaStreamTrack, stream: MediaStream): void {
+    if (this.pc.signalingState === 'closed') return;
+    if (this.audioSender) void this.audioSender.replaceTrack(track).catch((err) => console.warn('[voice] replaceTrack failed', err));
+    else this.audioSender = this.pc.addTrack(track, stream);
+  }
+
+  /** How loud the other side's voice is now (0..1), from the RTP audio level (no Web Audio). */
+  audioLevel(): number {
+    let level = 0;
+    for (const r of this.pc.getReceivers()) {
+      if (r.track.kind !== 'audio') continue;
+      for (const s of r.getSynchronizationSources?.() ?? []) level = Math.max(level, s.audioLevel ?? 0);
+    }
+    return level;
+  }
+
   /** Handle a relayed offer or answer with glare-safe collision rules. */
   async onDescription(sdp: RTCSessionDescriptionInit): Promise<void> {
     const collision =
@@ -122,6 +161,7 @@ export class PeerLink {
   }
 
   close(): void {
+    if (this.stuckTimer) clearTimeout(this.stuckTimer);
     this.pc.onicecandidate = null;
     this.pc.ontrack = null;
     this.pc.onnegotiationneeded = null;
@@ -213,6 +253,16 @@ export class WebrtcMesh {
   setVideo(track: MediaStreamTrack | null, stream: MediaStream): void {
     this.video = track;
     for (const link of this.links.values()) link.setVideo(track, stream);
+  }
+
+  /** Send a new mic track on every open connection. */
+  setAudio(track: MediaStreamTrack, stream: MediaStream): void {
+    for (const link of this.links.values()) link.setAudio(track, stream);
+  }
+
+  /** The peer's voice level (0..1), or 0 with no call. */
+  audioLevel(peerId: PeerId): number {
+    return this.links.get(peerId)?.audioLevel() ?? 0;
   }
 
   closeAll(): void {

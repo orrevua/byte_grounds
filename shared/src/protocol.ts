@@ -265,6 +265,15 @@ export interface WelcomeMsg {
   selfId: PeerId;
   room: string;
 }
+/** The join was refused: the name is already online (someone else's). */
+export interface RefusedMsg {
+  type: 'refused';
+  reason: 'name';
+}
+/** The same account joined somewhere else (newest wins): this instance must stop. */
+export interface KickedMsg {
+  type: 'kicked';
+}
 export interface PresenceSnapshotMsg {
   type: 'presence-snapshot';
   peers: PeerState[]; // excludes self
@@ -363,4 +372,6 @@ export type ServerToClient =
   | RelayIceMsg
   | RelayInviteMsg
   | RelayInviteReplyMsg
-  | RelayBoardMsg;
+  | RelayBoardMsg
+  | RefusedMsg
+  | KickedMsg;

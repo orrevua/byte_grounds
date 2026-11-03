@@ -58,6 +58,8 @@ interface Meter extends SpeakState {
   level: number;
   /** Retry hooking up when the stream gains its audio track later. */
   onAdd: () => void;
+  /** Level read from elsewhere (a remote voice's RTP audio level) instead of Web Audio. */
+  probe?: () => number;
 }
 
 export class VoiceMeter {
@@ -85,6 +87,17 @@ export class VoiceMeter {
     this.connect(m);
   }
 
+  /**
+   * Meter a remote voice from `probe` (RTP audio level, 0..1). Remote streams are never fed to Web
+   * Audio: on Safari that can silence the element that plays them.
+   */
+  probe(id: string, probe: () => number): void {
+    this.untrack(id);
+    const stream = new MediaStream();
+    const m: Meter = { stream, source: null, analyser: null, buf: new Float32Array(0), level: 0, speaking: false, lastLoud: 0, onAdd: () => {}, probe };
+    this.meters.set(id, m);
+  }
+
   untrack(id: string): void {
     const m = this.meters.get(id);
     if (!m) return;
@@ -100,7 +113,8 @@ export class VoiceMeter {
     if (this.ctx?.state === 'suspended') void this.ctx.resume().catch(() => {});
     for (const m of this.meters.values()) {
       let rms = 0;
-      if (m.analyser) {
+      if (m.probe) rms = m.probe();
+      else if (m.analyser) {
         m.analyser.getFloatTimeDomainData(m.buf);
         rms = rmsLevel(m.buf);
       }
