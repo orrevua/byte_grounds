@@ -217,7 +217,7 @@ function insufficient(board: readonly string[]): boolean {
   return rest.every(({ p }) => p === 'b') && rest.every(({ sq }) => shade(sq) === shade(rest[0]!.sq));
 }
 
-export type ChessReason = 'checkmate' | 'resign' | 'stalemate' | 'agreement' | 'fifty' | 'repetition' | 'material' | 'abandon';
+export type ChessReason = 'checkmate' | 'resign' | 'stalemate' | 'agreement' | 'fifty' | 'repetition' | 'material' | 'abandon' | 'timeout';
 
 export interface ChessResult {
   /** null = a draw. */
@@ -232,6 +232,17 @@ export interface Replay {
   last: Move | null;
   /** How the moves ended the game, if they did (mate or a draw by rule). */
   over: ChessResult | null;
+  /** Pieces each side took (kinds, lowercase: `w` = the black pieces white captured). */
+  captured: Record<Color, string[]>;
+}
+
+const POINTS: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+
+/** White's material minus black's, in pawns (promotions count as what they became). */
+export function materialBalance(board: readonly string[]): number {
+  let sum = 0;
+  for (const p of board) if (p) sum += (colorOf(p) === 'w' ? 1 : -1) * POINTS[p.toLowerCase()]!;
+  return sum;
 }
 
 const posKey = (p: Position) => p.board.join(',') + p.turn + p.castling + p.ep;
@@ -243,10 +254,13 @@ export function replay(moves: readonly string[]): Replay | null {
   const seen = new Map<string, number>([[posKey(pos), 1]]);
   let last: Move | null = null;
   let repeated = false;
+  const captured: Record<Color, string[]> = { w: [], b: [] };
   for (const uci of moves) {
     const m = findMove(pos, uci);
     if (!m) return null;
     sans.push(toSan(pos, m));
+    const taken = pos.board[m.to] || (pos.board[m.from]!.toLowerCase() === 'p' && m.to === pos.ep ? 'p' : '');
+    if (taken) captured[pos.turn].push(taken.toLowerCase());
     pos = makeMove(pos, m);
     last = m;
     const k = posKey(pos);
@@ -259,7 +273,7 @@ export function replay(moves: readonly string[]): Replay | null {
   else if (repeated) over = { winner: null, reason: 'repetition' };
   else if (pos.half >= 100) over = { winner: null, reason: 'fifty' };
   else if (insufficient(pos.board)) over = { winner: null, reason: 'material' };
-  return { pos, sans, last, over };
+  return { pos, sans, last, over, captured };
 }
 
 // ---------- the table's game ----------
@@ -280,6 +294,48 @@ export interface ChessGame {
   started: number;
   /** Bumped by every applied op: the newer copy wins when two meet (`state`). */
   rev: number;
+  /** The chess clock, if the players picked a time control (null = untimed). */
+  clock: ChessClock | null;
+}
+
+/**
+ * A chess clock (ms). The side to move's clock runs from `at` (the sender's time of the last move;
+ * 0 = not running yet: it starts with White's first move). Times come from the movers' machines, so
+ * a few hundred ms of clock skew between friends' computers is accepted.
+ */
+export interface ChessClock {
+  initial: number;
+  increment: number;
+  w: number;
+  b: number;
+  at: number;
+}
+
+/** Time controls offered at the table: [minutes, increment seconds]. */
+export const TIME_CONTROLS: readonly (readonly [number, number])[] = [[1, 0], [3, 0], [3, 2], [5, 0], [5, 3], [10, 0], [15, 10], [30, 0]];
+const CLOCK_MAX = 3 * 3600_000;
+const INCREMENT_MAX = 60_000;
+
+/** A fresh clock with the same time control. */
+export function freshClock(c: { initial: number; increment: number }): ChessClock {
+  return { initial: c.initial, increment: c.increment, w: c.initial, b: c.initial, at: 0 };
+}
+
+const turnOf = (g: ChessGame): Color => (g.moves.length % 2 === 0 ? 'w' : 'b');
+
+/** Time left on `color`'s clock at `now` (only the side to move's clock runs). */
+export function timeLeft(g: ChessGame, color: Color, now: number): number {
+  const c = g.clock;
+  if (!c) return Infinity;
+  const running = !g.result && c.at > 0 && turnOf(g) === color;
+  return Math.max(0, c[color] - (running ? now - c.at : 0));
+}
+
+/** Who wins when `color` runs out of time: the other side, unless it has only a king (a draw). */
+function timeoutResult(board: readonly string[], color: Color): ChessResult {
+  const winner = other(color);
+  const hasMore = board.some((p) => p && colorOf(p) === winner && p.toLowerCase() !== 'k');
+  return { winner: hasMore ? winner : null, reason: 'timeout' };
 }
 
 /** A finished game, kept in the table's match history. */
@@ -306,7 +362,12 @@ export type ChessOp =
    * left. A game that is (now) over is put in the history and a fresh one starts.
    */
   | { kind: 'stand'; color: Color; by: string; force?: boolean; next?: string; started?: number }
-  | { kind: 'move'; game: string; ply: number; uci: string; by: string }
+  /** `at`: the mover's time (ms), for the clock. */
+  | { kind: 'move'; game: string; ply: number; uci: string; by: string; at?: number }
+  /** Pick the time control (initial 0 = untimed), before the game starts or for the next one. */
+  | { kind: 'time'; by: string; initial: number; increment: number }
+  /** The side to move ran out of time (as of `at`). */
+  | { kind: 'flag'; game: string; by: string; at: number }
   | { kind: 'resign'; game: string; by: string }
   /** Offer a draw, or accept the other's offer. */
   | { kind: 'draw'; game: string; by: string }
@@ -322,7 +383,7 @@ export function newChessId(): string {
 }
 
 export function emptyGame(id = 'first', started = 0): ChessGame {
-  return { id, white: '', black: '', moves: [], result: null, drawOffer: null, started, rev: 0 };
+  return { id, white: '', black: '', moves: [], result: null, drawOffer: null, started, rev: 0, clock: null };
 }
 
 /** The seat `name` holds, if any. */
@@ -335,7 +396,7 @@ export const inProgress = (g: ChessGame): boolean => g.moves.length > 0 && !g.re
 
 /** A fresh game in place of `g`, keeping whoever is still seated. */
 function restart(g: ChessGame, id: string, started: number): void {
-  Object.assign(g, emptyGame(id, started), { white: g.white, black: g.black });
+  Object.assign(g, emptyGame(id, started), { white: g.white, black: g.black, clock: g.clock && freshClock(g.clock) });
 }
 
 /**
@@ -381,10 +442,39 @@ export function applyChessOp(g: ChessGame, op: ChessOp, onEnd?: (ended: ChessGam
       if (g.result || op.ply !== g.moves.length || !g.white || !g.black) return false;
       const r = replay(g.moves);
       if (!r || seat !== r.pos.turn || !findMove(r.pos, op.uci)) return false;
+      const c = g.clock;
+      const now = op.at ?? c?.at ?? 0;
+      if (c && c.at > 0) {
+        c[seat] -= Math.max(0, now - c.at);
+        if (c[seat] <= 0) {
+          // Too late: the flag fell before this move arrived.
+          c[seat] = 0;
+          g.result = timeoutResult(r.pos.board, seat);
+          ended();
+          break;
+        }
+        c[seat] += c.increment;
+      }
+      if (c) c.at = now;
       g.moves.push(op.uci);
       g.drawOffer = null;
       g.result = replay(g.moves)!.over;
       if (g.result) ended();
+      break;
+    }
+    case 'time': {
+      if (!seat || inProgress(g)) return false;
+      g.clock = op.initial > 0 ? freshClock(op) : null;
+      break;
+    }
+    case 'flag': {
+      const c = g.clock;
+      if (!seat || !c || !inProgress(g) || c.at <= 0) return false;
+      const turn = turnOf(g);
+      if (c[turn] - (op.at - c.at) > 0) return false;
+      c[turn] = 0;
+      g.result = timeoutResult(replay(g.moves)!.pos.board, turn);
+      ended();
       break;
     }
     case 'resign':
@@ -402,7 +492,9 @@ export function applyChessOp(g: ChessGame, op: ChessOp, onEnd?: (ended: ChessGam
     case 'new': {
       if (!seat || inProgress(g) || op.game === g.id) return false;
       const swap = g.result !== null;
-      Object.assign(g, emptyGame(op.game, op.started), swap ? { white: g.black, black: g.white } : { white: g.white, black: g.black });
+      Object.assign(g, emptyGame(op.game, op.started), swap ? { white: g.black, black: g.white } : { white: g.white, black: g.black }, {
+        clock: g.clock && freshClock(g.clock),
+      });
       break;
     }
   }
@@ -433,7 +525,7 @@ export function recordOf(matches: readonly ChessMatch[], name: string): { won: n
 
 const str = (v: unknown, max: number): v is string => typeof v === 'string' && v.length <= max;
 const isColor = (v: unknown): v is Color => v === 'w' || v === 'b';
-const REASONS: readonly ChessReason[] = ['checkmate', 'resign', 'stalemate', 'agreement', 'fifty', 'repetition', 'material', 'abandon'];
+const REASONS: readonly ChessReason[] = ['checkmate', 'resign', 'stalemate', 'agreement', 'fifty', 'repetition', 'material', 'abandon', 'timeout'];
 const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 
 function normalizeResult(v: unknown): ChessResult | null | undefined {
@@ -453,7 +545,11 @@ export function normalizeGame(v: unknown): ChessGame | null {
   if (!movesOk(g.moves) || !num(g.started) || !num(g.rev) || !(g.drawOffer === null || isColor(g.drawOffer))) return null;
   const result = normalizeResult(g.result);
   if (result === undefined || !replay(g.moves)) return null;
-  return { id: g.id, white: g.white, black: g.black, moves: g.moves.slice(), result, drawOffer: g.drawOffer, started: g.started, rev: g.rev };
+  const c = g.clock as Partial<ChessClock> | null | undefined;
+  const clockOk = !!c && num(c.initial) && c.initial > 0 && c.initial <= CLOCK_MAX && num(c.increment) && c.increment <= INCREMENT_MAX &&
+    num(c.w) && num(c.b) && num(c.at);
+  const clock = clockOk ? { initial: c!.initial!, increment: c!.increment!, w: c!.w!, b: c!.b!, at: c!.at! } : null;
+  return { id: g.id, white: g.white, black: g.black, moves: g.moves.slice(), result, drawOffer: g.drawOffer, started: g.started, rev: g.rev, clock };
 }
 
 export function normalizeMatch(v: unknown): ChessMatch | null {
@@ -488,8 +584,14 @@ export function normalizeChessOp(v: unknown): ChessOp | null {
     }
     case 'move':
       return named && game && Number.isInteger(o.ply) && num(o.ply) && typeof o.uci === 'string' && UCI_RE.test(o.uci)
-        ? { kind: 'move', game: o.game as string, ply: o.ply as number, uci: o.uci, by }
+        ? { kind: 'move', game: o.game as string, ply: o.ply as number, uci: o.uci, by, ...(num(o.at) ? { at: o.at } : {}) }
         : null;
+    case 'time':
+      return named && num(o.initial) && o.initial <= CLOCK_MAX && num(o.increment) && o.increment <= INCREMENT_MAX
+        ? { kind: 'time', by, initial: o.initial, increment: o.increment }
+        : null;
+    case 'flag':
+      return named && game && num(o.at) ? { kind: 'flag', game: o.game as string, by, at: o.at } : null;
     case 'resign':
     case 'draw':
       return named && game ? { kind: o.kind, game: o.game as string, by } : null;

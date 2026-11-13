@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   applyChessOp,
   emptyGame,
+  materialBalance,
+  timeLeft,
   legalMoves,
   matchOf,
   normalizeChessOp,
@@ -173,6 +175,38 @@ describe('chess table game', () => {
     const old = { ...emptyGame('g9', 9), moves: ['e2e4'], result: { winner: 'w' as const, reason: 'resign' as const } };
     applyChessOp(old, { kind: 'sit', color: 'b', by: 'Caio', next: 'g10', started: 10 });
     expect([old.id, old.black, old.moves, old.result]).toEqual(['g10', 'Caio', [], null]);
+  });
+
+  it('runs a clock: starts after white first moves, adds the increment, flags on time', () => {
+    const g = seated();
+    applyChessOp(g, { kind: 'time', by: 'Ana', initial: 60_000, increment: 2_000 });
+    expect(g.clock).toMatchObject({ w: 60_000, b: 60_000, at: 0 });
+    applyChessOp(g, { kind: 'move', game: 'g1', ply: 0, uci: 'e2e4', by: 'Ana', at: 1_000 });
+    expect(g.clock).toMatchObject({ w: 60_000, at: 1_000 }); // white's first move is free
+    expect(timeLeft(g, 'b', 6_000)).toBe(55_000);
+    applyChessOp(g, { kind: 'move', game: 'g1', ply: 1, uci: 'e7e5', by: 'Bia', at: 11_000 });
+    expect(g.clock).toMatchObject({ b: 52_000, at: 11_000 }); // 60 - 10 + 2
+    expect(applyChessOp(g, { kind: 'flag', game: 'g1', by: 'Bia', at: 30_000 })).toBe(false); // white still has time
+    expect(applyChessOp(g, { kind: 'flag', game: 'g1', by: 'Bia', at: 71_000 })).toBe(true);
+    expect(g.result).toEqual({ winner: 'b', reason: 'timeout' });
+    expect(applyChessOp(g, { kind: 'time', by: 'Ana', initial: 0, increment: 0 })).toBe(true);
+    expect(g.clock).toBeNull();
+  });
+
+  it('a move arriving after the flag fell loses on time; a rematch keeps the time control', () => {
+    const g = seated();
+    applyChessOp(g, { kind: 'time', by: 'Bia', initial: 10_000, increment: 0 });
+    applyChessOp(g, { kind: 'move', game: 'g1', ply: 0, uci: 'e2e4', by: 'Ana', at: 0 + 1 });
+    applyChessOp(g, { kind: 'move', game: 'g1', ply: 1, uci: 'e7e5', by: 'Bia', at: 20_000 });
+    expect([g.moves.length, g.result]).toEqual([1, { winner: 'w', reason: 'timeout' }]);
+    applyChessOp(g, { kind: 'new', game: 'g2', started: 2, by: 'Ana' });
+    expect(g.clock).toEqual({ initial: 10_000, increment: 0, w: 10_000, b: 10_000, at: 0 });
+  });
+
+  it('counts captured pieces and material', () => {
+    const r = replay(['e2e4', 'd7d5', 'e4d5', 'd8d5', 'b1c3', 'd5a2', 'a1a2'])!;
+    expect(r.captured).toEqual({ w: ['p', 'q'], b: ['p', 'p'] });
+    expect(materialBalance(r.pos.board)).toBe(8);
   });
 
   it('adopts a newer state only', () => {

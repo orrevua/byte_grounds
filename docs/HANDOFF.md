@@ -17,7 +17,16 @@
 - Live over the room (`chess` message). Saved in `chess_tables` and `chess_matches`.
 - Each game is its own instance: when players leave a game that is over (leaving mid-game loses
   it), the table resets to a fresh game, the old one goes to history, and "Last game: …" shows it.
-- **Owner TODO:** run `supabase/chess.sql`.
+- Clock (time controls picked by the seated players), captured pieces + material lead in bars around
+  the board, Gemini pixel-art pieces, and a move review after each game:
+  - a small own engine (`shared/src/chess-engine.ts`) in a Web Worker;
+  - per-move labels, best move, accuracy %;
+  - step through the moves with ← / →.
+- Returning players: the spot is also kept in the browser and the newer of the online and browser
+  spots wins. The owner said they always came back in the same place; the cause in production
+  wasn't confirmed (I was refused to read the database). Save/load failures are now logged
+  (`[position]` in the console).
+- **Owner TODO:** run (or re-run) `supabase/chess.sql`; the re-run adds the `timeout` reason.
 - `chess.js` npm install was refused by the permission check, hence the own engine.
 
 ## Whiteboard signs — DONE, PUSHED (2026-11-03)

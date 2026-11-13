@@ -18,11 +18,16 @@ create table if not exists public.chess_matches (
   white text not null check (length(white) <= 40),
   black text not null check (length(black) <= 40),
   winner text check (winner in ('w', 'b')),
-  reason text not null check (reason in ('checkmate', 'resign', 'stalemate', 'agreement', 'fifty', 'repetition', 'material', 'abandon')),
+  reason text not null,
   moves text[] not null check (cardinality(moves) <= 600),
   ended_at timestamptz not null default now(),
   saved_by uuid default auth.uid()
 );
+
+-- Re-applied on every run, so new ways a game can end (e.g. 'timeout') are accepted after re-running.
+alter table public.chess_matches drop constraint if exists chess_matches_reason_check;
+alter table public.chess_matches add constraint chess_matches_reason_check check (reason in
+  ('checkmate', 'resign', 'stalemate', 'agreement', 'fifty', 'repetition', 'material', 'abandon', 'timeout'));
 
 create index if not exists chess_matches_table_ended on public.chess_matches (table_id, ended_at desc);
 

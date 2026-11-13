@@ -80,3 +80,36 @@ Three Playwright players on the ws dev server checked the following:
 - the match shows in history;
 - rematch swaps colours;
 - a late opener catches up through hello/state.
+
+## Addendum: clock, captured pieces, move review, piece art (2026-11-13)
+
+- **Pieces:** Gemini pixel art in `client/src/assets/chess/pieces.png` (made by
+  `tools/gen_chess_pieces.py`). Each piece is a CSS sprite (`.pc`, `--c` column, `--r` colour).
+- **Player bars:** above and below the board, you at the bottom. Each bar shows:
+  - the player's name;
+  - the pieces they took (`Replay.captured`);
+  - their material lead (`materialBalance`);
+  - their clock.
+- **Clock:**
+  - `ChessGame.clock = { initial, increment, w, b, at }`. Seated players pick it with the `time`
+    op before a game: untimed, or 1+0, 3+0, 3+2, 5+0, 5+3, 10+0, 15+10, 30+0. It carries over to
+    the next game.
+  - It starts with White's first move. Each `move` carries the mover's `at`. The mover's clock
+    loses `at - clock.at` and gains the increment.
+  - A move that arrives after that player's time ran out loses on time.
+  - A seated player's client sends `flag` when the side to move reaches 0.
+  - Running out of time loses, unless the other side has only its king, which is a draw. The
+    match reason is `timeout` (re-run `supabase/chess.sql`).
+  - Times come from the players' own computers, so a few hundred ms of clock difference between
+    them is accepted.
+- **Move review (`shared/src/chess-engine.ts`):**
+  - A small engine: material and piece-square evaluation, fixed-depth alpha-beta (`REVIEW_DEPTH` =
+    4 plies) plus a capture search. That's about 50 ms a move.
+  - For each move it compares the engine's best move with the move played, both searched to the
+    same depth.
+  - The win chance lost (lichess's curve) gives the label: best / excellent / good / inaccuracy /
+    mistake / blunder. Per-move accuracy uses lichess's formula; a player's accuracy is the mean.
+  - It runs in a Web Worker (`chess-review-worker.ts`), only for finished games: the live game
+    once it's over, and matches opened from the history.
+  - The fixed depth means every client rates a game the same way.
+  - Clicking a move, or ← / →, steps through the game and shows "Mistake — best was Qe5+".

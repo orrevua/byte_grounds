@@ -11,6 +11,7 @@
     "./ground": "./src/ground.ts",
     "./board": "./src/board.ts",
     "./chess": "./src/chess.ts",
+    "./chess-engine": "./src/chess-engine.ts",
     "./lobby": "./src/lobby.ts"
   },
   "scripts": {
