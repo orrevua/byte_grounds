@@ -15,7 +15,7 @@ import {
 import type { Appearance, PeerId } from '@byte_grounds/shared/protocol';
 import { startPosition, type OfficeMap } from '@byte_grounds/shared/map';
 import { DEFAULT_MAP } from '@byte_grounds/shared/maps';
-import { createStore, type MapSummary } from './store.ts';
+import { LocalStore, createStore, newerSpot, type MapSummary } from './store.ts';
 
 /** The built-in Office, when the saved maps can't be listed. */
 const FALLBACK_MAP: MapSummary = { id: DEFAULT_MAP.id, name: DEFAULT_MAP.name ?? 'Office' };
@@ -50,6 +50,11 @@ const STATUS_KEY = 'byte_grounds.status';
 const SAVE_POSITION_MS = 5000;
 
 const store = createStore();
+/**
+ * Our spot is also kept in this browser: if saving it online fails, coming back still starts where
+ * we left (the newer of the two wins).
+ */
+const localSpots: LocalStore | null = hasSupabase ? new LocalStore() : null;
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('#app container not found');
@@ -313,7 +318,10 @@ async function join(name: string, appearance: Appearance, mapId: string, stopCou
   await loadCustomSheets(store);
   const [map, saved, uid] = await Promise.all([
     store.loadMap(mapId).then((m) => m ?? DEFAULT_MAP),
-    store.loadPosition(mapId, name).catch(() => null),
+    Promise.all([
+      store.loadPosition(mapId, name).catch((err) => (console.warn('[position] load failed:', err), null)),
+      localSpots?.loadPosition(mapId, name).catch(() => null) ?? null,
+    ]).then(([online, here]) => newerSpot(online, here)),
     ensureSession(),
   ]);
   const isAdmin = uid ? await checkIsAdmin() : false;
@@ -415,7 +423,8 @@ function savePositionPeriodically(mapId: string, name: string): () => Promise<vo
     const pos = game?.position;
     if (!pos || (pos.x === last.x && pos.y === last.y)) return;
     last = pos;
-    await store.savePosition(mapId, name, pos.x, pos.y).catch(() => {});
+    void localSpots?.savePosition(mapId, name, pos.x, pos.y).catch(() => {});
+    await store.savePosition(mapId, name, pos.x, pos.y).catch((err) => console.warn('[position] save failed:', err));
   };
   setInterval(save, SAVE_POSITION_MS);
   addEventListener('pagehide', () => void save());

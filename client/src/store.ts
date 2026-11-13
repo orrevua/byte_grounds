@@ -26,7 +26,7 @@ export interface Store {
   deleteMap(id: string): Promise<void>;
   /** Live edits of a map with id > `after`, in id order (none in local dev). */
   loadEdits(mapId: string, after: number): Promise<MapEdit[]>;
-  loadPosition(mapId: string, player: string): Promise<{ x: number; y: number } | null>;
+  loadPosition(mapId: string, player: string): Promise<SavedSpot | null>;
   savePosition(mapId: string, player: string, x: number, y: number): Promise<void>;
   /** Custom decoration sheets from Sheet Studio (everyone reads; admins write). */
   listSheets(): Promise<CustomSheet[]>;
@@ -45,6 +45,19 @@ export interface Store {
 }
 
 export const CHESS_HISTORY_MAX = 50;
+
+/** Where a player was on a map, and when (ms; absent on spots saved before it was recorded). */
+export interface SavedSpot {
+  x: number;
+  y: number;
+  at?: number;
+}
+
+/** The more recent of two saved spots (one with a time beats one without). */
+export function newerSpot(a: SavedSpot | null, b: SavedSpot | null): SavedSpot | null {
+  if (!a || !b) return a ?? b;
+  return (b.at ?? 0) > (a.at ?? 0) ? b : a;
+}
 
 /** A Sheet Studio sheet: id `custom_<slug>`, the image as a PNG data URL, its size in cells. */
 export interface CustomSheet {
@@ -282,16 +295,18 @@ export class SupabaseStore implements Store {
     if (error) throw error;
   }
 
-  async loadPosition(mapId: string, player: string): Promise<{ x: number; y: number } | null> {
+  async loadPosition(mapId: string, player: string): Promise<SavedSpot | null> {
     const db = await getSupabase();
     const { data, error } = await db
       .from('player_positions')
-      .select('x, y')
+      .select('x, y, updated_at')
       .eq('map_id', mapId)
       .eq('player_name', playerKey(player))
       .maybeSingle();
     if (error) throw error;
-    return data ? { x: data.x as number, y: data.y as number } : null;
+    if (!data) return null;
+    const at = Date.parse(String(data.updated_at));
+    return { x: data.x as number, y: data.y as number, ...(Number.isFinite(at) ? { at } : {}) };
   }
 
   async savePosition(mapId: string, player: string, x: number, y: number): Promise<void> {
@@ -363,12 +378,12 @@ export class LocalStore implements Store {
     return [];
   }
 
-  async loadPosition(mapId: string, player: string): Promise<{ x: number; y: number } | null> {
-    return this.read<{ x: number; y: number }>(POS_KEY)[`${mapId}/${playerKey(player)}`] ?? null;
+  async loadPosition(mapId: string, player: string): Promise<SavedSpot | null> {
+    return this.read<SavedSpot>(POS_KEY)[`${mapId}/${playerKey(player)}`] ?? null;
   }
 
   async savePosition(mapId: string, player: string, x: number, y: number): Promise<void> {
-    this.write(POS_KEY, { ...this.read(POS_KEY), [`${mapId}/${playerKey(player)}`]: { x, y } });
+    this.write(POS_KEY, { ...this.read(POS_KEY), [`${mapId}/${playerKey(player)}`]: { x, y, at: Date.now() } });
   }
 
   async listSheets(): Promise<CustomSheet[]> {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createBlankMap } from '@byte_grounds/shared/map';
 import { builtInMap, builtInRev } from '@byte_grounds/shared/maps';
-import { LocalStore, playerKey, savedWins } from '../src/store.ts';
+import { LocalStore, newerSpot, playerKey, savedWins } from '../src/store.ts';
 
 const OFFICE = builtInMap('office')!;
 
@@ -87,9 +87,19 @@ describe('LocalStore', () => {
   it('remembers positions per map and per player name, ignoring case/spaces', async () => {
     const store = new LocalStore(memoryStorage());
     await store.savePosition('office', 'Felipe ', 4.5, 6.5);
-    expect(await store.loadPosition('office', 'felipe')).toEqual({ x: 4.5, y: 6.5 });
+    expect(await store.loadPosition('office', 'felipe')).toMatchObject({ x: 4.5, y: 6.5 });
     expect(await store.loadPosition('cafe', 'felipe')).toBeNull();
     expect(playerKey('  FeLiPe ')).toBe('felipe');
+  });
+
+  it('comes back to the newer of the online and in-browser spots', () => {
+    const old = { x: 1, y: 1, at: 100 };
+    const fresh = { x: 9, y: 9, at: 200 };
+    expect(newerSpot(old, fresh)).toBe(fresh);
+    expect(newerSpot(fresh, old)).toBe(fresh);
+    expect(newerSpot({ x: 2, y: 2 }, fresh)).toBe(fresh); // a spot saved without a time loses
+    expect(newerSpot(null, old)).toBe(old);
+    expect(newerSpot(null, null)).toBeNull();
   });
 });
 
