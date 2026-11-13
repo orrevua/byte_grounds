@@ -30,6 +30,11 @@ doesn't fit:
 - `sit`: the seat is free, you have no seat, and no game is in progress.
 - `stand`: mid-game it loses the game. `force` frees the seat of a player no longer in the room,
   and that counts as abandonment.
+- Each game is its own instance (`id`). When a `stand` leaves a game that is (now) over, or a `sit`
+  comes to one, the table starts a fresh game, keeping whoever is still seated. The sender picks the
+  new id and start time (`next`, `started`), so every client resets to the same game.
+  `applyChessOp`'s `onEnd` gets the game as it ended, before the reset, and that copy goes to the
+  history. The side panel shows "Last game: …".
 - `move`: right game id, ply = moves made, your turn, legal.
 - `resign`.
 - `draw`: offers a draw, or accepts the other player's offer.

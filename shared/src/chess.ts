@@ -294,10 +294,18 @@ export interface ChessMatch {
   ended: number;
 }
 
+/**
+ * `next` / `started`: the id and start time of the fresh game that `sit` / `stand` open when they
+ * touch a finished game (the sender picks them, so every client resets to the same game).
+ */
 export type ChessOp =
-  | { kind: 'sit'; color: Color; by: string }
-  /** Leave a seat; mid-game it loses the game. `force`: someone else frees the seat of a player who left. */
-  | { kind: 'stand'; color: Color; by: string; force?: boolean }
+  /** Take a free seat; at a finished game, a fresh game starts (whoever is still seated stays). */
+  | { kind: 'sit'; color: Color; by: string; next?: string; started?: number }
+  /**
+   * Leave a seat; mid-game it loses the game. `force`: someone else frees the seat of a player who
+   * left. A game that is (now) over is put in the history and a fresh one starts.
+   */
+  | { kind: 'stand'; color: Color; by: string; force?: boolean; next?: string; started?: number }
   | { kind: 'move'; game: string; ply: number; uci: string; by: string }
   | { kind: 'resign'; game: string; by: string }
   /** Offer a draw, or accept the other's offer. */
@@ -325,8 +333,18 @@ export function seatOf(g: ChessGame, name: string): Color | null {
 /** Moves made and nobody won or drew yet. */
 export const inProgress = (g: ChessGame): boolean => g.moves.length > 0 && !g.result;
 
-/** Apply an op in place; false (unchanged) when it doesn't apply. `hello` never changes anything. */
-export function applyChessOp(g: ChessGame, op: ChessOp): boolean {
+/** A fresh game in place of `g`, keeping whoever is still seated. */
+function restart(g: ChessGame, id: string, started: number): void {
+  Object.assign(g, emptyGame(id, started), { white: g.white, black: g.black });
+}
+
+/**
+ * Apply an op in place; false (unchanged) when it doesn't apply. `hello` never changes anything.
+ * `onEnd` gets a copy of the game as it ends (the op gave it a result), before any fresh game
+ * replaces it: that copy goes to the match history.
+ */
+export function applyChessOp(g: ChessGame, op: ChessOp, onEnd?: (ended: ChessGame) => void): boolean {
+  const ended = () => onEnd?.(structuredClone(g));
   const seat = 'by' in op ? seatOf(g, op.by) : null;
   const sameGame = 'game' in op && op.kind !== 'new' ? op.game === g.id : true;
   if (!sameGame) return false;
@@ -343,15 +361,20 @@ export function applyChessOp(g: ChessGame, op: ChessOp): boolean {
     case 'sit': {
       const key = op.color === 'w' ? 'white' : 'black';
       if (g[key] || seat || inProgress(g)) return false;
+      if (g.result && op.next) restart(g, op.next, op.started ?? g.started);
       g[key] = op.by;
       break;
     }
     case 'stand': {
       const key = op.color === 'w' ? 'white' : 'black';
       if (!g[key] || (!op.force && g[key] !== op.by)) return false;
-      if (inProgress(g)) g.result = { winner: other(op.color), reason: op.force ? 'abandon' : 'resign' };
+      if (inProgress(g)) {
+        g.result = { winner: other(op.color), reason: op.force ? 'abandon' : 'resign' };
+        ended();
+      }
       g[key] = '';
       g.drawOffer = null;
+      if (g.result && op.next) restart(g, op.next, op.started ?? g.started);
       break;
     }
     case 'move': {
@@ -361,17 +384,20 @@ export function applyChessOp(g: ChessGame, op: ChessOp): boolean {
       g.moves.push(op.uci);
       g.drawOffer = null;
       g.result = replay(g.moves)!.over;
+      if (g.result) ended();
       break;
     }
     case 'resign':
       if (!seat || !inProgress(g)) return false;
       g.result = { winner: other(seat), reason: 'resign' };
+      ended();
       break;
     case 'draw':
       if (!seat || !inProgress(g)) return false;
       if (g.drawOffer === other(seat)) g.result = { winner: null, reason: 'agreement' };
       else if (g.drawOffer === seat) return false;
       g.drawOffer = g.result ? null : seat;
+      if (g.result) ended();
       break;
     case 'new': {
       if (!seat || inProgress(g) || op.game === g.id) return false;
@@ -453,9 +479,13 @@ export function normalizeChessOp(v: unknown): ChessOp | null {
       return state ? { kind: 'state', state } : null;
     }
     case 'sit':
-      return named && isColor(o.color) ? { kind: 'sit', color: o.color, by } : null;
-    case 'stand':
-      return named && isColor(o.color) ? { kind: 'stand', color: o.color, by, ...(o.force === true ? { force: true } : {}) } : null;
+    case 'stand': {
+      if (!named || !isColor(o.color)) return null;
+      const next = str(o.next, CHESS_ID_MAX) && o.next && num(o.started) ? { next: o.next as string, started: o.started as number } : {};
+      return o.kind === 'sit'
+        ? { kind: 'sit', color: o.color, by, ...next }
+        : { kind: 'stand', color: o.color, by, ...(o.force === true ? { force: true } : {}), ...next };
+    }
     case 'move':
       return named && game && Number.isInteger(o.ply) && num(o.ply) && typeof o.uci === 'string' && UCI_RE.test(o.uci)
         ? { kind: 'move', game: o.game as string, ply: o.ply as number, uci: o.uci, by }

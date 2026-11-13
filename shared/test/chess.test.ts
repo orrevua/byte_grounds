@@ -145,6 +145,36 @@ describe('chess table game', () => {
     expect([s.white, s.result]).toEqual(['', { winner: 'b', reason: 'abandon' }]);
   });
 
+  it('both players leaving mid-game: the match ends, then the table starts a fresh game', () => {
+    const g = seated();
+    applyChessOp(g, { kind: 'move', game: 'g1', ply: 0, uci: 'e2e4', by: 'Ana' });
+    const ended: ChessGame[] = [];
+    applyChessOp(g, { kind: 'stand', color: 'w', by: 'Ana', next: 'g2', started: 2 }, (e) => ended.push(e));
+    expect(ended).toHaveLength(1);
+    expect(matchOf(ended[0]!, 't', 5)).toMatchObject({ id: 'g1', white: 'Ana', black: 'Bia', winner: 'b', reason: 'resign' });
+    // Bia is still seated in the fresh game, waiting for an opponent.
+    expect([g.id, g.white, g.black, g.moves, g.result]).toEqual(['g2', '', 'Bia', [], null]);
+    applyChessOp(g, { kind: 'stand', color: 'b', by: 'Bia', next: 'g3', started: 3 }, (e) => ended.push(e));
+    expect(ended).toHaveLength(1); // nothing was in play
+    expect([g.id, g.white, g.black]).toEqual(['g2', '', '']);
+    applyChessOp(g, { kind: 'sit', color: 'w', by: 'Caio', next: 'g4', started: 4 });
+    expect([g.id, g.white]).toEqual(['g2', 'Caio']);
+  });
+
+  it('leaving after a mate starts a fresh game; sitting at a finished table starts one too', () => {
+    const g = seated();
+    ['f2f3', 'e7e5', 'g2g4', 'd8h4'].forEach((uci, ply) =>
+      applyChessOp(g, { kind: 'move', game: 'g1', ply, uci, by: ply % 2 ? 'Bia' : 'Ana' }),
+    );
+    applyChessOp(g, { kind: 'stand', color: 'w', by: 'Ana', next: 'g2', started: 2 });
+    expect([g.id, g.white, g.black, g.result]).toEqual(['g2', '', 'Bia', null]);
+
+    // A finished game left with empty seats (saved by an older version) restarts on the next sit.
+    const old = { ...emptyGame('g9', 9), moves: ['e2e4'], result: { winner: 'w' as const, reason: 'resign' as const } };
+    applyChessOp(old, { kind: 'sit', color: 'b', by: 'Caio', next: 'g10', started: 10 });
+    expect([old.id, old.black, old.moves, old.result]).toEqual(['g10', 'Caio', [], null]);
+  });
+
   it('adopts a newer state only', () => {
     const g = seated();
     const old = structuredClone(g);

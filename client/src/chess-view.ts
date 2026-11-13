@@ -55,6 +55,8 @@ export class ChessView {
   private promoting: Move | null = null;
   /** A finished match shown on the board instead of the live game. */
   private viewing: ChessMatch | null = null;
+  /** The last game that ended while we watched, shown once the table has moved on to a fresh one. */
+  private lastEnded: ChessGame | null = null;
   private status = '';
   private statusBad = false;
   onClose: () => void = () => {};
@@ -74,6 +76,7 @@ export class ChessView {
     this.selected = -1;
     this.promoting = null;
     this.viewing = null;
+    this.lastEnded = null;
     this.status = '';
     this.build(title);
     const { store } = this.deps;
@@ -116,28 +119,30 @@ export class ChessView {
       this.deps.send(this.table, { kind: 'state', state: this.game });
       return;
     }
-    const before = this.game.result;
-    if (!applyChessOp(this.game, op)) return;
-    this.afterChange(before, false);
+    let ended: ChessGame | null = null;
+    if (!applyChessOp(this.game, op, (g) => (ended = g))) return;
+    this.afterChange(ended, false);
   }
 
   /** Our own op: applied, sent, saved (and the match recorded when it ended the game). */
   private local(op: ChessOp): void {
-    const before = this.game.result;
-    if (!applyChessOp(this.game, op)) return;
+    let ended: ChessGame | null = null;
+    if (!applyChessOp(this.game, op, (g) => (ended = g))) return;
     this.deps.send(this.table, op);
     this.deps.store.saveChessGame(this.table, this.game).catch((err) => {
       console.warn('[chess] save failed:', err);
       this.setStatus(t('chess.notSaved'), true);
     });
-    this.afterChange(before, true);
+    this.afterChange(ended, true);
   }
 
-  private afterChange(before: ChessGame['result'], ours: boolean): void {
+  /** `ended`: the game as the op ended it (the table may already show a fresh one). */
+  private afterChange(ended: ChessGame | null, ours: boolean): void {
     this.setGame(this.game);
     this.selected = -1;
     this.promoting = null;
-    const match = !before ? matchOf(this.game, this.table, Date.now()) : null;
+    if (ended) this.lastEnded = ended;
+    const match = ended ? matchOf(ended, this.table, Date.now()) : null;
     if (match && !this.matches.some((m) => m.id === match.id)) {
       this.matches.unshift(match);
       // Whoever ended the game writes it down, so each match is saved once.
@@ -213,7 +218,18 @@ export class ChessView {
   }
 
   private shown(): Replay {
-    return this.viewing ? (replay(this.viewing.moves) ?? this.play) : this.play;
+    if (this.viewing) return replay(this.viewing.moves) ?? this.play;
+    return this.idle() ? replay([])! : this.play;
+  }
+
+  /** A finished game nobody sits at any more: the table looks fresh; the next to sit starts a new game. */
+  private idle(): boolean {
+    return !!this.game.result && !this.game.white && !this.game.black;
+  }
+
+  /** Ids for the fresh game a `sit` / `stand` opens when the game is over. */
+  private next(): { next: string; started: number } {
+    return { next: newChessId(), started: Date.now() };
   }
 
   private renderBoard(): void {
@@ -302,13 +318,18 @@ export class ChessView {
       const who = color === 'w' ? g.white : g.black;
       const row = el('div', 'chess-seat' + (!g.result && g.white && g.black && this.play.pos.turn === color ? ' turn' : ''));
       row.append(el('span', `pc ${color}`, glyph('k')), el('span', 'chess-who', who || t('chess.free')));
-      if (!who && !mine && !inProgress(g)) row.append(button(t('chess.sit'), () => this.local({ kind: 'sit', color, by: me }), 'primary'));
+      if (!who && !mine && !inProgress(g)) row.append(button(t('chess.sit'), () => this.local({ kind: 'sit', color, by: me, ...this.next() }), 'primary'));
       else if (who === me) row.append(button(t('chess.stand'), () => this.stand(color)));
-      else if (who && !online.has(who)) row.append(button(t('chess.freeSeat'), () => this.local({ kind: 'stand', color, by: me, force: true })));
+      else if (who && !online.has(who)) row.append(button(t('chess.freeSeat'), () => this.local({ kind: 'stand', color, by: me, force: true, ...this.next() })));
       side.append(row);
     }
 
     side.append(el('div', 'chess-state', this.stateLine()));
+    const last = this.idle() ? g : this.lastEnded && this.lastEnded.id !== g.id ? this.lastEnded : null;
+    if (last?.result) {
+      const who = last.result.winner === 'w' ? last.white : last.black;
+      side.append(el('div', 'chess-last', t('chess.lastGame', { result: resultText(last.result.winner, last.result.reason, who) })));
+    }
 
     const actions = el('div', 'chess-actions');
     if (mine && inProgress(g)) {
@@ -333,12 +354,13 @@ export class ChessView {
   /** Leaving mid-game loses it, so ask first. */
   private stand(color: Color): void {
     if (inProgress(this.game) && !confirm(t('chess.confirmLeave'))) return;
-    this.local({ kind: 'stand', color, by: this.deps.name() });
+    this.local({ kind: 'stand', color, by: this.deps.name(), ...this.next() });
   }
 
   private stateLine(): string {
     const g = this.game;
     const name = (c: Color | null) => (c === 'w' ? g.white || t('chess.white') : c === 'b' ? g.black || t('chess.black') : '');
+    if (this.idle()) return t('chess.waiting');
     if (g.result) return resultText(g.result.winner, g.result.reason, name(g.result.winner));
     if (!g.white || !g.black) return t('chess.waiting');
     const turn = this.play.pos.turn;
@@ -369,7 +391,7 @@ export class ChessView {
       }, 'chess-match');
       row.append(
         el('span', '', `${m.white} ${score} ${m.black}`),
-        el('small', '', `${t(`chess.reason.${m.reason}`)} · ${new Date(m.ended).toLocaleDateString()} · ${t('chess.moveCount', { n: Math.ceil(m.moves.length / 2) })}`),
+        el('small', '', `${t(`chess.reason.${m.reason}`)} · ${new Date(m.ended).toLocaleDateString()} · ${(Math.ceil(m.moves.length / 2) === 1 ? t('chess.moveCountOne') : t('chess.moveCount', { n: Math.ceil(m.moves.length / 2) }))}`),
       );
       box.append(row);
     }

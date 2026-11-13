@@ -15,6 +15,8 @@
   - draw offers, resign, rematch with colours swapped;
   - match history with your W/L/D record; click a match to see how it ended.
 - Live over the room (`chess` message). Saved in `chess_tables` and `chess_matches`.
+- Each game is its own instance: when players leave a game that is over (leaving mid-game loses
+  it), the table resets to a fresh game, the old one goes to history, and "Last game: …" shows it.
 - **Owner TODO:** run `supabase/chess.sql`.
 - `chess.js` npm install was refused by the permission check, hence the own engine.
 
