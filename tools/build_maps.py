@@ -313,6 +313,7 @@ CAT = {
     "wardrobe": Obj("wooden_furniture", 0, 19, 2, 3),
     "vanity": Obj("wooden_furniture", 3, 19, 1, 3),
     "chess_table": Obj("wooden_furniture", 2, 19, 1, 1),
+    "b_chess": Obj("byte_grounds_games", 0, 0, 2, 2),  # a chess table you can play at (F)
     "clock": Obj("wooden_furniture", 8, 23, 1, 3),
     "fireplace": Obj("wooden_furniture", 12, 23, 3, 3),
     "piano": Obj("wooden_furniture", 2, 26, 2, 2),
@@ -733,7 +734,7 @@ def build_office():
 
 def build_lounge():
     """Lounge & Café, all Gemini art: a café with tables, and a lounge with two sofa corners."""
-    m = MapBuilder("lounge", "Lounge & Café", 2, 36, 26, "#4a4f5c")
+    m = MapBuilder("lounge", "Lounge & Café", 3, 36, 26, "#4a4f5c")
     m.top_wall(("b_window", "b_wall_lilac"))
     m.vwall(18, 2, 24, gaps=(12, 13, 14))
     m.floor3(1, 2, 17, 24, "stone")
@@ -792,6 +793,11 @@ def build_lounge():
     m.put("lv_bookshelf", 25, 21)
     m.put("lv_floor_lamp", 27, 21)
     m.put("p_snake", 24, 13)
+    # Chess table, two chairs on each side (spec: docs/specs/chess-table.md).
+    m.put("b_chess", 28, 18)
+    for x in (28, 29):
+        m.put_s("c_chair_down", x, 17, tuck=True)
+        m.put_s("c_chair_up", x, 19, over=True)
 
     m.spawn = (26.5, 23.5)
     for name, p in {"cafe": (8, 11), "lounge": (27, 11), "corner": (27, 21)}.items():

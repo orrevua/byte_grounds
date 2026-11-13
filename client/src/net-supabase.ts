@@ -1,6 +1,7 @@
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 import { BOARD_ID_MAX, DEFAULT_ROOM, normalizeChat, normalizeStatusFields } from '@byte_grounds/shared/protocol';
 import { normalizeBoardOp } from '@byte_grounds/shared/board';
+import { normalizeChessOp } from '@byte_grounds/shared/chess';
 import type {
   ClientToServer,
   JoinMsg,
@@ -191,6 +192,12 @@ export class SupabaseNet implements Net {
         if (!this.known.has(id) || !clean || typeof board !== 'string' || board.length > BOARD_ID_MAX) return;
         this.emit({ type: 'board', from: id, board, op: clean });
       })
+      .on('broadcast', { event: 'chess' }, ({ payload }) => {
+        const { id, table, op } = payload as { id: PeerId; table: unknown; op: unknown };
+        const clean = normalizeChessOp(op);
+        if (!this.known.has(id) || !clean || typeof table !== 'string' || table.length > BOARD_ID_MAX) return;
+        this.emit({ type: 'chess', from: id, table, op: clean });
+      })
       .on('broadcast', { event: 'bye' }, ({ payload }) => {
         this.dropPeer((payload as { id: PeerId }).id);
       })
@@ -332,6 +339,11 @@ export class SupabaseNet implements Net {
       case 'board': {
         if (!this.channel || !this.subscribed) return;
         void this.channel.send({ type: 'broadcast', event: 'board', payload: { id: this.selfId, board: msg.board, op: msg.op } });
+        return;
+      }
+      case 'chess': {
+        if (!this.channel || !this.subscribed) return;
+        void this.channel.send({ type: 'broadcast', event: 'chess', payload: { id: this.selfId, table: msg.table, op: msg.op } });
         return;
       }
       case 'offer':

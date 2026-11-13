@@ -1,7 +1,7 @@
 {
   "id": "lounge",
   "name": "Lounge & Caf\u00e9",
-  "rev": 2,
+  "rev": 3,
   "width": 36,
   "height": 26,
   "tiles": [
@@ -24,7 +24,7 @@
     1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-    1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1,
     1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1,
@@ -1163,7 +1163,19 @@
     {"x":27,"y":21,"sheet":"byte_grounds_living_grid","sx":6,"sy":4,"layer":"object","baseDy":1},
     {"x":27,"y":22,"sheet":"byte_grounds_living_grid","sx":6,"sy":5,"layer":"object"},
     {"x":24,"y":13,"sheet":"byte_grounds_plants_grid","sx":2,"sy":0,"layer":"object","baseDy":1},
-    {"x":24,"y":14,"sheet":"byte_grounds_plants_grid","sx":2,"sy":1,"layer":"object"}
+    {"x":24,"y":14,"sheet":"byte_grounds_plants_grid","sx":2,"sy":1,"layer":"object"},
+    {"x":28,"y":18,"sheet":"byte_grounds_games","sx":0,"sy":0,"layer":"object","baseDy":1},
+    {"x":29,"y":18,"sheet":"byte_grounds_games","sx":1,"sy":0,"layer":"object","baseDy":1},
+    {"x":28,"y":19,"sheet":"byte_grounds_games","sx":0,"sy":1,"layer":"object"},
+    {"x":29,"y":19,"sheet":"byte_grounds_games","sx":1,"sy":1,"layer":"object"},
+    {"x":28,"y":17,"sheet":"byte_grounds_cafe_grid","sx":0,"sy":3,"layer":"object"},
+    {"x":28,"y":18,"sheet":"byte_grounds_cafe_grid","sx":0,"sy":4,"layer":"object"},
+    {"x":28,"y":19,"sheet":"byte_grounds_cafe_grid","sx":1,"sy":3,"layer":"object"},
+    {"x":28,"y":20,"sheet":"byte_grounds_cafe_grid","sx":1,"sy":4,"layer":"object"},
+    {"x":29,"y":17,"sheet":"byte_grounds_cafe_grid","sx":0,"sy":3,"layer":"object"},
+    {"x":29,"y":18,"sheet":"byte_grounds_cafe_grid","sx":0,"sy":4,"layer":"object"},
+    {"x":29,"y":19,"sheet":"byte_grounds_cafe_grid","sx":1,"sy":3,"layer":"object"},
+    {"x":29,"y":20,"sheet":"byte_grounds_cafe_grid","sx":1,"sy":4,"layer":"object"}
   ],
   "seats": []
 }

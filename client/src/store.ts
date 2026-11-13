@@ -1,4 +1,5 @@
 import { normalizeBoard, type BoardState } from '@byte_grounds/shared/board';
+import { normalizeGame, normalizeMatch, type ChessGame, type ChessMatch } from '@byte_grounds/shared/chess';
 import { parseMap, type OfficeMap } from '@byte_grounds/shared/map';
 import { BUILT_IN_MAPS, builtInMap, builtInRev } from '@byte_grounds/shared/maps';
 import { getSupabase, hasSupabase } from './supabase.ts';
@@ -34,7 +35,16 @@ export interface Store {
   /** A whiteboard's saved drawing (null = never saved). */
   loadBoard(id: string): Promise<BoardState | null>;
   saveBoard(id: string, board: BoardState): Promise<void>;
+  /** A chess table's current game (null = never played). */
+  loadChessGame(table: string): Promise<ChessGame | null>;
+  saveChessGame(table: string, game: ChessGame): Promise<void>;
+  /** A table's finished games, newest first (at most `CHESS_HISTORY_MAX`). */
+  listChessMatches(table: string): Promise<ChessMatch[]>;
+  /** Record a finished game (saving the same match twice keeps one). */
+  saveChessMatch(match: ChessMatch): Promise<void>;
 }
+
+export const CHESS_HISTORY_MAX = 50;
 
 /** A Sheet Studio sheet: id `custom_<slug>`, the image as a PNG data URL, its size in cells. */
 export interface CustomSheet {
@@ -229,6 +239,42 @@ export class SupabaseStore implements Store {
     if (error) throw error;
   }
 
+  async loadChessGame(table: string): Promise<ChessGame | null> {
+    const db = await getSupabase();
+    const { data, error } = await db.from('chess_tables').select('data').eq('id', table).maybeSingle();
+    if (error) throw error;
+    return data ? normalizeGame((data as { data: unknown }).data) : null;
+  }
+
+  async saveChessGame(table: string, game: ChessGame): Promise<void> {
+    const db = await getSupabase();
+    const { error } = await db.from('chess_tables').upsert({ id: table, data: game, updated_at: new Date().toISOString() });
+    if (error) throw error;
+  }
+
+  async listChessMatches(table: string): Promise<ChessMatch[]> {
+    const db = await getSupabase();
+    const { data, error } = await db
+      .from('chess_matches')
+      .select('id, table_id, white, black, winner, reason, moves, ended_at')
+      .eq('table_id', table)
+      .order('ended_at', { ascending: false })
+      .limit(CHESS_HISTORY_MAX);
+    if (error) throw error;
+    return ((data ?? []) as Record<string, unknown>[])
+      .map((r) => normalizeMatch({ ...r, table: r.table_id, ended: Date.parse(String(r.ended_at)) }))
+      .filter((m): m is ChessMatch => m !== null);
+  }
+
+  async saveChessMatch(m: ChessMatch): Promise<void> {
+    const db = await getSupabase();
+    const { error } = await db.from('chess_matches').upsert(
+      { id: m.id, table_id: m.table, white: m.white, black: m.black, winner: m.winner, reason: m.reason, moves: m.moves, ended_at: new Date(m.ended).toISOString() },
+      { onConflict: 'id', ignoreDuplicates: true },
+    );
+    if (error) throw error;
+  }
+
   /** Through `delete_map`: also drops the map's live edits and saved player spots. */
   async deleteMap(id: string): Promise<void> {
     const db = await getSupabase();
@@ -265,6 +311,8 @@ const MAPS_KEY = 'byte_grounds.maps';
 const POS_KEY = 'byte_grounds.positions';
 const SHEETS_KEY = 'byte_grounds.sheets';
 const BOARDS_KEY = 'byte_grounds.boards';
+const CHESS_KEY = 'byte_grounds.chess';
+const CHESS_MATCHES_KEY = 'byte_grounds.chess_matches';
 
 /** Browser-only fallback for local dev without Supabase (localStorage). */
 export class LocalStore implements Store {
@@ -344,6 +392,28 @@ export class LocalStore implements Store {
 
   async saveBoard(id: string, board: BoardState): Promise<void> {
     this.write(BOARDS_KEY, { ...this.read(BOARDS_KEY), [id]: board });
+  }
+
+  async loadChessGame(table: string): Promise<ChessGame | null> {
+    const raw = this.read<unknown>(CHESS_KEY)[table];
+    return raw ? normalizeGame(raw) : null;
+  }
+
+  async saveChessGame(table: string, game: ChessGame): Promise<void> {
+    this.write(CHESS_KEY, { ...this.read(CHESS_KEY), [table]: game });
+  }
+
+  async listChessMatches(table: string): Promise<ChessMatch[]> {
+    return Object.values(this.read<unknown>(CHESS_MATCHES_KEY))
+      .map(normalizeMatch)
+      .filter((m): m is ChessMatch => m !== null && m.table === table)
+      .sort((a, b) => b.ended - a.ended)
+      .slice(0, CHESS_HISTORY_MAX);
+  }
+
+  async saveChessMatch(m: ChessMatch): Promise<void> {
+    const all = this.read<unknown>(CHESS_MATCHES_KEY);
+    if (!all[m.id]) this.write(CHESS_MATCHES_KEY, { ...all, [m.id]: m });
   }
 }
 

@@ -10,6 +10,7 @@
     "./seats": "./src/seats.ts",
     "./ground": "./src/ground.ts",
     "./board": "./src/board.ts",
+    "./chess": "./src/chess.ts",
     "./lobby": "./src/lobby.ts"
   },
   "scripts": {

@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { BOARD_ID_MAX, DEFAULT_ROOM, normalizeChat, normalizeStatusFields } from '@byte_grounds/shared/protocol';
 import { normalizeBoardOp } from '@byte_grounds/shared/board';
+import { normalizeChessOp } from '@byte_grounds/shared/chess';
 import { admission, countByRoom, type LobbyEntry } from '@byte_grounds/shared/lobby';
 import type {
   ClientToServer,
@@ -156,6 +157,13 @@ wss.on('connection', (ws) => {
         const op = normalizeBoardOp(msg.op);
         if (op && typeof msg.board === 'string' && msg.board.length <= BOARD_ID_MAX && roomOf.has(selfId)) {
           broadcast(selfId, { type: 'board', from: selfId, board: msg.board, op });
+        }
+        break;
+      }
+      case 'chess': {
+        const op = normalizeChessOp(msg.op);
+        if (op && typeof msg.table === 'string' && msg.table.length <= BOARD_ID_MAX && roomOf.has(selfId)) {
+          broadcast(selfId, { type: 'chess', from: selfId, table: msg.table, op });
         }
         break;
       }

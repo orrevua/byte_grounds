@@ -1,9 +1,23 @@
 import { canonicalSheet, type OfficeMap } from '@byte_grounds/shared/map';
 
+interface PieceKind {
+  sheet: string;
+  sx: number;
+  sy: number;
+  w: number;
+  h: number;
+}
+
 /** Whiteboard pieces: sheet, the piece's top-left cell and its size (cells). */
-const WHITEBOARDS: { sheet: string; sx: number; sy: number; w: number; h: number }[] = [
+const WHITEBOARDS: PieceKind[] = [
   { sheet: 'byte_grounds_studio_grid', sx: 9, sy: 0, w: 2, h: 2 }, // whiteboard on a stand
   { sheet: 'byte_grounds_office2_grid', sx: 2, sy: 4, w: 2, h: 2 }, // projector screen
+];
+
+/** Chess table pieces (spec: docs/specs/chess-table.md). */
+const CHESS_TABLES: PieceKind[] = [
+  { sheet: 'byte_grounds_games', sx: 0, sy: 0, w: 2, h: 2 },
+  { sheet: 'wooden_furniture', sx: 2, sy: 19, w: 1, h: 1 },
 ];
 
 /** How close (tiles, to a board cell's center) you must stand to use it. */
@@ -17,10 +31,19 @@ export interface Whiteboard {
 
 /** Every whiteboard on the map (cells of the same piece grouped by its top-left tile). */
 export function boardsIn(m: OfficeMap): Whiteboard[] {
+  return piecesIn(m, WHITEBOARDS);
+}
+
+/** Every chess table on the map; ids are built like whiteboard ids. */
+export function chessTablesIn(m: OfficeMap): Whiteboard[] {
+  return piecesIn(m, CHESS_TABLES);
+}
+
+function piecesIn(m: OfficeMap, kinds: readonly PieceKind[]): Whiteboard[] {
   const byId = new Map<string, Whiteboard>();
   for (const d of m.decor ?? []) {
     const sheet = canonicalSheet(d.sheet);
-    const k = WHITEBOARDS.find((b) => b.sheet === sheet && d.sx >= b.sx && d.sx < b.sx + b.w && d.sy >= b.sy && d.sy < b.sy + b.h);
+    const k = kinds.find((b) => b.sheet === sheet && d.sx >= b.sx && d.sx < b.sx + b.w && d.sy >= b.sy && d.sy < b.sy + b.h);
     if (!k || d.rot || d.flipX) continue;
     const id = `${m.id}:${d.x - (d.sx - k.sx)},${d.y - (d.sy - k.sy)}`;
     const b = byId.get(id) ?? { id, cells: [] };

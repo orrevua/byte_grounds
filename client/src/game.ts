@@ -15,7 +15,8 @@ import { MediaManager, ScreenStage, VideoBubbles, hasLiveVideo, volumeForDistanc
 import { WebrtcMesh } from './webrtc.ts';
 import { VoiceMeter } from './voice.ts';
 import { WhiteboardView } from './whiteboard.ts';
-import { boardNear, boardsIn, type Whiteboard } from './boards.ts';
+import { ChessView } from './chess-view.ts';
+import { boardNear, boardsIn, chessTablesIn, type Whiteboard } from './boards.ts';
 import { createStore } from './store.ts';
 import { avatarAt, screenToWorld } from './hit.ts';
 import { AvatarMenu, type MenuTarget } from './avatar-menu.ts';
@@ -184,6 +185,9 @@ export class Game {
   private boards: Whiteboard[] = [];
   /** The full-screen whiteboard (opened at a whiteboard with F). */
   private readonly whiteboard: WhiteboardView;
+  /** Chess tables on the map (same shape as whiteboards), and the full-screen table. */
+  private chessTables: Whiteboard[] = [];
+  private readonly chess: ChessView;
   private readonly drinkBtn: HTMLButtonElement;
   private itemUntil = 0;
   private sentPose: Pose = 'stand';
@@ -246,6 +250,13 @@ export class Game {
       send: (board, op) => this.net.send({ type: 'board', board, op }),
       sign: () => this.sign,
       setSign: (sign) => this.setSign(sign),
+    });
+    this.chessTables = chessTablesIn(map);
+    this.chess = new ChessView({
+      store: createStore(),
+      name: () => this.self.name,
+      online: () => new Set([this.self.name, ...[...this.remotes.values()].map((r) => r.name)]),
+      send: (table, op) => this.net.send({ type: 'chess', table, op }),
     });
 
     this.fitCanvas();
@@ -385,6 +396,7 @@ export class Game {
     this.seats = effectiveSeats(this.map);
     this.machines = machinesIn(this.map);
     this.boards = boardsIn(this.map);
+    this.chessTables = chessTablesIn(this.map);
     const mine = this.seat?.seat;
     if (mine && !this.seats.some((st) => st.x === mine.x && st.y === mine.y && st.kind === mine.kind)) this.standUp();
   }
@@ -426,6 +438,7 @@ export class Game {
     this.stage.dispose();
     this.meeting.close();
     this.whiteboard.close();
+    this.chess.close();
     this.meetPill.remove();
   }
 
@@ -678,14 +691,19 @@ export class Game {
   }
 
   /** Take a coffee / water / random snack from the machine in reach: held for 30 s, 1 min or 5 min (random). */
-  /** The whiteboard in reach, unless a machine is nearer (the action button serves the nearest). */
-  private boardNearby(): Whiteboard | undefined {
-    if (this.seat) return undefined;
-    const b = boardNear(this.boards, this.self.x, this.self.y);
-    if (!b) return undefined;
+  /**
+   * The whiteboard or chess table in reach, unless a machine is nearer (the action button serves
+   * the nearest). Chess can be played seated (a chair next to the table).
+   */
+  private boardNearby(): { kind: 'board' | 'chess'; piece: Whiteboard } | undefined {
+    const { x, y } = this.self;
+    const b = this.seat ? undefined : boardNear(this.boards, x, y);
+    const c = boardNear(this.chessTables, x, y);
+    const near = c && (!b || c.dist < b.dist) ? { kind: 'chess' as const, piece: c.board, dist: c.dist } : b ? { kind: 'board' as const, piece: b.board, dist: b.dist } : undefined;
+    if (!near) return undefined;
     const k = this.machineNearby();
-    if (k && Math.hypot(k.x + 0.5 - this.self.x, k.y + 0.5 - this.self.y) < b.dist) return undefined;
-    return b.board;
+    if (k && Math.hypot(k.x + 0.5 - x, k.y + 0.5 - y) < near.dist) return undefined;
+    return near;
   }
 
   /** Open the whiteboard in reach, full screen. */
@@ -694,8 +712,9 @@ export class Game {
   }
 
   getDrink(): void {
-    const board = this.boardNearby();
-    if (board) return this.openBoard(board);
+    const near = this.boardNearby();
+    if (near?.kind === 'chess') return this.chess.open(near.piece.id, `♞ ${t('chess.title')}${this.zone ? ' · ' + this.zone.name : ''}`);
+    if (near) return this.openBoard(near.piece);
     const k = this.machineNearby();
     if (!k) return;
     const ms = drinkDuration(Math.random());
@@ -861,6 +880,9 @@ export class Game {
       }
       case 'board':
         this.whiteboard.applyRemote(msg.board, msg.op);
+        break;
+      case 'chess':
+        this.chess.applyRemote(msg.table, msg.op);
         break;
       case 'invite':
         this.onInvite(msg.from, msg.zone, msg.locked === true);
@@ -1182,8 +1204,9 @@ export class Game {
     this.seatBtn.className = label ? '' : 'hidden';
 
     const k = this.machineNearby();
-    const drinkLabel = this.boardNearby()
-      ? t('game.openBoard')
+    const piece = this.boardNearby();
+    const drinkLabel = piece
+      ? t(piece.kind === 'chess' ? 'game.openChess' : 'game.openBoard')
       : k
         ? t(k.item === 'coffee' ? 'game.getCoffee' : k.item === 'water' ? 'game.getWater' : 'game.getSnack')
         : '';
@@ -1301,7 +1324,7 @@ export class Game {
 
   /** Keyboard and on-screen pad combined (either one can hold a direction). */
   private moveInput(): MoveInput {
-    if (this.meeting.isOpen || this.whiteboard.isOpen) return { up: false, down: false, left: false, right: false };
+    if (this.meeting.isOpen || this.whiteboard.isOpen || this.chess.isOpen) return { up: false, down: false, left: false, right: false };
     const k = this.keyboard.input;
     const t = this.touchpad?.input;
     if (!t) return k;

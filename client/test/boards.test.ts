@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createBlankMap } from '@byte_grounds/shared/map';
 import { builtInMap } from '@byte_grounds/shared/maps';
-import { boardNear, boardsIn } from '../src/boards.ts';
+import { boardNear, boardsIn, chessTablesIn } from '../src/boards.ts';
 
 describe('whiteboards on the map', () => {
   it('groups a whiteboard piece by its top-left tile (old gemini_ names too)', () => {
@@ -23,5 +23,18 @@ describe('whiteboards on the map', () => {
 
   it('the Office meeting room has a whiteboard', () => {
     expect(boardsIn(builtInMap('office')!).map((b) => b.id)).toContain('office:34,2');
+  });
+
+  it('finds chess tables (ours and the old wooden one), not as whiteboards', () => {
+    const m = {
+      ...createBlankMap('room', 10, 10),
+      decor: [
+        { x: 2, y: 2, sheet: 'byte_grounds_games', sx: 0, sy: 0 },
+        { x: 3, y: 3, sheet: 'byte_grounds_games', sx: 1, sy: 1 },
+        { x: 6, y: 6, sheet: 'wooden_furniture', sx: 2, sy: 19 },
+      ],
+    };
+    expect(chessTablesIn(m).map((b) => b.id)).toEqual(['room:2,2', 'room:6,6']);
+    expect(boardsIn(m)).toEqual([]);
   });
 });

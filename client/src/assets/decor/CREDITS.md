@@ -213,3 +213,9 @@ under the original's license (CC-BY-SA share-alike included).
   Gemini style (sources `art/gemini/{living,plants,cafe,bedroom}_sheet.png`, git-ignored), converted
   with `tools/pixelate_image.py --scale 3.54` and repacked with `tools/repack_decor.py`.
 
+
+### byte_grounds_games.png
+
+- Chess table (2x2 cells at 0,0): generated with Google Gemini (via `tools/gemini_mcp.py`) for the
+  project owner (source `art/gemini/chess_table2.png`, git-ignored), converted with
+  `tools/pixelate_image.py --scale 10.9` and placed bottom-centred in its 2x2 cells.

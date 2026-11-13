@@ -1,7 +1,22 @@
 # ByteGrounds — HANDOFF
 
-**Last updated:** 2026-11-03 (knighthood, whiteboard)
+**Last updated:** 2026-11-13 (chess tables)
 **Branch:** `master` (user asked: work on master directly, no more PRs)
+
+## Chess tables — DONE (2026-11-13)
+- Spec: `docs/specs/chess-table.md`.
+- A Gemini-made 2x2 chess table is now in the build picker (`byte_grounds_games`). The old
+  `wooden_furniture` chess table counts as one too. The Lounge & Café (rev 3) has one at (28,18),
+  with two chairs on each side.
+- F at a table opens it full screen:
+  - two players sit and play, anyone can watch;
+  - rules engine in `shared/src/chess.ts` (no deps: legal moves, mate, stalemate, repetition,
+    fifty-move rule, insufficient material, SAN);
+  - draw offers, resign, rematch with colours swapped;
+  - match history with your W/L/D record; click a match to see how it ended.
+- Live over the room (`chess` message). Saved in `chess_tables` and `chess_matches`.
+- **Owner TODO:** run `supabase/chess.sql`.
+- `chess.js` npm install was refused by the permission check, hence the own engine.
 
 ## Whiteboard signs — DONE, PUSHED (2026-11-03)
 - At a board: "🪧 Make my sign" (text ≤ 40, 5 colours, 5/15/30/60 min or until put down). The character

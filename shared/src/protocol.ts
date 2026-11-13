@@ -1,4 +1,5 @@
 import type { BoardOp } from './board.ts';
+import type { ChessOp } from './chess.ts';
 // Shared constants (tile/render/network tuning).
 export const TILE_SIZE = 32; // px per tile for rendering
 export const MOVE_SPEED = 4; // tiles per second
@@ -290,6 +291,12 @@ export interface BoardMsg {
   board: string;
   op: BoardOp;
 }
+/** A move / seat change / … at a chess table (`table` = its id, `<map>:<x>,<y>`), relayed to the room. */
+export interface ChessMsg {
+  type: 'chess';
+  table: string;
+  op: ChessOp;
+}
 /** Accept / decline an invite. */
 export interface InviteReplyMsg {
   type: 'invite-reply';
@@ -374,6 +381,12 @@ export interface RelayBoardMsg {
   board: string;
   op: BoardOp;
 }
+export interface RelayChessMsg {
+  type: 'chess';
+  from: PeerId;
+  table: string;
+  op: ChessOp;
+}
 export interface RelayInviteMsg {
   type: 'invite';
   from: PeerId;
@@ -397,7 +410,8 @@ export type ClientToServer =
   | ChatMsg
   | InviteMsg
   | InviteReplyMsg
-  | BoardMsg;
+  | BoardMsg
+  | ChessMsg;
 export type ServerToClient =
   | WelcomeMsg
   | PresenceSnapshotMsg
@@ -412,5 +426,6 @@ export type ServerToClient =
   | RelayInviteMsg
   | RelayInviteReplyMsg
   | RelayBoardMsg
+  | RelayChessMsg
   | RefusedMsg
   | KickedMsg;

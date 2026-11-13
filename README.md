@@ -73,6 +73,8 @@ the room, broadcast carries positions and WebRTC signaling (`client/src/net-supa
 
 7. **Whiteboards:** run [`supabase/whiteboards.sql`](supabase/whiteboards.sql) so boards are saved
    (live drawing works without it). **Knighthood:** re-run `supabase/admin.sql` (adds the `knight` grant).
+   **Chess tables:** run [`supabase/chess.sql`](supabase/chess.sql) so games in progress and the match
+   history are saved (live play works without it).
 
 8. **TURN relay (recommended for company / strict networks):** voice and video are peer-to-peer
    with STUN only by default, which can't connect through networks that block UDP. Get TURN
